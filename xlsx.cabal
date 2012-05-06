@@ -1,0 +1,59 @@
+Name:                xlsx
+
+-- The package version. See the Haskell package versioning policy
+-- (http://www.haskell.org/haskellwiki/Package_versioning_policy) for
+-- standards guiding when and how versions should be incremented.
+Version:             0.0
+
+Synopsis:            Simple and incomplete Excel file parser/writer
+Description:
+    This library can help you to get some data read and written in Office
+    Open XML xlsx format. Small subset of xlsx format is supported.
+    TODO: add link to ECMA standard.
+
+Homepage:            https://github.com/qrilka/xlsx
+License:             MIT
+License-file:        LICENSE
+Author:              Tim, Max, Kirill Zaborsky
+Maintainer:          qrilka@gmail.com
+
+
+
+Category:            Data
+Build-type:          Simple
+
+-- Extra files to be distributed with the package, such as examples or
+-- a README.
+-- Extra-source-files:  
+
+-- Constraint on the version of Cabal needed to build this package.
+Cabal-version:       >=1.6
+
+
+Library
+  Hs-source-dirs:    src
+  Exposed-modules:   Codec.Xlsx, Codec.Xlsx.Parser, Codec.Xlsx.Writer
+  
+  Build-depends:     base, containers, transformers, bytestring, text
+                    ,conduit     == 0.4.*
+                    ,xml-types   == 0.3.*
+                    ,xml-conduit == 0.7.*
+                    ,zip-archive == 0.1.*
+                    ,digest      >  0.0.0.1
+                    ,zlib
+                    ,utf8-string
+                    ,xml-hamlet
+                    ,time
+                    ,old-time
+                    ,old-locale
+  
+  -- Modules not exported by this package.
+  -- Other-modules:       
+  
+  -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
+  -- Build-tools:         
+  
+source-repository head
+  type:     git
+  location: git://github.com/qrilka/xlsx-writer.git
+
