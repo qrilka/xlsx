@@ -134,17 +134,21 @@ getCell ss = Xml.tagName (n"c") cAttrs cParser
     cAttrs = do
       cellIx  <- {-trace "r attr" $ -}Xml.requireAttr  "r"
       style   <- Xml.optionalAttr "s"
-      sharing <- Xml.optionalAttr "t"
+      typ <- Xml.optionalAttr "t"
       Xml.ignoreAttrs
-      return $ (cellIx,style,sharing)
+      return $ (cellIx,style,typ)
 
-    cParser a@(ix,style,sharing) = do
-      val <- case sharing of
-          Just "inlineStr" -> tagSeq ["is", "t"]
-          Just "s" -> {-trace "s type" $ -}tagSeq ["v"]
-            >>= return . join . fmap ((`M.lookup` ss).int)
-          Nothing  -> tagSeq ["v"]
-      return $ {-trace "Cell" $ -}Cell (mkCellIx ix) (int <$> style) (fmap CellText val)
+    maybeCellDouble Nothing = Nothing
+    maybeCellDouble (Just t) = either (const Nothing) (\(d,_) -> Just (CellDouble d)) $ T.rational t
+
+    cParser a@(ix,style,typ) = do
+      val <- case typ of
+          Just "inlineStr" -> liftA (fmap CellText) (tagSeq ["is", "t"])
+          Just "s" -> liftA (fmap CellText) (tagSeq ["v"] >>=
+                                             return . join . fmap ((`M.lookup` ss).int))
+          Just "n" -> liftA maybeCellDouble $ tagSeq ["v"]
+          Nothing  -> liftA maybeCellDouble $ tagSeq ["v"]
+      return $ {-trace "Cell" $ -}Cell (mkCellIx ix) (int <$> style) val -- (fmap CellText val)
 
     mkCellIx ix = let (c,r) = T.span (>'9') ix
                   in {-trace ("mkCell" ++ show (c,r))$ -}(c,int r)
@@ -216,7 +220,7 @@ mkXmlCond f = sequenceSink () $ const
 test p = do
   x <- xlsx p --"/home/qrilka/workspace/haskell/xlsx-templater/tmpl.xlsx" --
             -- "/home/qrilka/test.xlsx"
-  runResourceT $ sheet x 0 ["A", "B", "C"] $= CL.map reverse $$ CL.consume
+  runResourceT $ sheet x 0 ["A", "B", "C"] $$ CL.consume
   
 
 test2 = do

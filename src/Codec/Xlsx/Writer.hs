@@ -140,13 +140,13 @@ sheetXml d =
   $forall row <- rows
     <{http://schemas.openxmlformats.org/spreadsheetml/2006/main}row collapsed=false customFormat=false customHeight=false hidden=false outlineLevel=0 r=#{n row}>
       $forall cell <- cells row
-        $maybe s <- (cStyle cell)
-          <{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c r=#{column cell}#{n row} t=#{cType cell} s=#{s}>
+        $if isJust (xlsxCellValue cell)
+          $maybe s <- (cStyle cell)
+            <{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c r=#{column cell}#{n row} t=#{cType cell} s=#{s}>
               <{http://schemas.openxmlformats.org/spreadsheetml/2006/main}v>#{cValue cell}
-        $nothing      
-          <{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c r=#{column cell}#{n row} t=#{cType cell}>
+          $nothing      
+            <{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c r=#{column cell}#{n row} t=#{cType cell}>
               <{http://schemas.openxmlformats.org/spreadsheetml/2006/main}v>#{cValue cell}
-              
 |]
 --  ht=\"12.8\"
 

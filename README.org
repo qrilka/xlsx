@@ -1,7 +1,7 @@
 * About
 Simple xlsx parser/writer, only basic functionality at the moment
 
-* TODO
+* To be done
 ** More than 1 worksheet
 ** Better shared strings support (remove duplicates)
 ** Proper styling support (?)
