@@ -23,20 +23,26 @@ import qualified Data.Text.Read as T
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as C
 
---import Control.Monad.Trans.Resource (MonadThrow)
-import           Data.Conduit
-import           Data.XML.Types
-import qualified Data.Conduit.List as CL
-import qualified Text.XML.Stream.Parse as Xml
 import qualified Codec.Archive.Zip as Zip
+import           Data.Conduit
+import qualified Data.Conduit.List as CL
+import           Data.XML.Types
+import           System.FilePath
+import qualified Text.XML.Stream.Parse as Xml
 
 import           Codec.Xlsx
 
 import           Debug.Trace
 
+data Worksheet = Worksheet { wsName :: Text
+                           , wsPath :: FilePath
+                           }
+
 data Xlsx = Xlsx{ archive :: Zip.Archive
                 , sharedStrings :: M.IntMap Text
-                , styles :: Styles }
+                , styles :: Styles
+                , worksheets :: [Worksheet]
+                }
 
 data Styles = Styles L.ByteString
             deriving Show
@@ -54,13 +60,14 @@ xlsx fname = do
   ar <- Zip.toArchive <$> L.readFile fname
   ss <- getSharedStrings ar
   st <- getStyles ar
-  return $ Xlsx ar ss st
+  ws <- getWorksheets ar
+  return $ Xlsx ar ss st ws
 
 
 -- | Get data from specified worksheet.
 sheet :: MonadThrow m => Xlsx -> Int -> [Text] -> Source m [Cell]
-sheet x sheetId cols
-  =  getSheetCells x sheetId
+sheet x sheetN cols
+  =  getSheetCells x sheetN
   $= filterColumns (S.fromList $ map col2int cols)
   $= groupRows
   $= reverseRows
@@ -70,8 +77,8 @@ sheet x sheetId cols
 sheetRows :: MonadThrow m => Xlsx -> Int -> Source m MapRow
 sheetRows x sheetId
   =  getSheetCells x sheetId
-  $= CL.map (\x -> trace ("pregroup:" ++ show x) $ x) $= groupRows
-  $= CL.map (\x -> trace ("prereverse" ++ show x) $ x) $= reverseRows
+  $= groupRows
+  $= reverseRows
   $= mkMapRows
 
 
@@ -113,17 +120,13 @@ col2int = T.foldl' (\n c -> n*26 + ord c - ord 'A' + 1) 0
 
 getSheetCells
  :: MonadThrow m => Xlsx -> Int -> Source m Cell
-getSheetCells (Xlsx{archive=ar,sharedStrings=ss}) sheetId
-  | sheetId < 0 || sheetId >= length sheets
-    = error "parseSheet: Invalid sheetId"
+getSheetCells (Xlsx{archive=ar, sharedStrings=ss, worksheets=sheets}) sheetN
+  | sheetN < 0 || sheetN >= length sheets
+    = error "parseSheet: Invalid sheet number"
   | otherwise
-    = case xmlSource ar (sheets !! sheetId) of
+    = case xmlSource ar (wsPath $ sheets !! sheetN) of
       Nothing -> error "An impossible happened"
       Just xml -> xml $= mkXmlCond (getCell ss)
-  where
-    sheets = sort
-      $ filter (isPrefixOf "xl/worksheets")
-      $ Zip.filesInArchive ar
 
 
 -- | Parse single cell from xml stream.
@@ -154,11 +157,24 @@ getCell ss = Xml.tagName (n"c") cAttrs cParser
                   in {-trace ("mkCell" ++ show (c,r))$ -}(c,int r)
 
 
--- | Add namespace to element names
+-- | Add sml namespace to name
 n x = Name
   {nameLocalName = x
   ,nameNamespace = Just "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
   ,namePrefix = Nothing}
+
+-- | Add office document relationship namespace to name
+odr x = Name
+  {nameLocalName = x
+  ,nameNamespace = Just "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  ,namePrefix = Nothing}
+
+-- | Add package relationship namespace to name
+pr x = Name
+  {nameLocalName = x
+  ,nameNamespace = Just "http://schemas.openxmlformats.org/package/2006/relationships"
+  ,namePrefix = Nothing}
+
 
 
 -- | Get text from several nested tags
@@ -195,6 +211,38 @@ getStyles ar = case (Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar) o
   Nothing  -> return (Styles L.empty)
   Just xml -> return (Styles xml)
 
+getWorksheets :: (MonadThrow m, Functor m) => Zip.Archive -> m [Worksheet]
+getWorksheets ar = case xmlSource ar "xl/workbook.xml" of
+  Nothing ->
+    error "invalid workbook"
+  Just xml -> do
+    sheetData <- xml $= mkXmlCond getSheetData $$ CL.consume
+    wbRels <- getWbRels ar
+    return [Worksheet n ("xl" </> (T.unpack $ fromJust $ lookup rId wbRels)) | (n, rId) <- sheetData]
+
+getSheetData = Xml.tagName (n"sheet") attrs return
+  where
+    attrs = do
+      name <- Xml.requireAttr "name"
+      rId  <- Xml.requireAttr (odr "id")
+      Xml.ignoreAttrs
+      return (name, rId)
+
+getWbRels :: (MonadThrow m, Functor m) => Zip.Archive -> m [(Text, Text)]
+getWbRels ar = case xmlSource ar "xl/_rels/workbook.xml.rels" of
+  Nothing  -> return []
+  Just xml -> xml $$ parseWbRels
+
+parseWbRels = Xml.force "relationships required" $
+              Xml.tagNoAttr (pr"Relationships") $
+              Xml.many $ Xml.tagName (pr"Relationship") attr return
+  where
+    attr = do
+      target <- Xml.requireAttr "Target"
+      id <- Xml.requireAttr "Id"
+      Xml.ignoreAttrs
+      return (id, target)
+
 ---------------------------------------------------------------------
 
 
@@ -209,43 +257,8 @@ int = either error fst . T.decimal
 -- FIXME: Some benchmarking required: maybe it's not very efficient to `peek`i
 -- each element twice. It's possible to swap call to `f` and `CL.peek`.
 mkXmlCond f = sequenceSink () $ const
-  $ CL.peek >>= maybe          -- try get current event form the stream
-    (return {- $ trace "stopped" -}$ Stop)              -- stop if stream is empty
-    (\_ -> {-trace "calling f" $ -}f >>= maybe         -- try consume current event
-      ({-trace "drop" $-} CL.drop 1 >> return (Emit () [])) -- skip it if can't process
-      ({-trace "emit2" $ -}return . Emit () . (:[])))        -- return result otherwise
-
-
-
-test p = do
-  x <- xlsx p --"/home/qrilka/workspace/haskell/xlsx-templater/tmpl.xlsx" --
-            -- "/home/qrilka/test.xlsx"
-  runResourceT $ sheet x 0 ["A", "B", "C"] $$ CL.consume
-  
-
-test2 = do
-  let input = L.concat ["<?xml version=\"1.0\"?><foo xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><a></a><b t=\"some\"></b></foo>"]
-  let xml = trace "x" $ (Xml.parseFile Xml.def "/home/qrilka/sheet1.xml")-- :: Source IO Event
-  let tagger = trace "t" $ (Xml.tagName (n"c") (Xml.requireAttr "t" >>= (\t -> Xml.ignoreAttrs >> return t)) (\t -> tagSeq["v"] >> return t)) -- :: Sink Event IO (Maybe Text)
-  runResourceT $ xml $={- (CL.map (\x -> trace "b" x)) =$= -}mkXmlCond (getCell $ M.fromList [(0,"some")]){- tagger -} $$ CL.consume
-
-
-test3 = do
-  let xml = Xml.parseLBS Xml.def "<?xml version=\"1.0\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><bs><b>bar</b><b>foo</b></bs></styleSheet>"
-  xml $$ Xml.tagNoAttr (n "styleSheet") $ do
-    a <- (Xml.tagNoAttr (n "a") Xml.content)
-    bs <- Xml.tagNoAttr (n "bs") (Xml.many $ Xml.tagNoAttr (n "b") Xml.content)
-    return (a,bs)
-
-parseBs = Xml.tagNoAttr (n "bs") (Xml.many parseB)
-
-parseB = Xml.tagNoAttr (n "b") Xml.content
---  a <- Xml.tagNoAttr "a" Xml.content
---  b <- Xml.tagNoAttr "b" Xml.content
---  return (b)
-
-test4 = Xml.parseLBS Xml.def "<?xml version=\"1.0\"?><a>text</a>" $$ Xml.tagNoAttr "a" ((Xml.many $ Xml.tagNoAttr "b" Xml.content) >>= \x -> do z<-Xml.content; return (x,z))
-
-test5 = Xml.parseLBS Xml.def "<?xml version=\"1.0\"?><a><bs><b>b1</b><b>b2</b></bs>text</a>" $$ Xml.tagNoAttr "a" ((Xml.many $ Xml.tagNoAttr "b" Xml.content) >>= \x -> do z<-Xml.content; return (x,z))
-
-test5_bad = Xml.parseLBS Xml.def "<?xml version=\"1.0\"?><a>before<b>b1</b><b>b2</b>text</a>" $$ Xml.tagNoAttr "a" ((Xml.many $ Xml.tagNoAttr "b" Xml.content) >>= \x -> do z<-Xml.content; return (x,z))
+  $ CL.peek >>= maybe            -- try get current event form the stream
+    (return $ Stop)              -- stop if stream is empty
+    (\_ -> f >>= maybe           -- try consume current event
+           (CL.drop 1 >> return (Emit () [])) -- skip it if can't process
+           (return . Emit () . (:[])))        -- return result otherwise

@@ -46,6 +46,7 @@ Library
                     ,time
                     ,old-time
                     ,old-locale
+                    ,filepath
   
   -- Modules not exported by this package.
   -- Other-modules:       
