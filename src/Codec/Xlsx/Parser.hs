@@ -4,18 +4,19 @@
 
 module Codec.Xlsx.Parser where
 
-import           Prelude hiding (sequence)
 import           Control.Applicative
-import           Control.Monad.IO.Class
 import           Control.Monad (join)
+import           Control.Monad.IO.Class
 import           Data.Char (ord)
-import           Data.List
-import           Data.Maybe
-import           Data.Ord
 import           Data.Function (on)
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
+import           Data.List
+import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Maybe
+import           Data.Ord
+import           Prelude hiding (sequence)
 
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -47,10 +48,6 @@ data Xlsx = Xlsx{ archive :: Zip.Archive
 data Styles = Styles L.ByteString
             deriving Show
 
-data Columns
-  = AllColumns
-  | Columns [String]
-
 type MapRow = Map.Map Text Text
 
 
@@ -64,23 +61,44 @@ xlsx fname = do
   return $ Xlsx ar ss st ws
 
 
+t' x sheetN = getSheetCells x sheetN $$
+              sinkState Map.empty collect return
+  where
+    collect m c = return $ StateProcessing $ Map.insert (cellIx c) 0 m
+      
+
 -- | Get data from specified worksheet.
 sheet :: MonadThrow m => Xlsx -> Int -> [Text] -> Source m [Cell]
-sheet x sheetN cols
-  =  getSheetCells x sheetN
-  $= filterColumns (S.fromList $ map col2int cols)
-  $= groupRows
-  $= reverseRows
+sheet x sheetN cols  =  getSheetCells x sheetN
+                        $= filterColumns (S.fromList $ map col2int cols)
+                        $= groupRows
+                        $= reverseRows
+
+sheetMap :: MonadThrow m => Xlsx -> Int -> m (Maybe ((Int,Int), (Int,Int), Map (Int,Int) CellData))
+sheetMap x n = getSheetCells x n $$ sinkState init collect' return
+  where
+    init = Nothing
+    collect' m c = return $ StateProcessing $ collect m c
+    collect p cell = case p of
+      Nothing -> 
+        Just ((x,x), (y,y), Map.singleton (x,y) cd)
+      Just ((xmin,xmax), (ymin,ymax), m) ->
+        Just ((min xmin x, max xmax x),
+              (min ymin y, max ymax y),
+              Map.insert (x,y) cd m)
+      where
+        x = xlsxCol2int $ fst $ cellIx cell
+        y = (snd $ cellIx cell) - 1
+        cd = cell2cd cell
 
 
 -- | Get all rows from specified worksheet.
 sheetRows :: MonadThrow m => Xlsx -> Int -> Source m MapRow
-sheetRows x sheetId
-  =  getSheetCells x sheetId
+sheetRows x sheetN
+  =  getSheetCells x sheetN
   $= groupRows
   $= reverseRows
   $= mkMapRows
-
 
 -- | Make 'Conduit' from 'mkMapRowsSink'.
 mkMapRows :: Monad m => Conduit [Cell] m MapRow
