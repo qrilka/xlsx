@@ -25,11 +25,11 @@ data Cell = Cell { cellIx :: (Text, Int)
           deriving Show
 
 data CellData = CellData { cdStyle  :: Maybe Int
-                         , cdValue  :: CellValue
+                         , cdValue  :: Maybe CellValue
                          }
               deriving Show
 
-cell2cd Cell{cellStyle=s,cellValue=v} = CellData{cdStyle=s, cdValue=fromJust v}
+cell2cd Cell{cellStyle=s,cellValue=v} = CellData{cdStyle=s, cdValue=v}
 
 int2col :: Int -> Text
 int2col = T.pack . reverse . map int2let . base26

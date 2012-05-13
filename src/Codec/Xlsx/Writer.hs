@@ -85,7 +85,7 @@ data XlsxCell = XlsxCell{ xlsxCellIx :: (Text, Int)
 
 xlsxCellType :: XlsxCell -> Text
 xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxSS _)} = "s"
-xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxDouble _)} = "n"
+xlsxCellType _ = "n" -- default type, TODO: fix cell output
 
 value :: XlsxCell -> Text
 value XlsxCell{xlsxCellValue=Just(XlsxSS i)} = T.pack $ show i
@@ -105,7 +105,7 @@ collectSharedTransform d = transformed
         Just(CellText t) -> do
           shared <- get
           case t `elemIndex` shared of
-            Just i -> 
+            Just i ->
               return XlsxCell{xlsxCellIx=ix, xlsxCellStyle=s, xlsxCellValue=Just $ XlsxSS i}
             Nothing -> do
               put $ shared ++ [t]
@@ -145,14 +145,21 @@ sheetXml d =
   $forall row <- rows
     <row collapsed=false customFormat=false customHeight=false hidden=false outlineLevel=0 r=#{n row}>
       $forall cell <- cells row
-        $if isJust (xlsxCellValue cell)
+        $maybe _ <- xlsxCellValue cell
           $maybe s <- (cStyle cell)
             <c r=#{column cell}#{n row} t=#{cType cell} s=#{s}>
               <v>#{cValue cell}
           $nothing
             <c r=#{column cell}#{n row} t=#{cType cell}>
               <v>#{cValue cell}
+        $nothing
+          $maybe s <- (cStyle cell)
+            <c r=#{column cell}#{n row} t=#{cType cell} s=#{s}>
+          $nothing
+            <c r=#{column cell}#{n row} t=#{cType cell}>
 |]
+
+
 
 bookXml :: Int -> L.ByteString
 bookXml n = renderLBS def $ Document (Prologue [] Nothing []) root []

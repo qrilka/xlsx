@@ -2,5 +2,6 @@
 Simple xlsx parser/writer, only basic functionality at the moment
 
 * To be done
-** Proper styling support (?)
+** Proper styling support (?), currently need styles.xml as a bytestring (cell styles specified as indexes)
 ** Column width info
+** Fix cell output
