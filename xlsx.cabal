@@ -27,7 +27,7 @@ Build-type:          Simple
 -- Extra-source-files:  
 
 -- Constraint on the version of Cabal needed to build this package.
-Cabal-version:       >=1.6
+Cabal-version:       >=1.8
 
 
 Library
@@ -54,6 +54,17 @@ Library
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
   
+test-suite data-test
+  type: exitcode-stdio-1.0
+  main-is:  DataTest.hs
+  hs-source-dirs: test/
+--  ghc-options:
+  Build-Depends: base, QuickCheck >= 2,
+                 xlsx,
+                 test-framework,
+                 test-framework-hunit,
+                 test-framework-quickcheck2
+
 source-repository head
   type:     git
   location: git://github.com/qrilka/xlsx-writer.git
