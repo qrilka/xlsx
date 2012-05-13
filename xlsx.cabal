@@ -59,7 +59,7 @@ test-suite data-test
   main-is:  DataTest.hs
   hs-source-dirs: test/
 --  ghc-options:
-  Build-Depends: base, QuickCheck >= 2,
+  Build-Depends: base, QuickCheck >= 2, HUnit,
                  xlsx,
                  test-framework,
                  test-framework-hunit,
