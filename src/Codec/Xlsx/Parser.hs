@@ -87,8 +87,8 @@ sheetMap x n = getSheetCells x n $$ sinkState init collect' return
               (min ymin y, max ymax y),
               Map.insert (x,y) cd m)
       where
-        x = xlsxCol2int $ fst $ cellIx cell
-        y = (snd $ cellIx cell) - 1
+        x = col2int $ fst $ cellIx cell
+        y = snd $ cellIx cell
         cd = cell2cd cell
 
 
