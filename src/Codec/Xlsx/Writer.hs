@@ -10,7 +10,9 @@ import           Control.Applicative((<$>))
 import           Control.Monad.Trans.State
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8
+import           Data.Char
 import           Data.List
+import qualified Data.Map as M
 import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -24,10 +26,8 @@ import           Text.XML
 import           Codec.Xlsx
 
 
-type Worksheet = [[Cell]]
-
 writeXlsx :: FilePath -> [Worksheet] -> IO ()
-writeXlsx p d = writeXlsxStyles p emptyStylesXml d
+writeXlsx p = writeXlsxStyles p emptyStylesXml
 
 writeXlsxStyles :: FilePath -> L.ByteString -> [Worksheet] -> IO ()
 writeXlsxStyles p s d = constructXlsx s d >>= L.writeFile p
@@ -37,23 +37,24 @@ data FileData = FileData { fdName :: Text
                          , fdContents :: L.ByteString}
 
 constructXlsx :: L.ByteString -> [Worksheet] -> IO L.ByteString
-constructXlsx s d = do
+constructXlsx s ws = do
   ct <- getClockTime
   let
     TOD t _ = ct
     utct = toUTCTime ct
-    (xlsxSheets, shared) = runState (mapM collectSharedTransform d) []
-    sheetNumber = length d
-    sheetFiles = [FileData (T.concat ["xl/worksheets/sheet", T.pack $ show n, ".xml"]) "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $ sheetXml cells | (n, cells) <- zip [1..] xlsxSheets]
+    (sheetCells, shared) = runState (mapM collectSharedTransform ws) []
+    sheetNumber = length ws
+    sheetFiles = [FileData (T.concat ["xl/worksheets/sheet", T.pack $ show n, ".xml"]) "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
+                  sheetXml (wsColumns w) (wsRowHeights w) cells | (n, cells, w) <- zip3 [1..] sheetCells ws]
     files = sheetFiles ++
       [ FileData "docProps/core.xml" "application/vnd.openxmlformats-package.core-properties+xml" $ coreXml utct "xlsxwriter"
       , FileData "docProps/app.xml" "application/vnd.openxmlformats-officedocument.extended-properties+xml" appXml
-      , FileData "xl/workbook.xml" "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" $ bookXml sheetNumber
+      , FileData "xl/workbook.xml" "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" $ bookXml ws
       , FileData "xl/styles.xml" "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml" s
       , FileData "xl/sharedStrings.xml" "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" $ ssXml shared
       , FileData "xl/_rels/workbook.xml.rels" "application/vnd.openxmlformats-package.relationships+xml" $ bookRelXml sheetNumber
       , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml" rootRelXml ]
-    entries = (Zip.toEntry "[Content_Types].xml" t $ contentTypesXml files) :
+    entries = Zip.toEntry "[Content_Types].xml" t (contentTypesXml files) :
               map (\fd -> Zip.toEntry (T.unpack $ fdName fd) t (fdContents fd)) files
     ar = foldr Zip.addEntryToArchive Zip.emptyArchive entries
   return $ Zip.fromArchive ar
@@ -77,9 +78,8 @@ appXml :: L.ByteString
 appXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 \<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\" xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\"><TotalTime>0</TotalTime></Properties>"
 
-data XlsxCellData = XlsxSS Int | XlsxDouble Double
-data XlsxCell = XlsxCell{ xlsxCellIx :: (Text, Int)
-                        , xlsxCellStyle  :: Maybe Int
+data XlsxCellData = XlsxSS Int | XlsxDouble Double | XlsxEmpty
+data XlsxCell = XlsxCell{ xlsxCellStyle  :: Maybe Int
                         , xlsxCellValue  :: Maybe XlsxCellData
                         }
 
@@ -92,30 +92,31 @@ value XlsxCell{xlsxCellValue=Just(XlsxSS i)} = T.pack $ show i
 value XlsxCell{xlsxCellValue=Just(XlsxDouble i)} = T.pack $ show i
 
 
-collectSharedTransform :: [[Cell]] -> State [Text] [[XlsxCell]]
+collectSharedTransform :: Worksheet -> State [Text] [[XlsxCell]]
 collectSharedTransform d = transformed
   where
-    shared = catMaybes $ map maybeString $ concat d
-    maybeString :: Cell -> Maybe Text
-    maybeString Cell{cellValue=Just(CellText t)} = Just t
+    shared = mapMaybe maybeString $ concat $ toList d
+    maybeString :: Maybe CellData -> Maybe Text
+    maybeString (Just CellData{cdValue=Just(CellText t)}) = Just t
     maybeString _ = Nothing
-    transformed = mapM (mapM transform) d
-    transform Cell{cellValue=v, cellIx = ix, cellStyle=s} =
+    transformed = mapM (mapM transform) $ toList d
+    transform Nothing = return $ XlsxCell Nothing Nothing
+    transform (Just CellData{cdValue=v, cdStyle=s}) =
       case v of
         Just(CellText t) -> do
           shared <- get
           case t `elemIndex` shared of
             Just i ->
-              return XlsxCell{xlsxCellIx=ix, xlsxCellStyle=s, xlsxCellValue=Just $ XlsxSS i}
+              return $ XlsxCell s (Just $ XlsxSS i)
             Nothing -> do
               put $ shared ++ [t]
-              return XlsxCell{xlsxCellIx=ix, xlsxCellStyle=s, xlsxCellValue=Just $ XlsxSS (length shared)}
+              return $ XlsxCell s (Just $ XlsxSS (length shared))
         Just(CellDouble d) ->
-          return XlsxCell{xlsxCellIx=ix, xlsxCellStyle=s, xlsxCellValue=Just $ XlsxDouble d}
+          return $ XlsxCell s (Just $ XlsxDouble d)
         Just(CellLocalTime t) ->
-          return XlsxCell{xlsxCellIx=ix, xlsxCellStyle=s, xlsxCellValue=Just $ XlsxDouble (xlsxDoubleTime t)}
+          return $ XlsxCell s (Just $ XlsxDouble (xlsxDoubleTime t))
         Nothing ->
-          return XlsxCell{xlsxCellIx=ix, xlsxCellStyle=s, xlsxCellValue=Nothing}
+          return $ XlsxCell s Nothing
 
 xlsxDoubleTime :: LocalTime -> Double
 xlsxDoubleTime LocalTime{localDay=day,localTimeOfDay=time} =
@@ -128,48 +129,43 @@ xlsxDoubleTime LocalTime{localDay=day,localTimeOfDay=time} =
 xlsColumns :: [Text]
 xlsColumns = [T.pack [l] | l <- ['A'..'Z']]
 
-sheetXml :: [[XlsxCell]] -> L.ByteString
-sheetXml d =
+sheetXml :: [ColumnsWidth] -> RowHeights -> [[XlsxCell]] -> L.ByteString
+sheetXml cw rh d =
   renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     rows = zip [1..] d
-    n = T.pack . show . fst
-    cells = snd
-    column = fst . xlsxCellIx
+    cells row = zip [int2col n | n <- [1..]] (snd row)
+    column = fst 
     cType = xlsxCellType
     cValue = value
     cStyle :: XlsxCell -> Maybe Text
     cStyle cell = fmap (T.pack . show) (xlsxCellStyle cell)
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "worksheet" [] [xml|
+<cols>
+  $forall w <- cw
+    <col min=#{txt $ cwMin w} max=#{txt $ cwMax w} width=#{txt $ cwWidth w}>
 <sheetData>
   $forall row <- rows
-    <row collapsed=false customFormat=false customHeight=false hidden=false outlineLevel=0 r=#{n row}>
-      $forall cell <- cells row
-        $maybe _ <- xlsxCellValue cell
-          $maybe s <- (cStyle cell)
-            <c r=#{column cell}#{n row} t=#{cType cell} s=#{s}>
-              <v>#{cValue cell}
-          $nothing
-            <c r=#{column cell}#{n row} t=#{cType cell}>
-              <v>#{cValue cell}
-        $nothing
-          $maybe s <- (cStyle cell)
-            <c r=#{column cell}#{n row} t=#{cType cell} s=#{s}>
-          $nothing
-            <c r=#{column cell}#{n row} t=#{cType cell}>
+    $with r <- fst row, mHt <- M.lookup r rh, hasHeight <- isJust mHt, ht <- fromJust mHt, rT <- txt r
+      <row collapsed=false customFormat=false hidden=false outlineLevel=0 r=#{rT}
+           customHeight=#{T.toLower $ T.pack $ show hasHeight} :hasHeight:ht=#{txt ht}>
+        $forall cell <- cells row
+          $with s <- cStyle $ snd cell, t <- cType $ snd cell
+            <c r=#{fst cell}#{rT} t=#{t} :isJust s:s=#{fromJust s}>
+              $if isJust $ xlsxCellValue $ snd cell
+                <v>#{cValue $ snd cell}
 |]
 
 
-
-bookXml :: Int -> L.ByteString
-bookXml n = renderLBS def $ Document (Prologue [] Nothing []) root []
+bookXml :: [Worksheet] -> L.ByteString
+bookXml wss = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
-    ns = [1..n]
+    numNames = [(i, wsName ws) | (i, ws) <- zip [1..] wss]
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "workbook" [] [xml|
 <sheets>
-  $forall n <- ns
-    $with n' <- T.pack $ show n
-      <sheet name=List#{n'} sheetId=#{n'} state=visible {http://schemas.openxmlformats.org/officeDocument/2006/relationships}id=rId#{n'}>
+  $forall nn <- numNames
+    $with n <- txt $ fst nn, name <- snd nn
+      <sheet name=#{name} sheetId=#{n} state=visible {http://schemas.openxmlformats.org/officeDocument/2006/relationships}id=rId#{n}>
 |]
 
 emptyStylesXml :: L.ByteString
@@ -228,3 +224,6 @@ addNS namespace (Element (Name ln _ _) as ns) = Element (Name ln (Just namespace
   where
     addNS' (NodeElement e) = NodeElement $ addNS namespace e
     addNS' n = n
+
+txt :: Show a => a -> Text
+txt = T.pack . show
