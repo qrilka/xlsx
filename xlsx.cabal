@@ -67,5 +67,5 @@ test-suite data-test
 
 source-repository head
   type:     git
-  location: git://github.com/qrilka/xlsx-writer.git
+  location: git://github.com/qrilka/xlsx.git
 
