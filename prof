@@ -1,0 +1,3 @@
+cabal-dev configure --enable-executable-profiling
+cabal-dev build --ghc-options="-caf-all -auto-all -fforce-recomp"
+time dist/build/test/test +RTS -K200000000 -p -stest.mem > /dev/null

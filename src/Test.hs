@@ -1,12 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Test where
-
 import           Codec.Xlsx
 import           Codec.Xlsx.Writer
-import           Control.Arrow
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.List
-import           Control.Monad.Trans.State
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import           Data.Maybe
@@ -15,7 +9,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Read as T
 import           Data.Time.Calendar
 import           Data.Time.LocalTime
-import           Debug.Trace
 import           Text.XML as X
 import           Text.XML.Cursor
 
@@ -23,7 +16,8 @@ xText t = Just CellData{cdValue=Just $ CellText t, cdStyle=Just 0}
 xDate d = Just CellData{cdValue=Just $ CellLocalTime d, cdStyle=Just 0}
 xDouble d = Just CellData{cdValue=Just $ CellDouble d, cdStyle=Just 0}
 
-test = writeXlsxStyles "test.xlsx" styles [fromList sheet1 cols1 rows1, fromList sheet2 cols2 rows2]
+test = writeXlsxStyles "test.xlsx" styles [fromList "List1" cols1 rows1 sheet1, 
+                                           fromList "List2" cols2 rows2 sheet2]
   where
     cols1 = [ColumnsWidth 1 10 15]
     rows1 = M.fromList [(1,50)]
@@ -146,3 +140,9 @@ xml3 = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 \<sheetData><row r=\"1\" spans=\"1:3\" ht=\"12.75\"><c r=\"A1\" t=\"s\"><v>0</v></c><c r=\"B1\" t=\"s\"><v>1</v></c><c r=\"C1\" t=\"s\"><v>2</v></c><c r=\"D1\" t=\"n\"><v>42</v></c></row></sheetData>\
 \<other/>\
 \</worksheet>"
+
+main =  writeXlsxStyles "test.xlsx" styles [fromList "List" cols rows sheet]
+    where
+      cols = [ColumnsWidth 1 10 15]
+      rows = M.fromList [(1,50)]
+      sheet = replicate 10000 [xText "column1", xText "column2", Nothing, xText "column4", xDate $! LocalTime (fromGregorian 2012 05 06) (TimeOfDay 7 30 50), xDouble 42.12345, xText  "False"]

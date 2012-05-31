@@ -33,6 +33,26 @@ Cabal-version:       >=1.8
 Library
   Hs-source-dirs:    src
   Exposed-modules:   Codec.Xlsx, Codec.Xlsx.Parser, Codec.Xlsx.Writer
+
+  Build-depends:     base, containers, transformers, bytestring, text
+                    ,conduit     == 0.4.*
+                    ,xml-types   == 0.3.*
+                    ,xml-conduit == 0.7.*
+                    ,zip-archive == 0.1.*
+                    ,digest      >  0.0.0.1
+                    ,zlib
+                    ,utf8-string
+                    ,time
+                    ,old-time
+                    ,old-locale
+                    ,filepath
+
+Executable           test
+  Hs-source-dirs:    src
+  Other-modules:     Codec.Xlsx, Codec.Xlsx.Parser, Codec.Xlsx.Writer
+  ghc-options:       -rtsopts -Wall -threaded -O2
+
+  main-is:           Test.hs
   
   Build-depends:     base, containers, transformers, bytestring, text
                     ,conduit     == 0.4.*
@@ -42,7 +62,6 @@ Library
                     ,digest      >  0.0.0.1
                     ,zlib
                     ,utf8-string
-                    ,xml-hamlet
                     ,time
                     ,old-time
                     ,old-locale

@@ -1,26 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
 module Codec.Xlsx.Writer (
   writeXlsx,
   writeXlsxStyles
   ) where
 
 import qualified Codec.Archive.Zip as Zip
-import           Control.Applicative((<$>))
 import           Control.Monad.Trans.State
+import           Data.ByteString.Lazy.Char8()
 import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Lazy.Char8
-import           Data.Char
 import           Data.List
 import qualified Data.Map as M
 import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           Data.Text.Lazy (toStrict)
+import           Data.Text.Lazy.Builder (toLazyText)
+import           Data.Text.Lazy.Builder.Int
+import           Data.Text.Lazy.Builder.RealFloat
 import           Data.Time.Calendar
 import           Data.Time.LocalTime
 import           System.Locale
 import           System.Time
-import           Text.Hamlet.XML
 import           Text.XML
 
 import           Codec.Xlsx
@@ -44,7 +44,7 @@ constructXlsx s ws = do
     utct = toUTCTime ct
     (sheetCells, shared) = runState (mapM collectSharedTransform ws) []
     sheetNumber = length ws
-    sheetFiles = [FileData (T.concat ["xl/worksheets/sheet", T.pack $ show n, ".xml"]) "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
+    sheetFiles = [FileData (T.concat ["xl/worksheets/sheet", txti n, ".xml"]) "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
                   sheetXml (wsColumns w) (wsRowHeights w) cells | (n, cells, w) <- zip3 [1..] sheetCells ws]
     files = sheetFiles ++
       [ FileData "docProps/core.xml" "application/vnd.openxmlformats-package.core-properties+xml" $ coreXml utct "xlsxwriter"
@@ -65,40 +65,35 @@ coreXml created creator =
   renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     date = T.pack $ formatCalendarTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" created
-    nsAttrs = [("xmlns:dc", "http://purl.org/dc/elements/1.1/")
-              ,("xmlns:dcterms", "http://purl.org/dc/terms/")
-              ,("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")]
-    root = Element (nmp "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "cp" "coreProperties") nsAttrs [xml|
-<dcterms:created xsi:type="dcterms:W3CDTF">#{date}
-<dc:creator>#{creator}
-<cp:revision>0
-|]
+    nsAttrs = [("xmlns:dcterms", "http://purl.org/dc/terms/")]
+    root = Element (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "coreProperties") nsAttrs
+           [nEl (nm "http://purl.org/dc/terms/" "created")
+                                  [(nm "http://www.w3.org/2001/XMLSchema-instance" "type", "dcterms:W3CDTF")] [NodeContent date],
+            nEl (nm "http://purl.org/dc/elements/1.1/" "creator") [] [NodeContent creator],
+            nEl (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "version") [] [NodeContent "0"]]
 
 appXml :: L.ByteString
 appXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 \<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\" xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\"><TotalTime>0</TotalTime></Properties>"
 
-data XlsxCellData = XlsxSS Int | XlsxDouble Double | XlsxEmpty
+data XlsxCellData = XlsxSS Int | XlsxDouble Double
 data XlsxCell = XlsxCell{ xlsxCellStyle  :: Maybe Int
                         , xlsxCellValue  :: Maybe XlsxCellData
                         }
 
 xlsxCellType :: XlsxCell -> Text
 xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxSS _)} = "s"
-xlsxCellType _ = "n" -- default type, TODO: fix cell output
+xlsxCellType _ = "n" -- default type, TODO: fix cell output?
 
 value :: XlsxCell -> Text
-value XlsxCell{xlsxCellValue=Just(XlsxSS i)} = T.pack $ show i
-value XlsxCell{xlsxCellValue=Just(XlsxDouble i)} = T.pack $ show i
+value XlsxCell{xlsxCellValue=Just(XlsxSS i)} = txti i
+value XlsxCell{xlsxCellValue=Just(XlsxDouble d)} = txtd d
+value _ = error "value undefined"
 
 
 collectSharedTransform :: Worksheet -> State [Text] [[XlsxCell]]
 collectSharedTransform d = transformed
   where
-    shared = mapMaybe maybeString $ concat $ toList d
-    maybeString :: Maybe CellData -> Maybe Text
-    maybeString (Just CellData{cdValue=Just(CellText t)}) = Just t
-    maybeString _ = Nothing
     transformed = mapM (mapM transform) $ toList d
     transform Nothing = return $ XlsxCell Nothing Nothing
     transform (Just CellData{cdValue=v, cdStyle=s}) =
@@ -111,8 +106,8 @@ collectSharedTransform d = transformed
             Nothing -> do
               put $ shared ++ [t]
               return $ XlsxCell s (Just $ XlsxSS (length shared))
-        Just(CellDouble d) ->
-          return $ XlsxCell s (Just $ XlsxDouble d)
+        Just(CellDouble dbl) ->
+          return $ XlsxCell s (Just $ XlsxDouble dbl)
         Just(CellLocalTime t) ->
           return $ XlsxCell s (Just $ XlsxDouble (xlsxDoubleTime t))
         Nothing ->
@@ -125,48 +120,43 @@ xlsxDoubleTime LocalTime{localDay=day,localTimeOfDay=time} =
     xlsxEpochStart = fromGregorian 1899 12 30
     timeFraction = fromRational . timeOfDayToDayFraction
 
-
-xlsColumns :: [Text]
-xlsColumns = [T.pack [l] | l <- ['A'..'Z']]
-
 sheetXml :: [ColumnsWidth] -> RowHeights -> [[XlsxCell]] -> L.ByteString
-sheetXml cw rh d =
-  renderLBS def $ Document (Prologue [] Nothing []) root []
+sheetXml cws rh d = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     rows = zip [1..] d
-    cells row = zip [int2col n | n <- [1..]] (snd row)
-    column = fst 
+    numCols = zip [int2col n | n <- [1..]]
     cType = xlsxCellType
-    cValue = value
-    cStyle :: XlsxCell -> Maybe Text
-    cStyle cell = fmap (T.pack . show) (xlsxCellStyle cell)
-    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "worksheet" [] [xml|
-<cols>
-  $forall w <- cw
-    <col min=#{txt $ cwMin w} max=#{txt $ cwMax w} width=#{txt $ cwWidth w}>
-<sheetData>
-  $forall row <- rows
-    $with r <- fst row, mHt <- M.lookup r rh, hasHeight <- isJust mHt, ht <- fromJust mHt, rT <- txt r
-      <row collapsed=false customFormat=false hidden=false outlineLevel=0 r=#{rT}
-           customHeight=#{T.toLower $ T.pack $ show hasHeight} :hasHeight:ht=#{txt ht}>
-        $forall cell <- cells row
-          $with s <- cStyle $ snd cell, t <- cType $ snd cell
-            <c r=#{fst cell}#{rT} t=#{t} :isJust s:s=#{fromJust s}>
-              $if isJust $ xlsxCellValue $ snd cell
-                <v>#{cValue $ snd cell}
-|]
-
+    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
+           Element "worksheet" []
+           [nEl "cols" [] $  map cwEl cws,
+            nEl "sheetData" [] $ map rowEl rows]
+    cwEl cw = NodeElement $! Element "col"
+              [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw)] []
+    rowEl (r, cells) = nEl "row"
+                       (ht ++ [("r", txti r), ("hidden", "false"), ("outlineLevel", "0"),
+                               ("collapsed", "false"), ("customFormat", "false"),
+                               ("customHeight", txtb hasHeight)])
+                       $ map (cellEl r) (numCols cells)
+      where
+        (ht, hasHeight) = case M.lookup r rh of
+          Just h  -> ([("ht", txtd h)], True)
+          Nothing -> ([], False)
+    cellEl r (col, cell) =
+      nEl "c" (cellAttrs r col cell) [nEl "v" [] [NodeContent $ value cell] | isJust $ xlsxCellValue cell]
+    cellAttrs r col cell = cellStyleAttr cell ++ [("r", T.concat [col, txti r]), ("t", cType cell)]
+    cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
+    cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
 
 bookXml :: [Worksheet] -> L.ByteString
 bookXml wss = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
-    numNames = [(i, wsName ws) | (i, ws) <- zip [1..] wss]
-    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "workbook" [] [xml|
-<sheets>
-  $forall nn <- numNames
-    $with n <- txt $ fst nn, name <- snd nn
-      <sheet name=#{name} sheetId=#{n} state=visible {http://schemas.openxmlformats.org/officeDocument/2006/relationships}id=rId#{n}>
-|]
+    numNames = [(txti i, wsName ws) | (i, ws) <- zip [1..] wss]
+    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "workbook" []
+           [nEl "sheets" [] $
+            map (\(n, name) -> nEl "sheet"
+                               [("name", name), ("sheetId", n), ("state", "visible"),
+                                (rId, T.concat ["rId", n])] []) numNames]
+    rId = nm "http://schemas.openxmlformats.org/officeDocument/2006/relationships" "id"
 
 emptyStylesXml :: L.ByteString
 emptyStylesXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
@@ -176,24 +166,21 @@ ssXml :: [Text] -> L.ByteString
 ssXml ss =
   renderLBS def $ Document (Prologue [] Nothing []) root []
   where
-    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "sst" [] [xml|
-$forall s <- ss
-    <si>
-        <t>#{s}
-|]
+    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "sst" [] $
+           map (\s -> nEl "si" [] [nEl "t" [] [NodeContent s]]) ss
 
 bookRelXml :: Int -> L.ByteString
 bookRelXml n = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
-    ns = [1..n]
-    n' = n + 1
-    n'' = n + 2
-    root = addNS "http://schemas.openxmlformats.org/package/2006/relationships" $ Element "Relationships" [] [xml|
-$forall n <- ns
-  <Relationship Id=rId#{T.pack $ show n} Type=http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet Target=worksheets/sheet#{T.pack $ show n}.xml>
-<Relationship Id=rId#{T.pack $ show n'} Type=http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles Target=styles.xml>
-<Relationship Id=rId#{T.pack $ show n''} Type=http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings Target=sharedStrings.xml>
-|]
+    root = addNS "http://schemas.openxmlformats.org/package/2006/relationships" $
+           Element "Relationships" [] $
+           map (\sn -> relEl sn (T.concat ["worksheets/sheet", txti sn, ".xml"]) "worksheet") [1..n]
+           ++
+           [relEl (n + 1) "styles.xml" "styles", relEl (n + 2) "sharedStrings.xml" "sharedStrings"]
+    relEl i target typ =
+      nEl "Relationship"
+      [("Id", T.concat ["rId", txti i]), ("Target", target),
+       ("Type", T.concat ["http://schemas.openxmlformats.org/officeDocument/2006/relationships/", typ])] []
 
 rootRelXml :: L.ByteString
 rootRelXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
@@ -202,16 +189,10 @@ rootRelXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
 contentTypesXml :: [FileData] -> L.ByteString
 contentTypesXml fds = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
-    root = Element (nm "http://schemas.openxmlformats.org/package/2006/content-types" "Types") [] [xml|
-$forall fd <- fds
-   <{http://schemas.openxmlformats.org/package/2006/content-types}Override PartName=/#{fdName fd} ContentType=#{fdContentType fd}>
-|]
-
-nmp :: Text -> Text -> Text -> Name
-nmp ns p n = Name
-  { nameLocalName = n
-  , nameNamespace = Just ns
-  , namePrefix = Just p}
+    root = addNS "http://schemas.openxmlformats.org/package/2006/content-types" $
+           Element "Types" [] $
+           map (\fd -> nEl "Override" [("PartName", T.concat ["/", fdName fd]),
+                                       ("ContentType", fdContentType fd)] []) fds
 
 nm :: Text -> Text -> Name
 nm ns n = Name
@@ -225,5 +206,14 @@ addNS namespace (Element (Name ln _ _) as ns) = Element (Name ln (Just namespace
     addNS' (NodeElement e) = NodeElement $ addNS namespace e
     addNS' n = n
 
-txt :: Show a => a -> Text
-txt = T.pack . show
+nEl :: Name -> [(Name, Text)] -> [Node] -> Node
+nEl name attrs nodes = NodeElement $ Element name attrs nodes
+
+txti :: Int -> Text
+txti = toStrict . toLazyText . decimal
+
+txtd :: Double -> Text
+txtd = toStrict . toLazyText . realFloat
+
+txtb :: Bool -> Text
+txtb = T.toLower . T.pack . show
