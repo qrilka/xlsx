@@ -1,9 +1,6 @@
 Name:                xlsx
 
--- The package version. See the Haskell package versioning policy
--- (http://www.haskell.org/haskellwiki/Package_versioning_policy) for
--- standards guiding when and how versions should be incremented.
-Version:             0.0
+Version:             0.0.1
 
 Synopsis:            Simple and incomplete Excel file parser/writer
 Description:
@@ -12,21 +9,15 @@ Description:
     TODO: add link to ECMA standard.
 
 Homepage:            https://github.com/qrilka/xlsx
+Bug-Reports:         https://github.com/qrilka/xlsx/issues
 License:             MIT
 License-file:        LICENSE
 Author:              Tim, Max, Kirill Zaborsky
 Maintainer:          qrilka@gmail.com
 
-
-
-Category:            Data
+Category:            Codec
 Build-type:          Simple
 
--- Extra files to be distributed with the package, such as examples or
--- a README.
--- Extra-source-files:  
-
--- Constraint on the version of Cabal needed to build this package.
 Cabal-version:       >=1.8
 
 
@@ -34,12 +25,16 @@ Library
   Hs-source-dirs:    src
   Exposed-modules:   Codec.Xlsx, Codec.Xlsx.Parser, Codec.Xlsx.Writer
 
-  Build-depends:     base, containers, transformers, bytestring, text
-                    ,conduit     == 0.4.*
-                    ,xml-types   == 0.3.*
-                    ,xml-conduit == 0.7.*
-                    ,zip-archive == 0.1.*
-                    ,digest      >  0.0.0.1
+  Build-depends:     base         == 4.*
+                    ,containers
+                    ,transformers
+                    ,bytestring
+                    ,text
+                    ,conduit      == 0.4.*
+                    ,xml-types    == 0.3.*
+                    ,xml-conduit  == 0.7.*
+                    ,zip-archive  == 0.1.*
+                    ,digest       == 0.0.*
                     ,zlib
                     ,utf8-string
                     ,time
@@ -50,7 +45,7 @@ Library
 Executable           test
   Hs-source-dirs:    src
   Other-modules:     Codec.Xlsx, Codec.Xlsx.Parser, Codec.Xlsx.Writer
-  ghc-options:       -rtsopts -Wall -threaded -O2
+  ghc-options:       -Wall -threaded
 
   main-is:           Test.hs
   
@@ -67,17 +62,10 @@ Executable           test
                     ,old-locale
                     ,filepath
   
-  -- Modules not exported by this package.
-  -- Other-modules:       
-  
-  -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
-  -- Build-tools:         
-  
 test-suite data-test
   type: exitcode-stdio-1.0
   main-is:  DataTest.hs
   hs-source-dirs: test/
---  ghc-options:
   Build-Depends: base, QuickCheck >= 2, HUnit,
                  xlsx,
                  test-framework,

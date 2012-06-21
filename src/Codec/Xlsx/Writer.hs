@@ -26,9 +26,11 @@ import           Text.XML
 import           Codec.Xlsx
 
 
+-- | writes list of worksheets as xlsx file
 writeXlsx :: FilePath -> [Worksheet] -> IO ()
 writeXlsx p = writeXlsxStyles p emptyStylesXml
 
+-- | writes list of worksheets and their styling as xlsx file
 writeXlsxStyles :: FilePath -> L.ByteString -> [Worksheet] -> IO ()
 writeXlsxStyles p s d = constructXlsx s d >>= L.writeFile p
 

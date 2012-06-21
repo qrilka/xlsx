@@ -2,17 +2,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module Codec.Xlsx.Parser where
+module Codec.Xlsx.Parser(
+  xlsx,
+  sheet,
+  cellSource,
+  sheetRowSource
+  ) where
 
 import           Control.Applicative
-import           Control.Monad (join, (<=<))
-import           Control.Monad.IO.Class
-import           Data.Char (ord)
+import           Control.Monad (join)
+import           Control.Monad.IO.Class()
 import           Data.Function (on)
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
 import           Data.List
-import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Ord
@@ -22,7 +25,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Read as T
 import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Lazy.Char8 as C
+import           Data.ByteString.Lazy.Char8()
 
 import qualified Codec.Archive.Zip as Zip
 import           Data.Conduit
@@ -35,26 +38,11 @@ import qualified Text.XML.Stream.Parse as Xml
 
 import           Codec.Xlsx
 
-import           Debug.Trace
-
-data WorksheetFile = WorksheetFile { wfName :: Text
-                                   , wfPath :: FilePath
-                                   }
-                   deriving Show
-
-data Xlsx = Xlsx{ archive :: Zip.Archive
-                , sharedStrings :: M.IntMap Text
-                , styles :: Styles
-                , worksheetFiles :: [WorksheetFile]
-                }
-
-data Styles = Styles L.ByteString
-            deriving Show
 
 type MapRow = Map.Map Text Text
 
 
--- | Read archive and preload sharedStrings
+-- | Read archive and preload 'Xlsx' fields
 xlsx :: FilePath -> IO Xlsx
 xlsx fname = do
   ar <- Zip.toArchive <$> L.readFile fname
@@ -64,15 +52,9 @@ xlsx fname = do
   return $ Xlsx ar ss st ws
 
 
-t' x sheetN = getSheetCells x sheetN $$
-              sinkState Map.empty collect return
-  where
-    collect m c = return $ StateProcessing $ Map.insert (cellIx c) 0 m
-
-
--- | Get data from specified worksheet.
-sheet :: MonadThrow m => Xlsx -> Int -> [Text] -> Source m [Cell]
-sheet x sheetN cols  =  getSheetCells x sheetN
+-- | Get data from specified worksheet as conduit source.
+cellSource :: MonadThrow m => Xlsx -> Int -> [Text] -> Source m [Cell]
+cellSource x sheetN cols  =  getSheetCells x sheetN
                         $= filterColumns (S.fromList $ map col2int cols)
                         $= groupRows
                         $= reverseRows
@@ -89,8 +71,8 @@ rational t = case T.rational t of
   _ -> fail "invalid rational"
 
 
-sheetMap :: MonadThrow m => Xlsx -> Int -> m Worksheet
-sheetMap Xlsx{archive=ar, sharedStrings=ss, worksheetFiles=sheets} sheetN
+sheet :: MonadThrow m => Xlsx -> Int -> m Worksheet
+sheet Xlsx{xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets} sheetN
   | sheetN < 0 || sheetN >= length sheets
     = fail "parseSheet: Invalid sheet number"
   | otherwise
@@ -122,14 +104,14 @@ sheetMap Xlsx{archive=ar, sharedStrings=ss, worksheetFiles=sheets} sheetN
                else Nothing
       return (r, ht, c $/ element (n"c") >=> parseCell)
     parseCell :: Cursor -> [(Int, Int, CellData)]
-    parseCell c = do
-      (c, r) <- T.span (>'9') <$> (c $| attribute "r")
+    parseCell cell = do
+      (c, r) <- T.span (>'9') <$> (cell $| attribute "r")
       return (col2int c, int r, CellData s d)
       where
-        s = listToMaybe $ c $| attribute "s" >=> decimal
-        t = fromMaybe "n" $ listToMaybe $ c $| attribute "t"
-        d = listToMaybe $ c $/ element (n"v") &/ content >=> extractValue
-        extractValue v = {-trace ("T:" ++ show t ++  ":" ++ show (node c) ++ "\n") $ -} case t of
+        s = listToMaybe $ cell $| attribute "s" >=> decimal
+        t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
+        d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractValue
+        extractValue v = case t of
           "n" ->
             case T.rational v of
               Right (d, _) -> [CellDouble d]
@@ -143,7 +125,7 @@ sheetMap Xlsx{archive=ar, sharedStrings=ss, worksheetFiles=sheets} sheetN
       where
         (rowMap, (minX, maxX, minY, maxY, cellMap)) = foldr collectRow rInit rd
         rInit = (Map.empty, (maxBound, minBound, maxBound, minBound, Map.empty))
-        collectRow (n, Nothing, cells) (rowMap, cellData) = 
+        collectRow (_, Nothing, cells) (rowMap, cellData) = 
           (rowMap, foldr collectCell cellData cells)
         collectRow (n, Just h, cells) (rowMap, cellData) = 
           (Map.insert n h rowMap, foldr collectCell cellData cells)
@@ -152,8 +134,8 @@ sheetMap Xlsx{archive=ar, sharedStrings=ss, worksheetFiles=sheets} sheetN
     
 
 -- | Get all rows from specified worksheet.
-sheetRows :: MonadThrow m => Xlsx -> Int -> Source m MapRow
-sheetRows x sheetN
+sheetRowSource :: MonadThrow m => Xlsx -> Int -> Source m MapRow
+sheetRowSource x sheetN
   =  getSheetCells x sheetN
   $= groupRows
   $= reverseRows
@@ -184,10 +166,10 @@ mkMapRowsSink = do
           GT -> (""    , txt r) : zipCells header rs
 
     txt = fromMaybe "" . cv
-    cv Cell{cellValue=Just(CellText t)} = Just t
-    cv Cell{cellValue=Nothing} = Nothing
+    cv Cell{cellData=CellData{cdValue=Just(CellText t)}} = Just t
+    cv _ = Nothing
 
-
+reverseRows :: Monad m => Conduit [a] m [a]
 reverseRows = CL.map reverse
 groupRows = CL.groupBy ((==) `on` (snd.cellIx))
 filterColumns cs = CL.filter ((`S.member` cs) . col2int . fst . cellIx)
@@ -195,7 +177,7 @@ filterColumns cs = CL.filter ((`S.member` cs) . col2int . fst . cellIx)
 
 getSheetCells
  :: MonadThrow m => Xlsx -> Int -> Source m Cell
-getSheetCells (Xlsx{archive=ar, sharedStrings=ss, worksheetFiles=sheets}) sheetN
+getSheetCells (Xlsx{xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets}) sheetN
   | sheetN < 0 || sheetN >= length sheets
     = error "parseSheet: Invalid sheet number"
   | otherwise
@@ -219,14 +201,14 @@ getCell ss = Xml.tagName (n"c") cAttrs cParser
     maybeCellDouble Nothing = Nothing
     maybeCellDouble (Just t) = either (const Nothing) (\(d,_) -> Just (CellDouble d)) $ T.rational t
 
-    cParser a@(ix,style,typ) = do
+    cParser (ix,style,typ) = do
       val <- case typ of
           Just "inlineStr" -> liftA (fmap CellText) (tagSeq ["is", "t"])
           Just "s" -> liftA (fmap CellText) (tagSeq ["v"] >>=
                                              return . join . fmap ((`M.lookup` ss).int))
           Just "n" -> liftA maybeCellDouble $ tagSeq ["v"]
-          Nothing  -> liftA maybeCellDouble $ tagSeq ["v"]
-      return $ Cell (mkCellIx ix) (int <$> style) val -- (fmap CellText val)
+          _        -> liftA maybeCellDouble $ tagSeq ["v"]
+      return $ Cell (mkCellIx ix) $ CellData (int <$> style) val
 
     mkCellIx ix = let (c,r) = T.span (>'9') ix
                   in (c,int r)
@@ -251,12 +233,13 @@ pr x = Name
   ,namePrefix = Nothing}
 
 
-
 -- | Get text from several nested tags
 tagSeq :: MonadThrow m => [Text] -> Sink Event m (Maybe Text)
 tagSeq (x:xs)
   = Xml.tagNoAttr (n x)
   $ foldr (\x -> Xml.force "" . Xml.tagNoAttr (n x)) Xml.content xs
+
+tagSeq _ = error "no tags in tag sequence"
 
 
 -- | Get xml event stream from the specified file inside the zip archive.
