@@ -1,6 +1,6 @@
 Name:                xlsx
 
-Version:             0.0.1
+Version:             0.0.1.1
 
 Synopsis:            Simple and incomplete Excel file parser/writer
 Description:
@@ -18,7 +18,7 @@ Maintainer:          qrilka@gmail.com
 Category:            Codec
 Build-type:          Simple
 
-Cabal-version:       >=1.8
+Cabal-version:       >=1.2
 
 
 Library
@@ -30,9 +30,9 @@ Library
                     ,transformers
                     ,bytestring
                     ,text
-                    ,conduit      == 0.4.*
+                    ,conduit      == 1.0.*
                     ,xml-types    == 0.3.*
-                    ,xml-conduit  == 0.7.*
+                    ,xml-conduit  == 1.1.*
                     ,zip-archive  == 0.1.*
                     ,digest       == 0.0.*
                     ,zlib
@@ -50,11 +50,12 @@ Executable           test
   main-is:           Test.hs
   
   Build-depends:     base, containers, transformers, bytestring, text
-                    ,conduit     == 0.4.*
+                    ,conduit     == 1.0.*
                     ,xml-types   == 0.3.*
-                    ,xml-conduit == 0.7.*
+                    ,xml-conduit == 1.1.*
                     ,zip-archive == 0.1.*
                     ,digest      >  0.0.0.1
+                    ,void
                     ,zlib
                     ,utf8-string
                     ,time
@@ -64,6 +65,7 @@ Executable           test
   
 test-suite data-test
   type: exitcode-stdio-1.0
+  Default-Language:     Haskell2010
   main-is:  DataTest.hs
   hs-source-dirs: test/
   Build-Depends: base, QuickCheck >= 2, HUnit,

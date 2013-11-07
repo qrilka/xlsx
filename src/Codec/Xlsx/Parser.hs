@@ -1,5 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 {-# LANGUAGE TupleSections #-}
 
 module Codec.Xlsx.Parser(
@@ -19,6 +20,7 @@ import           Data.List
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Ord
+import           Data.Void
 import           Prelude hiding (sequence)
 
 import           Data.Text (Text)
@@ -26,10 +28,11 @@ import qualified Data.Text as T
 import qualified Data.Text.Read as T
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Lazy.Char8()
-
+import qualified Control.Monad as Mo
 import qualified Codec.Archive.Zip as Zip
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
+import qualified Data.Conduit.Internal as CI
 import           Data.XML.Types
 import           System.FilePath
 import           Text.XML as X
@@ -141,9 +144,13 @@ sheetRowSource x sheetN
   $= reverseRows
   $= mkMapRows
 
+
+-- sequence :: Monad m => Sink input m output -> Conduit input m output
 -- | Make 'Conduit' from 'mkMapRowsSink'.
 mkMapRows :: Monad m => Conduit [Cell] m MapRow
-mkMapRows = sequence mkMapRowsSink =$= CL.concatMap id
+mkMapRows = CL.sequence mkMapRowsSink =$= CL.concatMap id
+
+
 
 
 -- | Make 'MapRow' from list of 'Cell's.
@@ -251,7 +258,9 @@ xmlSource ar fname
   <$> Zip.findEntryByPath fname ar
 
 
+
 -- Get shared strings (if there are some) into IntMap.
+
 getSharedStrings
   :: (MonadThrow m, Functor m)
   => Zip.Archive -> m (M.IntMap Text)
@@ -269,22 +278,33 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Nothing  -> return (Styles L.empty)
   Just xml -> return (Styles xml)
 
+
+{-| Incoming is a (Maybe Producer m Event) 
+    Use 
+ 
+|-}
+
+
+pushSheetData :: (Monad m) => (Source m Event) -> Sink a m b
+pushSheetData xml = xml $= mkXmlCond getSheetData $$ CL.consume
+
 getWorksheetFiles :: (MonadThrow m, Functor m) => Zip.Archive -> m [WorksheetFile]
 getWorksheetFiles ar = case xmlSource ar "xl/workbook.xml" of
   Nothing ->
     error "invalid workbook"
   Just xml -> do
-    sheetData <- xml $= mkXmlCond getSheetData $$ CL.consume
+    sheetData <- pushSheetData xml
     wbRels <- getWbRels ar
-    return [WorksheetFile n ("xl" </> T.unpack (fromJust $ lookup rId wbRels)) | (n, rId) <- sheetData]
+    return $ [WorksheetFile n ("xl" </> T.unpack (fromJust $ lookup rId wbRels)) | (n, rId) <- sheetData]
 
+getSheetData :: (MonadThrow m) => Sink Event m (Maybe (Text,Text))
 getSheetData = Xml.tagName (n"sheet") attrs return
   where
     attrs = do
       name <- Xml.requireAttr "name"
       rId  <- Xml.requireAttr (odr "id")
       Xml.ignoreAttrs
-      return (name, rId)
+      return $ (name, rId)
 
 getWbRels :: (MonadThrow m, Functor m) => Zip.Archive -> m [(Text, Text)]
 getWbRels ar = case xmlSource ar "xl/_rels/workbook.xml.rels" of
@@ -308,15 +328,48 @@ int :: Text -> Int
 int = either error fst . T.decimal
 
 
+
+
 -- | Create conduit from xml sink
 -- Resulting conduit filters nodes that `f` can consume and skips everything
 -- else.
 --
--- FIXME: Some benchmarking required: maybe it's not very efficient to `peek`i
--- each element twice. It's possible to swap call to `f` and `CL.peek`.
-mkXmlCond f = sequenceSink () $ const
-  $ CL.peek >>= maybe            -- try get current event form the stream
-    (return Stop)                -- stop if stream is empty
-    (\_ -> f >>= maybe           -- try consume current event
-           (CL.drop 1 >> return (Emit () [])) -- skip it if can't process
-           (return . Emit () . (:[])))        -- return result otherwise
+-- (Source m Event)
+-- (Conduit Event m 
+-- Sink Event m (Maybe (Text,Text))
+mkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m [b])
+
+mkXmlCond f = CL.sequence $ (mkXmlCond' (toConsumer f))
+
+mkXmlCond' f = f >>= maybe 
+               (CL.drop 1 >> return [])
+               (\x -> return (x:[]))
+                
+    -- (\_ -> f >>= maybe           -- try consume current event
+    --        (CL.drop 1 >> return (Emit () [])) -- skip it if can't process
+    --        (return . Emit () . (:[])))        -- return result otherwise
+
+
+-- data SequencedSinkResponse state input m output = Emit state [output] 
+--     |Stop 
+--     |StartConduit (Conduit input m output)
+
+-- type SequencedSink state input m output = state -> Sink input m (SequencedSinkResponse state input m output)
+
+-- sequenceSink state0 fsink = do
+--     res <- awaitForever fsink state0
+--     case res of
+--       Emit state os -> do
+--                fromList os
+--                sequenceSink state fsink
+--       Stop -> return ()
+--       StartConduit c -> c
+
+-- sinkToPipe :: Monad m => Sink i m r -> CI.Pipe l i o u m r
+-- sinkToPipe (CI.HaveOutput _ o _) = absurd o
+-- sinkToPipe (CI.NeedInput p c) = CI.NeedInput (sinkToPipe . p) (sinkToPipe c)
+-- sinkToPipe (CI.Done r) = CI.Done r
+-- sinkToPipe (CI.PipeM mp ) = CI.PipeM (Mo.liftM sinkToPipe (mp >>= return $ CI.ConduitM ) ) 
+
+-- hasInput :: CI.Pipe l i o m u Bool
+-- hasInput = CI.NeedInput (\i -> CI.Done True) (\i -> CI.Done False)
