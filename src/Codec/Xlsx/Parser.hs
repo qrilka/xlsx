@@ -341,32 +341,3 @@ mkXmlCond f = CL.sequence $ (mkXmlCond' (toConsumer f))
 mkXmlCond' f = f >>= maybe 
                (CL.drop 1 >> mkXmlCond' f)
                (\x -> return $ x)
-                
-    -- (\_ -> f >>= maybe           -- try consume current event
-    --        (CL.drop 1 >> return (Emit () [])) -- skip it if can't process
-    --        (return . Emit () . (:[])))        -- return result otherwise
-
-
--- data SequencedSinkResponse state input m output = Emit state [output] 
---     |Stop 
---     |StartConduit (Conduit input m output)
-
--- type SequencedSink state input m output = state -> Sink input m (SequencedSinkResponse state input m output)
-
--- sequenceSink state0 fsink = do
---     res <- awaitForever fsink state0
---     case res of
---       Emit state os -> do
---                fromList os
---                sequenceSink state fsink
---       Stop -> return ()
---       StartConduit c -> c
-
--- sinkToPipe :: Monad m => Sink i m r -> CI.Pipe l i o u m r
--- sinkToPipe (CI.HaveOutput _ o _) = absurd o
--- sinkToPipe (CI.NeedInput p c) = CI.NeedInput (sinkToPipe . p) (sinkToPipe c)
--- sinkToPipe (CI.Done r) = CI.Done r
--- sinkToPipe (CI.PipeM mp ) = CI.PipeM (Mo.liftM sinkToPipe (mp >>= return $ CI.ConduitM ) ) 
-
--- hasInput :: CI.Pipe l i o m u Bool
--- hasInput = CI.NeedInput (\i -> CI.Done True) (\i -> CI.Done False)
