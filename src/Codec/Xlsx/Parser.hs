@@ -330,6 +330,7 @@ int = either error fst . T.decimal
 
 
 
+
 -- | Create conduit from xml sink
 -- Resulting conduit filters nodes that `f` can consume and skips everything
 -- else.
@@ -337,13 +338,13 @@ int = either error fst . T.decimal
 -- (Source m Event)
 -- (Conduit Event m 
 -- Sink Event m (Maybe (Text,Text))
-mkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m [b])
+mkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
 
 mkXmlCond f = CL.sequence $ (mkXmlCond' (toConsumer f))
 
 mkXmlCond' f = f >>= maybe 
-               (CL.drop 1 >> return [])
-               (\x -> return (x:[]))
+               (CL.drop 1 >> mkXmlCond' f)
+               (\x -> return $ x)
                 
     -- (\_ -> f >>= maybe           -- try consume current event
     --        (CL.drop 1 >> return (Emit () [])) -- skip it if can't process
