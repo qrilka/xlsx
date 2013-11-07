@@ -148,7 +148,7 @@ sheetRowSource x sheetN
 -- sequence :: Monad m => Sink input m output -> Conduit input m output
 -- | Make 'Conduit' from 'mkMapRowsSink'.
 mkMapRows :: Monad m => Conduit [Cell] m MapRow
-mkMapRows = CL.sequence mkMapRowsSink =$= CL.concatMap id
+mkMapRows = CL.sequence (toConsumer mkMapRowsSink) =$= CL.concatMap id
 
 
 
@@ -285,15 +285,13 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
 |-}
 
 
-pushSheetData :: (Monad m) => (Source m Event) -> Sink a m b
-pushSheetData xml = xml $= mkXmlCond getSheetData $$ CL.consume
 
 getWorksheetFiles :: (MonadThrow m, Functor m) => Zip.Archive -> m [WorksheetFile]
 getWorksheetFiles ar = case xmlSource ar "xl/workbook.xml" of
   Nothing ->
     error "invalid workbook"
   Just xml -> do
-    sheetData <- pushSheetData xml
+    sheetData <- xml $= mkXmlCond getSheetData $$ CL.consume
     wbRels <- getWbRels ar
     return $ [WorksheetFile n ("xl" </> T.unpack (fromJust $ lookup rId wbRels)) | (n, rId) <- sheetData]
 
@@ -339,9 +337,7 @@ int = either error fst . T.decimal
 -- (Conduit Event m 
 -- Sink Event m (Maybe (Text,Text))
 mkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
-
 mkXmlCond f = CL.sequence $ (mkXmlCond' (toConsumer f))
-
 mkXmlCond' f = f >>= maybe 
                (CL.drop 1 >> mkXmlCond' f)
                (\x -> return $ x)
