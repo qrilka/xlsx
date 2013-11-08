@@ -22,7 +22,7 @@ import           Data.Maybe
 import           Data.Ord
 import           Data.Void
 import           Prelude hiding (sequence)
-
+import           Debug.Trace
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Read as T
@@ -48,10 +48,15 @@ type MapRow = Map.Map Text Text
 -- | Read archive and preload 'Xlsx' fields
 xlsx :: FilePath -> IO Xlsx
 xlsx fname = do
+  print "opening Archive"
   ar <- Zip.toArchive <$> L.readFile fname
+  print "getting Shared Strings" 
   ss <- getSharedStrings ar
+  print "getting Styles" 
   st <- getStyles ar
+  print "getWorksheetFiles"
   ws <- getWorksheetFiles ar
+  print "done"
   return $ Xlsx ar ss st ws
 
 
@@ -190,7 +195,7 @@ getSheetCells (Xlsx{xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets}) 
   | otherwise
     = case xmlSource ar (wfPath $ sheets !! sheetN) of
       Nothing -> error "An impossible happened"
-      Just xml -> xml $= mkXmlCond (getCell ss)
+      Just xml -> xml $= altMkXmlCond (getCell ss) 
 
 
 -- | Parse single cell from xml stream.
@@ -250,27 +255,30 @@ tagSeq _ = error "no tags in tag sequence"
 
 
 -- | Get xml event stream from the specified file inside the zip archive.
-xmlSource
- :: MonadThrow m => Zip.Archive -> FilePath -> Maybe (Source m Event)
-xmlSource ar fname
-  =   Xml.parseLBS Xml.def
-  .   Zip.fromEntry
-  <$> Zip.findEntryByPath fname ar
+xmlSource :: MonadThrow m => Zip.Archive -> FilePath -> Maybe (Source m Event)
+xmlSource ar fname  =   Xml.parseLBS Xml.def
+                        .   Zip.fromEntry
+                        <$> (Zip.findEntryByPath fname ar)
 
 
 
 -- Get shared strings (if there are some) into IntMap.
 
-getSharedStrings
-  :: (MonadThrow m, Functor m)
-  => Zip.Archive -> m (M.IntMap Text)
+getSharedStrings  :: (MonadThrow m, Functor m)  => Zip.Archive -> m (M.IntMap Text)
 getSharedStrings x
   = case xmlSource x "xl/sharedStrings.xml" of
     Nothing -> return M.empty
     Just xml -> (M.fromAscList . zip [0..]) <$> getText xml
 
 -- | Fetch all text from xml stream.
-getText xml = xml $= mkXmlCond Xml.contentMaybe $$ CL.consume
+err :: String 
+err = "got here"
+
+getText xml = do
+  lms<- (xml $= (mkXmlCond Xml.contentMaybe =$= CL.isolate 1000) $$ CL.consume)
+  return (traceShow lms lms)
+
+
 
 
 getStyles :: (MonadThrow m, Functor m) => Zip.Archive -> m Styles
@@ -291,7 +299,7 @@ getWorksheetFiles ar = case xmlSource ar "xl/workbook.xml" of
   Nothing ->
     error "invalid workbook"
   Just xml -> do
-    sheetData <- xml $= mkXmlCond getSheetData $$ CL.consume
+    sheetData <- (xml $= mkXmlCond getSheetData =$= CL.isolate 100000 $$ CL.consume)
     wbRels <- getWbRels ar
     return $ [WorksheetFile n ("xl" </> T.unpack (fromJust $ lookup rId wbRels)) | (n, rId) <- sheetData]
 
@@ -336,8 +344,68 @@ int = either error fst . T.decimal
 -- (Source m Event)
 -- (Conduit Event m 
 -- Sink Event m (Maybe (Text,Text))
-mkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
-mkXmlCond f = CL.sequence $ (mkXmlCond' (toConsumer f))
-mkXmlCond' f = f >>= maybe 
-               (CL.drop 1 >> mkXmlCond' f)
-               (\x -> return $ x)
+-- mkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
+mkXmlCond f = CL.sequence $ mkXmlCond' (toConsumer f)
+mkXmlCond'  :: Monad m => ConduitM a o m (Maybe b) -> ConduitM a o m b
+mkXmlCond' f = f >>= (\x -> maybe 
+                            (CL.drop 1 >> mkXmlCond' f)
+                            (\x -> return $ x )
+                            x)
+
+
+
+newtype Finalizer a = Finalizer {unFinalizer :: a} 
+
+
+-- | because there are two kinds of failure that are encompased in this sucker I need a way to talk about them differently
+
+
+-- data TriState a = OneFail | TwoFail | Good a 
+
+-- instance Functor TriState where 
+--     fmap _ OneFail = OneFail 
+--     fmap _ TwoFail = TwoFail 
+--     fmap f (Good a) = Good (f a)
+
+-- instance Monad TriState where 
+--      OneFail >>= _ = OneFail 
+--      TwoFail >>= _ = TwoFail 
+--      (Good a) >>= k = (k a)
+
+
+--      OneFail >> _ = OneFail
+--      TwoFail >> _ = TwoFail
+--      (Good a) >> k = k
+     
+--      return = Good
+--      fail _ = OneFail
+     
+stopWhen ::(Show a, Monad m) => (a -> Bool) -> Conduit a m a 
+stopWhen fTest = loop
+    where 
+     loop = await >>=
+            maybe (return ()) (\x -> if fTest x
+                                     then return () 
+                                     else yield x >> loop) 
+    
+
+altMkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
+altMkXmlCond f = CL.sequence $ (altMkXmlCond' (toConsumer f)) 
+
+
+altMkXmlCond' :: Monad m => ConduitM a o m (Maybe b) -> ConduitM a o m b
+altMkXmlCond' f = do
+  f >>= maybe 
+               (CL.drop 1 >> altMkXmlCond' f)
+               (\x -> do 
+                tst <- CL.peek
+                return $ x)
+
+
+
+
+altGetText :: MonadThrow m => Source m Event -> m [Text]
+altGetText xml = do 
+  l <- xml $= CL.sequence (toConsumer Xml.contentMaybe)  $$ CL.consume 
+  return $ catMaybes l
+
