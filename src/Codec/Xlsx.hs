@@ -11,6 +11,7 @@ module Codec.Xlsx(
   ColumnsWidth(..),
   RowHeights,
   Worksheet(..),
+  CellValue_ (..),
   CellValue(..),
   Cell(..),
   CellData(..),
@@ -22,6 +23,7 @@ module Codec.Xlsx(
   xlsxLensNames,
   worksheetFileLensNames,
   worksheetLensNames,
+  cellLensNames,
   cellDataLensNames
   
   ) where
@@ -44,7 +46,7 @@ data Xlsx = Xlsx{ xlArchive :: Zip.Archive
                 , xlStyles :: Styles
                 , xlWorksheetFiles :: [WorksheetFile]
                 }
-
+xlsxLensNames :: [ (String,String)]
 xlsxLensNames = [  ("xlArchive"        , "lensXlArchive"       )
                 , ("xlSharedStrings"  , "lensXlSharedStrings" )
                 , ("xlStyles"         , "lensXlStyles"        )
@@ -60,7 +62,7 @@ data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
                                    }
                    deriving Show
-
+worksheetFileLensNames :: [ (String,String)]
 worksheetFileLensNames = [("wfName","lensWfName"),("wfPath","lensWfPath")]
 
 
@@ -85,29 +87,33 @@ data Worksheet = Worksheet { wsName       :: Text                   -- ^ workshe
                            , wsCells      :: Map (Int,Int) CellData -- ^ data mapped by (column, row) pairs
                            }
                deriving Show
-
+worksheetLensNames:: [ (String,String)]
 worksheetLensNames =[
-,("wsName"         , "lensWsName"       )
-,("wsMinX"         , "lensWsMinX"       )
-,("wsMaxX"         , "lensWsMaxX"       )
-,("wsMinY"         , "lensWsMinY"       )
-,("wsMaxY"         , "lensWsMaxY"       )
-,("wsColumns"      , "lensWsColumns"    )
-,("wsRowHeights"   , "lensWsRowHeights" )
-,("wsCells"        , "lensWsCells"      )]
+   ("wsName"         , "lensWsName"       )
+  ,("wsMinX"         , "lensWsMinX"       )
+  ,("wsMaxX"         , "lensWsMaxX"       )
+  ,("wsMinY"         , "lensWsMinY"       )
+  ,("wsMaxY"         , "lensWsMaxY"       )
+  ,("wsColumns"      , "lensWsColumns"    )
+  ,("wsRowHeights"   , "lensWsRowHeights" )
+  ,("wsCells"        , "lensWsCells"      )]
 
 
 
   
 
-data CellValue = CellText Text | CellDouble Double | CellLocalTime LocalTime
+data CellValue_ t d l = CellText {unCellText :: t} | CellDouble {unCellDouble :: d} | CellLocalTime {unCellLocalTime ::l}
                deriving Show
 
+type CellValue = CellValue_ Text Double LocalTime
 
 data Cell = Cell { cellIx   :: (Text, Int)
                  , cellData :: CellData
                  } 
           deriving Show
+
+cellLensNames :: [ (String,String)]
+cellLensNames = [("cellIx","lensCellIx"),("cellData","lensCellData")]
 
 data CellData = CellData { cdStyle  :: Maybe Int
                          , cdValue  :: Maybe CellValue
@@ -115,7 +121,7 @@ data CellData = CellData { cdStyle  :: Maybe Int
               deriving Show
 
 
-
+cellDataLensNames :: [ (String,String)]
 cellDataLensNames = [("cdStyle","lensCdStyle"),("cdValue","lensCdValue")]
 
 

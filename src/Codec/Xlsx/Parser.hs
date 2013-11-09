@@ -45,15 +45,10 @@ type MapRow = Map.Map Text Text
 -- | Read archive and preload 'Xlsx' fields
 xlsx :: FilePath -> IO Xlsx
 xlsx fname = do
-  print "opening Archive"
   ar <- Zip.toArchive <$> L.readFile fname
-  print "getting Shared Strings" 
   ss <- getSharedStrings ar
-  print "getting Styles" 
   st <- getStyles ar
-  print "getWorksheetFiles"
   ws <- getWorksheetFiles ar
-  print "done"
   return $ Xlsx ar ss st ws
 
 
