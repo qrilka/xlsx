@@ -1,3 +1,9 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
+{-# Language TemplateHaskell #-}
+
+
 module Codec.Xlsx(
   Xlsx(..),
   WorksheetFile(..),
@@ -12,7 +18,9 @@ module Codec.Xlsx(
   col2int,
   foldRows,
   toList,
-  fromList
+  fromList,
+  xlsxLensNames,
+  worksheetFileLensNames
   ) where
 
 import           Control.Arrow
@@ -34,7 +42,14 @@ data Xlsx = Xlsx{ xlArchive :: Zip.Archive
                 , xlWorksheetFiles :: [WorksheetFile]
                 }
 
-data Styles = Styles L.ByteString
+xlsxLensNames = [  ("xlArchive"        , "lensXlArchive"       )
+                , ("xlSharedStrings"  , "lensXlSharedStrings" )
+                , ("xlStyles"         , "lensXlStyles"        )
+                , ("xlWorksheetFiles" , "lensXlWorksheetFiles")]
+
+            
+
+newtype Styles = Styles {unStyles :: L.ByteString}
             deriving Show
 
 
@@ -42,6 +57,11 @@ data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
                                    }
                    deriving Show
+
+worksheetFileLensNames = [("wfName","lensWfName"),("wfPath","lensWfPath")]
+
+
+
 
 -- | Column range (from cwMin to cwMax) width
 data ColumnsWidth = ColumnsWidth { cwMin :: Int
