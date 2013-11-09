@@ -1,6 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
-
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TupleSections #-}
 
 module Codec.Xlsx.Parser(
@@ -195,7 +195,7 @@ getSheetCells (Xlsx{xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets}) 
   | otherwise
     = case xmlSource ar (wfPath $ sheets !! sheetN) of
       Nothing -> error "An impossible happened"
-      Just xml -> xml $= altMkXmlCond (getCell ss) 
+      Just xml -> xml $= mkXmlCond (getCell ss) 
 
 
 -- | Parse single cell from xml stream.
@@ -275,8 +275,8 @@ err :: String
 err = "got here"
 
 getText xml = do
-  lms<- (xml $= (mkXmlCond Xml.contentMaybe =$= CL.isolate 1000) $$ CL.consume)
-  return (traceShow lms lms)
+  lms<- (xml $= ( mkXmlCond Xml.contentMaybe =$= stopWhen (\(!x) -> (traceShow x False))) $$ CL.consume)
+  return  lms
 
 
 
@@ -299,7 +299,7 @@ getWorksheetFiles ar = case xmlSource ar "xl/workbook.xml" of
   Nothing ->
     error "invalid workbook"
   Just xml -> do
-    sheetData <- (xml $= mkXmlCond getSheetData =$= CL.isolate 100000 $$ CL.consume)
+    sheetData <- (xml $= mkXmlCond getSheetData =$= CL.isolate 1  $$ CL.consume)
     wbRels <- getWbRels ar
     return $ [WorksheetFile n ("xl" </> T.unpack (fromJust $ lookup rId wbRels)) | (n, rId) <- sheetData]
 
@@ -344,11 +344,11 @@ int = either error fst . T.decimal
 -- (Source m Event)
 -- (Conduit Event m 
 -- Sink Event m (Maybe (Text,Text))
--- mkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
-mkXmlCond f = CL.sequence $ mkXmlCond' (toConsumer f)
+mkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
+mkXmlCond f =  CL.sequence $ mkXmlCond' (toConsumer f)
 mkXmlCond'  :: Monad m => ConduitM a o m (Maybe b) -> ConduitM a o m b
 mkXmlCond' f = f >>= (\x -> maybe 
-                            (CL.drop 1 >> mkXmlCond' f)
+                            (CL.drop 1 >> mkXmlCond' (f) )
                             (\x -> return $ x )
                             x)
 
@@ -379,15 +379,19 @@ newtype Finalizer a = Finalizer {unFinalizer :: a}
      
 --      return = Good
 --      fail _ = OneFail
-     
+lookAndGo = CL.sequence ( CL.peek >>= (\x -> return $ traceShow x x))
+
 stopWhen ::(Show a, Monad m) => (a -> Bool) -> Conduit a m a 
 stopWhen fTest = loop
     where 
-     loop = await >>=
-            maybe (return ()) (\x -> if fTest x
-                                     then return () 
-                                     else yield x >> loop) 
-    
+     loop = do 
+            a1 <- await
+            !p1  <- CL.peek
+            case (a1,p1) of 
+              (Just x, Just p) ->  if fTest x
+                                   then traceShow ((x,p)) (return () )
+                                   else yield (traceShow err x) >> loop 
+              _                -> traceShow err (return () )
 
 altMkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
 altMkXmlCond f = CL.sequence $ (altMkXmlCond' (toConsumer f)) 
@@ -396,10 +400,10 @@ altMkXmlCond f = CL.sequence $ (altMkXmlCond' (toConsumer f))
 altMkXmlCond' :: Monad m => ConduitM a o m (Maybe b) -> ConduitM a o m b
 altMkXmlCond' f = do
   f >>= maybe 
-               (CL.drop 1 >> altMkXmlCond' f)
-               (\x -> do 
-                tst <- CL.peek
-                return $ x)
+        (CL.drop 1 >> altMkXmlCond'  (traceShow err f))
+        (\x -> do 
+           tst <- CL.peek
+           return $ x)
 
 
 

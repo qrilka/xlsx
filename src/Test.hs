@@ -26,11 +26,16 @@ styles = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 main :: IO ()
 main =  do 
   writeXlsxStyles "test.xlsx" styles [fromList "List" cols rows sheet]
-  x <- (xlSharedStrings) `fmap` (xlsx "ptest.xlsx")
-  print x
+  x <- (xlsx "ptest.xlsx") 
+  print $ xlSharedStrings x  
+  print $ xlWorksheetFiles x 
     where
       cols = [ColumnsWidth 1 10 15]
       rows = M.fromList [(1,50)]
       sheet = replicate 10000 [xText "column1", xText "column2", Nothing, xText "column4", xDate $! LocalTime (fromGregorian 2012 05 06) (TimeOfDay 7 30 50), xDouble 42.12345, xText  "False"]
+
+
+
+
 
 

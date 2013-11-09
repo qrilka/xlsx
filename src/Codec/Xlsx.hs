@@ -69,7 +69,7 @@ data CellValue = CellText Text | CellDouble Double | CellLocalTime LocalTime
 
 data Cell = Cell { cellIx   :: (Text, Int)
                  , cellData :: CellData
-                 }
+                 } 
           deriving Show
 
 data CellData = CellData { cdStyle  :: Maybe Int
