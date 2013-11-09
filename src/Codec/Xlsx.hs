@@ -20,7 +20,10 @@ module Codec.Xlsx(
   toList,
   fromList,
   xlsxLensNames,
-  worksheetFileLensNames
+  worksheetFileLensNames,
+  worksheetLensNames,
+  cellDataLensNames
+  
   ) where
 
 import           Control.Arrow
@@ -83,6 +86,20 @@ data Worksheet = Worksheet { wsName       :: Text                   -- ^ workshe
                            }
                deriving Show
 
+worksheetLensNames =[
+,("wsName"         , "lensWsName"       )
+,("wsMinX"         , "lensWsMinX"       )
+,("wsMaxX"         , "lensWsMaxX"       )
+,("wsMinY"         , "lensWsMinY"       )
+,("wsMaxY"         , "lensWsMaxY"       )
+,("wsColumns"      , "lensWsColumns"    )
+,("wsRowHeights"   , "lensWsRowHeights" )
+,("wsCells"        , "lensWsCells"      )]
+
+
+
+  
+
 data CellValue = CellText Text | CellDouble Double | CellLocalTime LocalTime
                deriving Show
 
@@ -96,6 +113,11 @@ data CellData = CellData { cdStyle  :: Maybe Int
                          , cdValue  :: Maybe CellValue
                          }
               deriving Show
+
+
+
+cellDataLensNames = [("cdStyle","lensCdStyle"),("cdValue","lensCdValue")]
+
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> "C")
 int2col :: Int -> Text
