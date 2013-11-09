@@ -32,19 +32,27 @@ main =  do
   x <- (xlsx "ptest.xlsx")
   print $ xlSharedStrings x  
   print $ xlWorksheetFiles x
-  lensTest x >>= print
-  writeXlsx "ptest2.xlsx" x
+--  lensTest x >>= print
+  y <- sheetCellTest x
+  writeXlsx "ptest2.xlsx" x Nothing
     where
       cols = [ColumnsWidth 1 10 15]
       rows = M.fromList [(1,50)]
       sheet = replicate 10000 [xText "column1", xText "column2", Nothing, xText "column4", xDate $! LocalTime (fromGregorian 2012 05 06) (TimeOfDay 7 30 50), xDouble 42.12345, xText  "False"]
 
 
-
-
-
-
 -- lensTest :: Xlsx -> Xlsx
 lensTest x = do
   ws <- sheet  x 0
   return $ ws ^. lensWsCells ^. at (1,1)
+
+
+
+
+sheetCellTest x = do
+  ws <- sheet x 0
+  let cd = ws ^. lensSheetCell (1,1)
+      altWs = ws & (traverseSheetCellData (1,1))  ?~  ( CellText "New Value" )
+      newCd = cd <&> (set lensCdValue (Just (CellText "a new Value") ))
+      nws = (set (lensSheetCell (1,1))  newCd ws)      
+  return nws      

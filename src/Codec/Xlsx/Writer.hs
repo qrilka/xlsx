@@ -9,6 +9,7 @@ import           Control.Monad.Trans.State
 import           Data.ByteString.Lazy.Char8()
 import qualified Data.ByteString.Lazy as L
 import           Data.List
+import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import           Data.Maybe
 import           Data.Text (Text)
@@ -29,10 +30,18 @@ import           Codec.Xlsx.Parser (sheet)
 
 
 -- | writes list of worksheets
-writeXlsx :: FilePath -> Xlsx -> IO ()
-writeXlsx fp xl@(Xlsx xlA xlS (Styles sty) xlWkfls) = do  
+writeXlsx :: FilePath -> Xlsx -> Maybe MappedSheet -> IO ()
+writeXlsx fp xl@(Xlsx xlA xlS (Styles sty) xlWkfls) Nothing = do
   xlWshts <- (sheet xl)  `mapM` (zipWith (\a b -> a) [0 ..] xlWkfls)
   writeXlsxStyles fp sty xlWshts
+writeXlsx fp xl@(Xlsx xlA xlS (Styles sty) xlWkfls) (Just mappedSheets) = do
+  let
+    sheetList :: [Worksheet]
+    sheetList = (snd `fmap`)  (IM.toList.unMappedSheet $ mappedSheets)
+  writeXlsxStyles fp sty sheetList
+
+
+
 
 
 -- | writes list of worksheets as xlsx file

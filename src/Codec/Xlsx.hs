@@ -15,6 +15,7 @@ module Codec.Xlsx(
   CellValue(..),
   Cell(..),
   CellData(..),
+  MappedSheet(..),
   int2col,
   col2int,
   foldRows,
@@ -41,7 +42,7 @@ import qualified Codec.Archive.Zip as Zip
 import qualified Data.ByteString.Lazy as L
 
 
-data Xlsx = Xlsx{ xlArchive :: Zip.Archive
+data Xlsx  = Xlsx{ xlArchive :: Zip.Archive
                 , xlSharedStrings :: IntMap Text
                 , xlStyles :: Styles
                 , xlWorksheetFiles :: [WorksheetFile]
@@ -77,6 +78,9 @@ data ColumnsWidth = ColumnsWidth { cwMin :: Int
 
 type RowHeights = Map Int Double
 
+newtype MappedSheet = MappedSheet { unMappedSheet :: (IntMap  Worksheet )}
+
+
 data Worksheet = Worksheet { wsName       :: Text                   -- ^ worksheet name
                            , wsMinX       :: Int                    -- ^ minimum non-empty column number (1-based)
                            , wsMaxX       :: Int                    -- ^ maximum non-empty column number (1-based)
@@ -87,6 +91,9 @@ data Worksheet = Worksheet { wsName       :: Text                   -- ^ workshe
                            , wsCells      :: Map (Int,Int) CellData -- ^ data mapped by (column, row) pairs
                            }
                deriving Show
+
+
+
 worksheetLensNames:: [ (String,String)]
 worksheetLensNames =[
    ("wsName"         , "lensWsName"       )

@@ -75,8 +75,10 @@ rational t = case T.rational t of
   Right (r, _) -> return r
   _ -> fail "invalid rational"
 
-
-
+getWorksheets ::(MonadThrow m )=>  Xlsx -> m MappedSheet
+getWorksheets xl@(Xlsx _ _ _ xlWkfls) = do
+    xlWshts <- (sheet xl)  `mapM` (zipWith (\a b -> a) [0 ..] xlWkfls)
+    return $ MappedSheet $ M.fromList (zip [0 ..] xlWshts )
 
 sheet :: MonadThrow m => Xlsx -> Int -> m Worksheet
 sheet Xlsx {xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets} sheetN
