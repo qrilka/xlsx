@@ -13,6 +13,7 @@ import qualified Data.Map as M
 import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
+
 import           Data.Text.Lazy (toStrict)
 import           Data.Text.Lazy.Builder (toLazyText)
 import           Data.Text.Lazy.Builder.Int
@@ -24,13 +25,19 @@ import           System.Time
 import           Text.XML
 
 import           Codec.Xlsx
+import           Codec.Xlsx.Parser (sheet)
 
 
+-- | writes list of worksheets
+writeXlsx :: FilePath -> Xlsx -> IO ()
+writeXlsx fp xl@(Xlsx xlA xlS (Styles sty) xlWkfls) = do
+  xlWshts <- (sheet xl)  `mapM` (zipWith (\a b -> a) [1 ..] xlWkfls)
+  writeXlsxStyles fp sty xlWshts
 
 
 -- | writes list of worksheets as xlsx file
-writeXlsx :: FilePath -> [Worksheet] -> IO ()
-writeXlsx p = writeXlsxStyles p emptyStylesXml
+writeWorksheetList :: FilePath -> [Worksheet] -> IO ()
+writeWorksheetList p = writeXlsxStyles p emptyStylesXml
 
 -- | writes list of worksheets and their styling as xlsx file
 writeXlsxStyles :: FilePath -> L.ByteString -> [Worksheet] -> IO ()
