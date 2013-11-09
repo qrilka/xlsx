@@ -275,7 +275,7 @@ err :: String
 err = "got here"
 
 getText xml = do
-  lms<- (xml $= ( mkXmlCond Xml.contentMaybe =$= stopWhen (\(!x) -> (traceShow x False))) $$ CL.consume)
+  lms<- (xml $= ( mkXmlCond Xml.contentMaybe ) $$ CL.consume)
   return  lms
 
 
@@ -289,7 +289,6 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
 
 {-| Incoming is a (Maybe Producer m Event) 
     Use 
- 
 |-}
 
 
@@ -299,7 +298,7 @@ getWorksheetFiles ar = case xmlSource ar "xl/workbook.xml" of
   Nothing ->
     error "invalid workbook"
   Just xml -> do
-    sheetData <- (xml $= mkXmlCond getSheetData =$= CL.isolate 1  $$ CL.consume)
+    sheetData <- (xml $= mkXmlCond getSheetData  $$ CL.consume)
     wbRels <- getWbRels ar
     return $ [WorksheetFile n ("xl" </> T.unpack (fromJust $ lookup rId wbRels)) | (n, rId) <- sheetData]
 
@@ -345,42 +344,16 @@ int = either error fst . T.decimal
 -- (Conduit Event m 
 -- Sink Event m (Maybe (Text,Text))
 mkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
-mkXmlCond f =  awaitForever $ \i -> leftover i >> mkXmlCond' (toConsumer f) >>= (\x -> 
-                                                                                 yield x)
-mkXmlCond'  :: Monad m => ConduitM a o m (Maybe b) -> ConduitM a o m b
+mkXmlCond f =  awaitForever $ \i -> leftover i >> mkXmlCond' (toConsumer f) >>=  maybe (return ())  yield 
+-- mkXmlCond'  :: Monad m => ConduitM a o m (Maybe b) -> ConduitM a o m b
 mkXmlCond' f = f >>= (\x -> maybe 
-                            (CL.drop 1 >> mkXmlCond' (f) )
-                            (\x -> return $ x )
+                            (CL.drop 1 >> return Nothing )
+                            (\x -> return $ Just x )
                             x)
 
 
 
-newtype Finalizer a = Finalizer {unFinalizer :: a} 
 
-
--- | because there are two kinds of failure that are encompased in this sucker I need a way to talk about them differently
-
-
--- data TriState a = OneFail | TwoFail | Good a 
-
--- instance Functor TriState where 
---     fmap _ OneFail = OneFail 
---     fmap _ TwoFail = TwoFail 
---     fmap f (Good a) = Good (f a)
-
--- instance Monad TriState where 
---      OneFail >>= _ = OneFail 
---      TwoFail >>= _ = TwoFail 
---      (Good a) >>= k = (k a)
-
-
---      OneFail >> _ = OneFail
---      TwoFail >> _ = TwoFail
---      (Good a) >> k = k
-     
---      return = Good
---      fail _ = OneFail
-lookAndGo = CL.sequence ( CL.peek >>= (\x -> return $ traceShow x x))
 
 stopWhen ::(Show a, Monad m) => (a -> Bool) -> Conduit a m a 
 stopWhen fTest = loop
@@ -391,26 +364,8 @@ stopWhen fTest = loop
             case (a1,p1) of 
               (Just x, Just p) ->  if fTest x
                                    then traceShow ((x,p)) (return () )
-                                   else yield (traceShow err x) >> loop 
-              _                -> traceShow err (return () )
-
-altMkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
-altMkXmlCond f = CL.sequence $ (altMkXmlCond' (toConsumer f)) 
+                                   else yield (x) >> loop 
+              _                -> return () 
 
 
-altMkXmlCond' :: Monad m => ConduitM a o m (Maybe b) -> ConduitM a o m b
-altMkXmlCond' f = do
-  f >>= maybe 
-        (CL.drop 1 >> altMkXmlCond'  (traceShow err f))
-        (\x -> do 
-           tst <- CL.peek
-           return $ x)
-
-
-
-
-altGetText :: MonadThrow m => Source m Event -> m [Text]
-altGetText xml = do 
-  l <- xml $= CL.sequence (toConsumer Xml.contentMaybe)  $$ CL.consume 
-  return $ catMaybes l
 
