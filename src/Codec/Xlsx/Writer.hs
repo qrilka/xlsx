@@ -30,8 +30,8 @@ import           Codec.Xlsx.Parser (sheet)
 
 -- | writes list of worksheets
 writeXlsx :: FilePath -> Xlsx -> IO ()
-writeXlsx fp xl@(Xlsx xlA xlS (Styles sty) xlWkfls) = do
-  xlWshts <- (sheet xl)  `mapM` (zipWith (\a b -> a) [1 ..] xlWkfls)
+writeXlsx fp xl@(Xlsx xlA xlS (Styles sty) xlWkfls) = do  
+  xlWshts <- (sheet xl)  `mapM` (zipWith (\a b -> a) [0 ..] xlWkfls)
   writeXlsxStyles fp sty xlWshts
 
 

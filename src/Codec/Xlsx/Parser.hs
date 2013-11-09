@@ -38,12 +38,9 @@ import           System.FilePath
 import           Text.XML as X
 import           Text.XML.Cursor
 import qualified Text.XML.Stream.Parse as Xml
-
 import           Codec.Xlsx
 
-
 type MapRow = Map.Map Text Text
-
 
 -- | Read archive and preload 'Xlsx' fields
 xlsx :: FilePath -> IO Xlsx
@@ -60,6 +57,8 @@ xlsx fname = do
   return $ Xlsx ar ss st ws
 
 
+
+
 -- | Get data from specified worksheet as conduit source.
 cellSource :: MonadThrow m => Xlsx -> Int -> [Text] -> Source m [Cell]
 cellSource x sheetN cols  =  getSheetCells x sheetN
@@ -68,10 +67,13 @@ cellSource x sheetN cols  =  getSheetCells x sheetN
                         $= reverseRows
 
 
+
 decimal :: Monad m => Text -> m Int
 decimal t = case T.decimal t of
   Right (d, _) -> return d
   _ -> fail "invalid decimal"
+
+
 
 rational :: Monad m => Text -> m Double
 rational t = case T.rational t of
@@ -79,8 +81,10 @@ rational t = case T.rational t of
   _ -> fail "invalid rational"
 
 
+
+
 sheet :: MonadThrow m => Xlsx -> Int -> m Worksheet
-sheet Xlsx{xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets} sheetN
+sheet Xlsx {xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets} sheetN
   | sheetN < 0 || sheetN >= length sheets
     = fail "parseSheet: Invalid sheet number"
   | otherwise
@@ -140,6 +144,8 @@ sheet Xlsx{xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets} sheetN
         collectCell (x, y, cd) (minX, maxX, minY, maxY, cellMap) =
           (min minX x, max maxX x, min minY y, max maxY y, Map.insert (x,y) cd cellMap)
     
+
+
 
 -- | Get all rows from specified worksheet.
 sheetRowSource :: MonadThrow m => Xlsx -> Int -> Source m MapRow
@@ -298,7 +304,7 @@ getWorksheetFiles ar = case xmlSource ar "xl/workbook.xml" of
   Nothing ->
     error "invalid workbook"
   Just xml -> do
-    sheetData <- (xml $= mkXmlCond getSheetData  $$ CL.consume)
+    sheetData <- (xml $= mkXmlCond getSheetData $$ CL.consume)
     wbRels <- getWbRels ar
     return $ [WorksheetFile n ("xl" </> T.unpack (fromJust $ lookup rId wbRels)) | (n, rId) <- sheetData]
 

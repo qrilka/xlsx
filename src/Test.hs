@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 import           Codec.Xlsx
 import           Codec.Xlsx.Writer
 import           Codec.Xlsx.Parser
@@ -26,9 +27,10 @@ styles = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 main :: IO ()
 main =  do 
   writeXlsxStyles "test.xlsx" styles [fromList "List" cols rows sheet]
-  x <- (xlsx "ptest.xlsx") 
+  x <- (xlsx "ptest.xlsx")
   print $ xlSharedStrings x  
-  print $ xlWorksheetFiles x 
+  print $ xlWorksheetFiles x
+  writeXlsx "ptest2.xlsx" x
     where
       cols = [ColumnsWidth 1 10 15]
       rows = M.fromList [(1,50)]
