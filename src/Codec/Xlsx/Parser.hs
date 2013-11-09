@@ -345,7 +345,8 @@ int = either error fst . T.decimal
 -- (Conduit Event m 
 -- Sink Event m (Maybe (Text,Text))
 mkXmlCond :: (Monad m) => (Sink a m (Maybe b)) -> (Conduit a m b)
-mkXmlCond f =  CL.sequence $ mkXmlCond' (toConsumer f)
+mkXmlCond f =  awaitForever $ \i -> leftover i >> mkXmlCond' (toConsumer f) >>= (\x -> 
+                                                                                 yield x)
 mkXmlCond'  :: Monad m => ConduitM a o m (Maybe b) -> ConduitM a o m b
 mkXmlCond' f = f >>= (\x -> maybe 
                             (CL.drop 1 >> mkXmlCond' (f) )
