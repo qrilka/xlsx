@@ -3,11 +3,13 @@
 import           Codec.Xlsx
 import           Codec.Xlsx.Writer
 import           Codec.Xlsx.Parser
+import           Codec.Xlsx.Lens
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Map as M
 import           Data.Text (Text)
 import           Data.Time.Calendar
 import           Data.Time.LocalTime
+import           Control.Lens
 
 
 
@@ -30,6 +32,7 @@ main =  do
   x <- (xlsx "ptest.xlsx")
   print $ xlSharedStrings x  
   print $ xlWorksheetFiles x
+  lensTest x >>= print
   writeXlsx "ptest2.xlsx" x
     where
       cols = [ColumnsWidth 1 10 15]
@@ -41,3 +44,7 @@ main =  do
 
 
 
+-- lensTest :: Xlsx -> Xlsx
+lensTest x = do
+  ws <- sheet  x 0
+  return $ ws ^. lensWsCells ^. at (1,1)
