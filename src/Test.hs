@@ -4,6 +4,8 @@ import           Codec.Xlsx
 import           Codec.Xlsx.Writer
 import           Codec.Xlsx.Parser
 import           Codec.Xlsx.Lens
+
+import           Control.Applicative
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Map as M
 import           Data.Text (Text)
@@ -51,6 +53,9 @@ lensTest x = do
 
 sheetCellTest x = do
   ws <- getWorksheets x
-
-  return $ ws & (traverseMappedSheetCellData (0,3,3))  ?~  ( CellText "Hello!!!" )
+  let ls = zip3 (repeat 0) [0..3] [0..3]
+  return $ setMappedSheetCellData ws (0,1,1) (CellText "poopy Diaper")
+--      tmaps = (traverseMappedSheetCellData <$> ls) <*> (repeat $ (?~) (CellText "Hellos"))
+      
+--  return $ ws & (traverseMappedSheetCellData <$> [(0,3,3)])  ?~  ( CellText "Hello!!!" )
       

@@ -110,10 +110,11 @@ worksheetLensNames =[
 
 
 
-  
+data FullyIndexedCellValue = FICV { ficvSheet :: Int , ficvRow ::Int, ficvCol :: Int , ficvValue :: CellValue}
+                             deriving (Read,Show)
 
 data CellValue_ t d l = CellText {unCellText :: t} | CellDouble {unCellDouble :: d} | CellLocalTime {unCellLocalTime ::l}
-               deriving Show
+               deriving (Show,Read)
 
 type CellValue = CellValue_ Text Double LocalTime
 
