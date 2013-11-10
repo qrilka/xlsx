@@ -53,7 +53,7 @@ lensTest x = do
 
 sheetCellTest x = do
   ws <- getWorksheets x
-  let ls = take 10 [FICV s r c v | s <- (repeat 0) , r <- [1..3]  , c <- [1..3] , v <- (repeat $ CellText "poopy scoopy")]
+  let ls = take 100 [FICV 0 r c v | (r,c,v)<-  (zip3 [1..3]  [1..3]  (cycle  [(CellText "v1"),(CellDouble 1.3)]) ) ]
   print ls    
   return $  setMultiMappedSheetCellData ws ls
     --setMappedSheetCellData ws (FICV 0 1 1 (CellText "poopy Diaper"))
