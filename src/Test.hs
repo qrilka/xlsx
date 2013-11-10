@@ -53,8 +53,10 @@ lensTest x = do
 
 sheetCellTest x = do
   ws <- getWorksheets x
-  let ls = zip3 (repeat 0) [0..3] [0..3]
-  return $ setMappedSheetCellData ws (0,1,1) (CellText "poopy Diaper")
+  let ls = take 10 [FICV s r c v | s <- (repeat 0) , r <- [1..3]  , c <- [1..3] , v <- (repeat $ CellText "poopy scoopy")]
+  print ls    
+  return $  setMultiMappedSheetCellData ws ls
+    --setMappedSheetCellData ws (FICV 0 1 1 (CellText "poopy Diaper"))
 --      tmaps = (traverseMappedSheetCellData <$> ls) <*> (repeat $ (?~) (CellText "Hellos"))
       
 --  return $ ws & (traverseMappedSheetCellData <$> [(0,3,3)])  ?~  ( CellText "Hello!!!" )

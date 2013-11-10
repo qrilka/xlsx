@@ -16,6 +16,7 @@ module Codec.Xlsx(
   Cell(..),
   CellData(..),
   MappedSheet(..),
+  FullyIndexedCellValue (..),
   int2col,
   col2int,
   foldRows,
@@ -110,7 +111,7 @@ worksheetLensNames =[
 
 
 
-data FullyIndexedCellValue = FICV { ficvSheet :: Int , ficvRow ::Int, ficvCol :: Int , ficvValue :: CellValue}
+data FullyIndexedCellValue = FICV { ficvSheetIdx :: Int , ficvRowIdx ::Int, ficvCol :: Int , ficvValue :: CellValue}
                              deriving (Read,Show)
 
 data CellValue_ t d l = CellText {unCellText :: t} | CellDouble {unCellDouble :: d} | CellLocalTime {unCellLocalTime ::l}
