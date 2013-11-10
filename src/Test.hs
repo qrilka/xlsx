@@ -34,7 +34,7 @@ main =  do
   print $ xlWorksheetFiles x
 --  lensTest x >>= print
   y <- sheetCellTest x
-  writeXlsx "ptest2.xlsx" x Nothing
+  writeXlsx "ptest2.xlsx" x (Just y)
     where
       cols = [ColumnsWidth 1 10 15]
       rows = M.fromList [(1,50)]
@@ -50,9 +50,7 @@ lensTest x = do
 
 
 sheetCellTest x = do
-  ws <- sheet x 0
-  let cd = ws ^. lensSheetCell (1,1)
-      altWs = ws & (traverseSheetCellData (1,1))  ?~  ( CellText "New Value" )
-      newCd = cd <&> (set lensCdValue (Just (CellText "a new Value") ))
-      nws = (set (lensSheetCell (1,1))  newCd ws)      
-  return nws      
+  ws <- getWorksheets x
+
+  return $ ws & (traverseMappedSheetCellData (0,3,3))  ?~  ( CellText "Hello!!!" )
+      

@@ -25,7 +25,8 @@ module Codec.Xlsx(
   worksheetFileLensNames,
   worksheetLensNames,
   cellLensNames,
-  cellDataLensNames
+  cellDataLensNames,
+  mappedSheetLensNames
   
   ) where
 
@@ -80,6 +81,8 @@ type RowHeights = Map Int Double
 
 newtype MappedSheet = MappedSheet { unMappedSheet :: (IntMap  Worksheet )}
 
+mappedSheetLensNames :: [(String,String)]
+mappedSheetLensNames = [("unMappedSheet","lensMappedSheet")]
 
 data Worksheet = Worksheet { wsName       :: Text                   -- ^ worksheet name
                            , wsMinX       :: Int                    -- ^ minimum non-empty column number (1-based)

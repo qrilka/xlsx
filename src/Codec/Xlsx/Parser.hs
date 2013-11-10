@@ -7,6 +7,7 @@ module Codec.Xlsx.Parser(
   xlsx,
   sheet,
   cellSource,
+  getWorksheets,
   sheetRowSource
   ) where
 
