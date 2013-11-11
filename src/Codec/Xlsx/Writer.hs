@@ -33,6 +33,7 @@ import           Codec.Xlsx.Parser (sheet)
 writeXlsx :: FilePath -> Xlsx -> Maybe MappedSheet -> IO ()
 writeXlsx fp xl@(Xlsx xlA xlS (Styles sty) xlWkfls) Nothing = do
   xlWshts <- (sheet xl)  `mapM` (zipWith (\a b -> a) [0 ..] xlWkfls)
+  print sty
   writeXlsxStyles fp sty xlWshts
 writeXlsx fp xl@(Xlsx xlA xlS (Styles sty) xlWkfls) (Just mappedSheets) = do
   let

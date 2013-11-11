@@ -1,3 +1,6 @@
 TAGS
 cabal-dev
 dist
+*sandbox*
+#*#
+*.*~
