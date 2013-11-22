@@ -75,6 +75,7 @@ worksheetFileLensNames = [("wfName","lensWfName"),("wfPath","lensWfPath")]
 data ColumnsWidth = ColumnsWidth { cwMin :: Int
                                  , cwMax :: Int
                                  , cwWidth :: Double
+                                 , cwStyle :: Int
                                  }
                   deriving Show
 

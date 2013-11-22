@@ -104,7 +104,8 @@ sheet Xlsx {xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets} sheetN
       min <- c $| attribute "min" >=> decimal
       max <- c $| attribute "max" >=> decimal
       width <- c $| attribute "width" >=> rational
-      return $ ColumnsWidth min max width
+      style <- c $| attribute "style" >=> decimal
+      return $ ColumnsWidth min max width style
     parseRows :: Cursor -> [(Int, Maybe Double, [(Int, Int, CellData)])]
     parseRows = element (n"sheetData") &/ element (n"row") >=> parseRow
     parseRow c = do
@@ -259,6 +260,7 @@ tagSeq _ = error "no tags in tag sequence"
 
 
 -- | Get xml event stream from the specified file inside the zip archive.
+
 xmlSource :: MonadThrow m => Zip.Archive -> FilePath -> Maybe (Source m Event)
 xmlSource ar fname  =   Xml.parseLBS Xml.def
                         .   Zip.fromEntry
@@ -296,13 +298,13 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
 |-}
 
 
-
+-- | getWorksheetFiles pulls the names of the sheets 
 getWorksheetFiles :: (MonadThrow m, Functor m) => Zip.Archive -> m [WorksheetFile]
 getWorksheetFiles ar = case xmlSource ar "xl/workbook.xml" of
   Nothing ->
     error "invalid workbook"
   Just xml -> do
-    sheetData <- (xml $= mkXmlCond getSheetData $$ CL.consume)
+    sheetData <- (xml $= mkXmlCond getSheetData $$ CL.consume) -- Pull the name of the sheet and stuff
     wbRels <- getWbRels ar
     return $ [WorksheetFile n ("xl" </> T.unpack (fromJust $ lookup rId wbRels)) | (n, rId) <- sheetData]
 

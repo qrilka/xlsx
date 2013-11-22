@@ -152,7 +152,7 @@ sheetXml cws rh d = renderLBS def $ Document (Prologue [] Nothing []) root []
            [nEl "cols" M.empty $  map cwEl cws,
             nEl "sheetData" M.empty $ map rowEl rows]
     cwEl cw = NodeElement $! Element "col" (M.fromList
-              [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw)]) []
+              [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw), ("style", txti $ cwStyle cw)]) []
     rowEl (r, cells) = nEl "row"
                        (M.fromList (ht ++ [("r", txti r), ("hidden", "false"), ("outlineLevel", "0"),
                                ("collapsed", "false"), ("customFormat", "false"),

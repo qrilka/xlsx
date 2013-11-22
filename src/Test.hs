@@ -38,7 +38,7 @@ main =  do
   y <- sheetCellTest x
   writeXlsx "ptest2.xlsx" x (Just y)
     where
-      cols = [ColumnsWidth 1 10 15]
+      cols = [ColumnsWidth 1 10 15 1]
       rows = M.fromList [(1,50)]
       sheet = replicate 10000 [xText "column1", xText "column2", Nothing, xText "column4", xDate $! LocalTime (fromGregorian 2012 05 06) (TimeOfDay 7 30 50), xDouble 42.12345, xText  "False"]
 
