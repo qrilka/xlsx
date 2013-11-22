@@ -17,6 +17,7 @@ module Codec.Xlsx(
   CellData(..),
   MappedSheet(..),
   FullyIndexedCellValue (..),
+  RowProperties (..),
   int2col,
   col2int,
   foldRows,
@@ -79,7 +80,10 @@ data ColumnsWidth = ColumnsWidth { cwMin :: Int
                                  }
                   deriving Show
 
-type RowHeights = Map Int Double
+type RowHeights = Map Int RowProperties
+
+data RowProperties = RowProps { rowHeight :: Maybe Double, rowStyle::Maybe Int}
+                   deriving (Read,Eq,Show,Ord)
 
 newtype MappedSheet = MappedSheet { unMappedSheet :: (IntMap  Worksheet )}
 
@@ -93,9 +97,12 @@ data Worksheet = Worksheet { wsName       :: Text                   -- ^ workshe
                            , wsMaxY       :: Int                    -- ^ maximum non-empty row number (1-based)
                            , wsColumns    :: [ColumnsWidth]         -- ^ column widths
                            , wsRowHeights :: RowHeights             -- ^ custom row height map
+
                            , wsCells      :: Map (Int,Int) CellData -- ^ data mapped by (column, row) pairs
+                           , wsMerges     :: [Text]
                            }
                deriving Show
+
 
 
 
@@ -167,8 +174,8 @@ toList Worksheet{wsMinX=minX, wsMaxX=maxX,
                  wsMinY=minY, wsMaxY=maxY, wsCells=cells} =
   [[Map.lookup (x,y) cells | x <- [minX..maxX]] | y <- [minY..maxY]]
 
-fromList :: Text -> [ColumnsWidth] -> RowHeights -> [[Maybe CellData]] -> Worksheet
-fromList sName cw rh d = Worksheet sName 1 maxX 1 maxY cw rh $ Map.fromList cellList
+fromList :: Text -> [ColumnsWidth] -> RowHeights -> [[Maybe CellData]] -> [Text] -> Worksheet
+fromList sName cw rh d merges = Worksheet sName 1 maxX 1 maxY cw rh  (Map.fromList cellList) merges
   where
     maxY = max (length d + 1) (maximum' $ Map.keys rh)
     maximum' l = if null l then minBound else maximum l

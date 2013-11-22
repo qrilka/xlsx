@@ -66,7 +66,7 @@ constructXlsx s ws = do
     (sheetCells, shared) = runState (mapM collectSharedTransform ws) []
     sheetNumber = length ws
     sheetFiles = [FileData (T.concat ["xl/worksheets/sheet", txti n, ".xml"]) "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
-                  sheetXml (wsColumns w) (wsRowHeights w) cells | (n, cells, w) <- zip3 [1..] sheetCells ws]
+                  sheetXml (wsColumns w) (wsRowHeights w) cells (wsMerges w)| (n, cells, w) <- zip3 [1..] sheetCells ws]
     files = sheetFiles ++
       [ FileData "docProps/core.xml" "application/vnd.openxmlformats-package.core-properties+xml" $ coreXml utct "xlsxwriter"
       , FileData "docProps/app.xml" "application/vnd.openxmlformats-officedocument.extended-properties+xml" appXml
@@ -141,8 +141,8 @@ xlsxDoubleTime LocalTime{localDay=day,localTimeOfDay=time} =
     xlsxEpochStart = fromGregorian 1899 12 30
     timeFraction = fromRational . timeOfDayToDayFraction
 
-sheetXml :: [ColumnsWidth] -> RowHeights -> [[XlsxCell]] -> L.ByteString
-sheetXml cws rh d = renderLBS def $ Document (Prologue [] Nothing []) root []
+sheetXml :: [ColumnsWidth] -> RowHeights -> [[XlsxCell]] -> [Text]-> L.ByteString
+sheetXml cws rh d merges = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     rows = zip [1..] d
     numCols = zip [int2col n | n <- [1..]]
@@ -150,18 +150,23 @@ sheetXml cws rh d = renderLBS def $ Document (Prologue [] Nothing []) root []
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
            Element "worksheet" M.empty
            [nEl "cols" M.empty $  map cwEl cws,
-            nEl "sheetData" M.empty $ map rowEl rows]
+            nEl "sheetData" M.empty $ map rowEl rows,
+            nEl "mergeCells" M.empty $ map mergeE1 merges]
     cwEl cw = NodeElement $! Element "col" (M.fromList
               [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw), ("style", txti $ cwStyle cw)]) []
     rowEl (r, cells) = nEl "row"
-                       (M.fromList (ht ++ [("r", txti r), ("hidden", "false"), ("outlineLevel", "0"),
-                               ("collapsed", "false"), ("customFormat", "false"),
+                       (M.fromList (ht ++ s ++ [("r", txti r) ,("hidden", "false"), ("outlineLevel", "0"),
+                               ("collapsed", "false"), ("customFormat", "true"),
                                ("customHeight", txtb hasHeight)]))
                        $ map (cellEl r) (numCols cells)
       where
-        (ht, hasHeight) = case M.lookup r rh of
-          Just h  -> ([("ht", txtd h)], True)
-          Nothing -> ([], False)
+        (ht, hasHeight,s) = case M.lookup r rh of
+          Just (RowProps (Just h) (Just s))  -> ([("ht", txtd $ h)], True,[("s",txti $ s)])
+          Just (RowProps (Nothing) (Just s))  -> ([],True,[("s",txti $ s)])
+          Just (RowProps (Just h) (Nothing))  -> ([("ht", txtd $ h)], True,[])
+          _ -> ([], False,[])
+          Nothing -> ([], False,[])
+    mergeE1 t = NodeElement $! Element "mergeCell" (M.fromList [("ref",t)]) []
     cellEl r (col, cell) =
       nEl "c" (M.fromList (cellAttrs r col cell)) [nEl "v" M.empty [NodeContent $ value cell] | isJust $ xlsxCellValue cell]
     cellAttrs r col cell = cellStyleAttr cell ++ [("r", T.concat [col, txti r]), ("t", cType cell)]

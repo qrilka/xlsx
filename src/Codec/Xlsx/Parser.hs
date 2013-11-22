@@ -96,7 +96,7 @@ sheet Xlsx {xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets} sheetN
       Right d -> d
     tc :: Cursor
     tc = fromDocument doc
-    parse = (tc $/ parseColumns, tc $/ parseRows)
+    parse = (tc $/ parseColumns, tc $/ parseRows, tc $/ parseMerges)
     parseColumns :: Cursor -> [ColumnsWidth]
     parseColumns = element (n"cols") &/ element (n"col") >=> parseColumn
     parseColumn :: Cursor -> [ColumnsWidth]
@@ -106,14 +106,21 @@ sheet Xlsx {xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets} sheetN
       width <- c $| attribute "width" >=> rational
       style <- c $| attribute "style" >=> decimal
       return $ ColumnsWidth min max width style
-    parseRows :: Cursor -> [(Int, Maybe Double, [(Int, Int, CellData)])]
+    parseRows :: Cursor -> [(Int, Maybe RowProperties, [(Int, Int, CellData)])]
     parseRows = element (n"sheetData") &/ element (n"row") >=> parseRow
     parseRow c = do
       r <- c $| attribute "r" >=> decimal
       let ht = if attribute "customHeight" c == ["true"] 
                then listToMaybe $ c $| attribute "ht" >=> rational
                else Nothing
-      return (r, ht, c $/ element (n"c") >=> parseCell)
+      let s = if attribute "s" c /= [] 
+               then listToMaybe $ c $| attribute "s" >=> decimal
+               else Nothing
+      let rp = if (s == Nothing) && (ht == Nothing) 
+                then  Nothing
+                else  Just (RowProps ht s)
+      return (r,rp, c $/ element (n"c") >=> parseCell)
+
     parseCell :: Cursor -> [(Int, Int, CellData)]
     parseCell cell = do
       (c, r) <- T.span (>'9') <$> (cell $| attribute "r")
@@ -132,7 +139,10 @@ sheet Xlsx {xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets} sheetN
               Right (d, _) -> maybeToList $ fmap CellText $ M.lookup d ss
               _ -> []
           _ -> []
-    collect (cw, rd) = return $ Worksheet sName minX maxX minY maxY cw rowMap cellMap
+    parseMerges :: Cursor -> [Text]
+    parseMerges = element (n"mergeCells") &/ element (n"mergeCell") >=> parseMerge
+    parseMerge c = c $| attribute "ref" 
+    collect (cw, rd, rm) = return $ Worksheet sName minX maxX minY maxY cw rowMap cellMap rm
       where
         (rowMap, (minX, maxX, minY, maxY, cellMap)) = foldr collectRow rInit rd
         rInit = (Map.empty, (maxBound, minBound, maxBound, minBound, Map.empty))
