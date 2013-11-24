@@ -30,7 +30,7 @@ styles = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 
 main :: IO ()
 main =  do 
-  writeXlsxStyles "test.xlsx" styles [fromList "List" cols rows sheet]
+  writeXlsxStyles "test.xlsx" styles [fromList "List" cols rows sheet []]
   x <- (xlsx "ptest.xlsx")
   print $ xlSharedStrings x  
   print $ xlWorksheetFiles x
