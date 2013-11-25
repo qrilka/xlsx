@@ -235,8 +235,6 @@ addNS namespace (Element (Name ln _ _) as ns) = Element (Name ln (Just namespace
 nEl :: Name -> (M.Map Name Text) -> [Node] -> Node
 nEl name attrs nodes = NodeElement $ Element name attrs nodes
 
-
-
 txti :: Int -> Text
 txti = toStrict . toLazyText . decimal
 

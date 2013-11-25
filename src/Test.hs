@@ -31,12 +31,12 @@ styles = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 main :: IO ()
 main =  do 
   writeXlsxStyles "test.xlsx" styles [fromList "List" cols rows sheet []]
-  x <- (xlsx "ptest.xlsx")
+  x <- (xlsx "test.xlsx")
   print $ xlSharedStrings x  
   print $ xlWorksheetFiles x
---  lensTest x >>= print
+
   y <- sheetCellTest x
-  writeXlsx "ptest2.xlsx" x (Just y)
+  writeXlsx "test2.xlsx" x (Just y)
     where
       cols = [ColumnsWidth 1 10 15 1]
       rows = M.fromList [(1,RowProps (Just 50) (Just 3))]
@@ -56,8 +56,4 @@ sheetCellTest x = do
   let ls = take 100 [FICV 0 r c v | (r,c,v)<-  (zip3 [1..3]  [1..3]  (cycle  [(CellText "v1"),(CellDouble 1.3)]) ) ]
   print ls    
   return $  setMultiMappedSheetCellData ws ls
-    --setMappedSheetCellData ws (FICV 0 1 1 (CellText "poopy Diaper"))
---      tmaps = (traverseMappedSheetCellData <$> ls) <*> (repeat $ (?~) (CellText "Hellos"))
-      
---  return $ ws & (traverseMappedSheetCellData <$> [(0,3,3)])  ?~  ( CellText "Hello!!!" )
       
