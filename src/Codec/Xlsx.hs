@@ -1,3 +1,9 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
+{-# Language TemplateHaskell #-}
+
+
 module Codec.Xlsx(
   Xlsx(..),
   WorksheetFile(..),
@@ -5,14 +11,25 @@ module Codec.Xlsx(
   ColumnsWidth(..),
   RowHeights,
   Worksheet(..),
+  CellValue_ (..),
   CellValue(..),
   Cell(..),
   CellData(..),
+  MappedSheet(..),
+  FullyIndexedCellValue (..),
+  RowProperties (..),
   int2col,
   col2int,
   foldRows,
   toList,
-  fromList
+  fromList,
+  xlsxLensNames,
+  worksheetFileLensNames,
+  worksheetLensNames,
+  cellLensNames,
+  cellDataLensNames,
+  mappedSheetLensNames
+  
   ) where
 
 import           Control.Arrow
@@ -28,13 +45,20 @@ import qualified Codec.Archive.Zip as Zip
 import qualified Data.ByteString.Lazy as L
 
 
-data Xlsx = Xlsx{ xlArchive :: Zip.Archive
+data Xlsx  = Xlsx{ xlArchive :: Zip.Archive
                 , xlSharedStrings :: IntMap Text
                 , xlStyles :: Styles
                 , xlWorksheetFiles :: [WorksheetFile]
                 }
+xlsxLensNames :: [ (String,String)]
+xlsxLensNames = [  ("xlArchive"        , "lensXlArchive"       )
+                , ("xlSharedStrings"  , "lensXlSharedStrings" )
+                , ("xlStyles"         , "lensXlStyles"        )
+                , ("xlWorksheetFiles" , "lensXlWorksheetFiles")]
 
-data Styles = Styles L.ByteString
+            
+
+newtype Styles = Styles {unStyles :: L.ByteString}
             deriving Show
 
 
@@ -42,15 +66,29 @@ data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
                                    }
                    deriving Show
+worksheetFileLensNames :: [ (String,String)]
+worksheetFileLensNames = [("wfName","lensWfName"),("wfPath","lensWfPath")]
+
+
+
 
 -- | Column range (from cwMin to cwMax) width
 data ColumnsWidth = ColumnsWidth { cwMin :: Int
                                  , cwMax :: Int
                                  , cwWidth :: Double
+                                 , cwStyle :: Int
                                  }
                   deriving Show
 
-type RowHeights = Map Int Double
+type RowHeights = Map Int RowProperties
+
+data RowProperties = RowProps { rowHeight :: Maybe Double, rowStyle::Maybe Int}
+                   deriving (Read,Eq,Show,Ord)
+
+newtype MappedSheet = MappedSheet { unMappedSheet :: (IntMap  Worksheet )}
+
+mappedSheetLensNames :: [(String,String)]
+mappedSheetLensNames = [("unMappedSheet","lensMappedSheet")]
 
 data Worksheet = Worksheet { wsName       :: Text                   -- ^ worksheet name
                            , wsMinX       :: Int                    -- ^ minimum non-empty column number (1-based)
@@ -59,23 +97,53 @@ data Worksheet = Worksheet { wsName       :: Text                   -- ^ workshe
                            , wsMaxY       :: Int                    -- ^ maximum non-empty row number (1-based)
                            , wsColumns    :: [ColumnsWidth]         -- ^ column widths
                            , wsRowHeights :: RowHeights             -- ^ custom row height map
+
                            , wsCells      :: Map (Int,Int) CellData -- ^ data mapped by (column, row) pairs
+                           , wsMerges     :: [Text]
                            }
                deriving Show
 
-data CellValue = CellText Text | CellDouble Double | CellLocalTime LocalTime
-               deriving Show
 
+
+
+worksheetLensNames:: [ (String,String)]
+worksheetLensNames =[
+   ("wsName"         , "lensWsName"       )
+  ,("wsMinX"         , "lensWsMinX"       )
+  ,("wsMaxX"         , "lensWsMaxX"       )
+  ,("wsMinY"         , "lensWsMinY"       )
+  ,("wsMaxY"         , "lensWsMaxY"       )
+  ,("wsColumns"      , "lensWsColumns"    )
+  ,("wsRowHeights"   , "lensWsRowHeights" )
+  ,("wsCells"        , "lensWsCells"      )]
+
+
+
+data FullyIndexedCellValue = FICV { ficvSheetIdx :: Int , ficvColIdx ::Int, ficvRowIdx :: Int , ficvValue :: CellValue}
+                             deriving (Read,Show)
+
+data CellValue_ t d l = CellText {unCellText :: t} | CellDouble {unCellDouble :: d} | CellLocalTime {unCellLocalTime ::l}
+               deriving (Show,Read)
+
+type CellValue = CellValue_ Text Double LocalTime
 
 data Cell = Cell { cellIx   :: (Text, Int)
                  , cellData :: CellData
-                 }
+                 } 
           deriving Show
+
+cellLensNames :: [ (String,String)]
+cellLensNames = [("cellIx","lensCellIx"),("cellData","lensCellData")]
 
 data CellData = CellData { cdStyle  :: Maybe Int
                          , cdValue  :: Maybe CellValue
                          }
               deriving Show
+
+
+cellDataLensNames :: [ (String,String)]
+cellDataLensNames = [("cdStyle","lensCdStyle"),("cdValue","lensCdValue")]
+
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> "C")
 int2col :: Int -> Text
@@ -106,8 +174,8 @@ toList Worksheet{wsMinX=minX, wsMaxX=maxX,
                  wsMinY=minY, wsMaxY=maxY, wsCells=cells} =
   [[Map.lookup (x,y) cells | x <- [minX..maxX]] | y <- [minY..maxY]]
 
-fromList :: Text -> [ColumnsWidth] -> RowHeights -> [[Maybe CellData]] -> Worksheet
-fromList sName cw rh d = Worksheet sName 1 maxX 1 maxY cw rh $ Map.fromList cellList
+fromList :: Text -> [ColumnsWidth] -> RowHeights -> [[Maybe CellData]] -> [Text] -> Worksheet
+fromList sName cw rh d merges = Worksheet sName 1 maxX 1 maxY cw rh  (Map.fromList cellList) merges
   where
     maxY = max (length d + 1) (maximum' $ Map.keys rh)
     maximum' l = if null l then minBound else maximum l

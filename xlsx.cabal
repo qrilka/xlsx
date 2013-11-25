@@ -1,6 +1,6 @@
 Name:                xlsx
 
-Version:             0.0.1
+Version:             0.2.0.0
 
 Synopsis:            Simple and incomplete Excel file parser/writer
 Description:
@@ -18,43 +18,46 @@ Maintainer:          qrilka@gmail.com
 Category:            Codec
 Build-type:          Simple
 
-Cabal-version:       >=1.8
+Cabal-version:       >=1.2
 
 
 Library
   Hs-source-dirs:    src
-  Exposed-modules:   Codec.Xlsx, Codec.Xlsx.Parser, Codec.Xlsx.Writer
+  Exposed-modules:   Codec.Xlsx, Codec.Xlsx.Parser, Codec.Xlsx.Writer, Codec.Xlsx.Lens
 
   Build-depends:     base         == 4.*
-                    ,containers
-                    ,transformers
-                    ,bytestring
-                    ,text
-                    ,conduit      == 0.4.*
+                    ,containers   >= 0.5.0.0
+                    ,transformers >= 0.3.0.0
+                    ,bytestring   >= 0.10.0.2 
+                    ,text         >= 0.11.3.1
+                    ,lens                     >= 3.2       &&   < 3.9
+                    ,conduit      == 1.0.*
                     ,xml-types    == 0.3.*
-                    ,xml-conduit  == 0.7.*
+                    ,xml-conduit  == 1.1.*
                     ,zip-archive  == 0.1.*
                     ,digest       == 0.0.*
-                    ,zlib
-                    ,utf8-string
-                    ,time
-                    ,old-time
-                    ,old-locale
-                    ,filepath
+                    ,zlib         == 0.5.4.*
+                    ,utf8-string  >= 0.3.7
+                    ,time         >= 1.4.0.1
+                    ,old-time     >= 1.1.0.1
+                    ,old-locale   >= 1.0.0.5
+                    ,filepath     >= 1.3.0.1
 
 Executable           test
   Hs-source-dirs:    src
-  Other-modules:     Codec.Xlsx, Codec.Xlsx.Parser, Codec.Xlsx.Writer
+  Other-modules:     Codec.Xlsx, Codec.Xlsx.Parser, Codec.Xlsx.Writer, Codec.Xlsx.Lens
   ghc-options:       -Wall -threaded
 
   main-is:           Test.hs
   
   Build-depends:     base, containers, transformers, bytestring, text
-                    ,conduit     == 0.4.*
+                    ,conduit     == 1.0.*
                     ,xml-types   == 0.3.*
-                    ,xml-conduit == 0.7.*
+                    ,xml-conduit == 1.1.*
                     ,zip-archive == 0.1.*
+                    ,lens                     >= 3.2       &&   < 3.9
                     ,digest      >  0.0.0.1
+                    ,void
                     ,zlib
                     ,utf8-string
                     ,time
@@ -64,6 +67,7 @@ Executable           test
   
 test-suite data-test
   type: exitcode-stdio-1.0
+  Default-Language:     Haskell2010
   main-is:  DataTest.hs
   hs-source-dirs: test/
   Build-Depends: base, QuickCheck >= 2, HUnit,
