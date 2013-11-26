@@ -21,7 +21,6 @@ import           Data.List
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Ord
-import           Data.Void
 import           Prelude hiding (sequence)
 import           Debug.Trace
 import           Data.Text (Text)
@@ -29,11 +28,9 @@ import qualified Data.Text as T
 import qualified Data.Text.Read as T
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Lazy.Char8()
-import qualified Control.Monad as Mo
 import qualified Codec.Archive.Zip as Zip
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
-import qualified Data.Conduit.Internal as CI
 import           Data.XML.Types
 import           System.FilePath
 import           Text.XML as X
@@ -78,7 +75,7 @@ rational t = case T.rational t of
 
 getWorksheets ::(MonadThrow m )=>  Xlsx -> m MappedSheet
 getWorksheets xl@(Xlsx _ _ _ xlWkfls) = do
-    xlWshts <- (sheet xl)  `mapM` (zipWith (\a b -> a) [0 ..] xlWkfls)
+    xlWshts <- (sheet xl)  `mapM` (zipWith const [0 ..] xlWkfls)
     return $ MappedSheet $ M.fromList (zip [0 ..] xlWshts )
 
 sheet :: MonadThrow m => Xlsx -> Int -> m Worksheet
@@ -285,10 +282,6 @@ getSharedStrings x
   = case xmlSource x "xl/sharedStrings.xml" of
     Nothing -> return M.empty
     Just xml -> (M.fromAscList . zip [0..]) <$> getText xml
-
--- | Fetch all text from xml stream.
-err :: String 
-err = "got here"
 
 getText xml = do
   lms<- (xml $= ( mkXmlCond Xml.contentMaybe ) $$ CL.consume)

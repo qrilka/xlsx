@@ -31,11 +31,11 @@ import           Codec.Xlsx.Parser (sheet)
 
 -- | writes list of worksheets
 writeXlsx :: FilePath -> Xlsx -> Maybe MappedSheet -> IO ()
-writeXlsx fp xl@(Xlsx xlA xlS (Styles sty) xlWkfls) Nothing = do
-  xlWshts <- (sheet xl)  `mapM` (zipWith (\a b -> a) [0 ..] xlWkfls)
+writeXlsx fp xl@(Xlsx _xlA _xlS (Styles sty) xlWkfls) Nothing = do
+  xlWshts <- (sheet xl)  `mapM` (zipWith const [0 ..] xlWkfls)
   print sty
   writeXlsxStyles fp sty xlWshts
-writeXlsx fp xl@(Xlsx xlA xlS (Styles sty) xlWkfls) (Just mappedSheets) = do
+writeXlsx fp (Xlsx _xlA _xlS (Styles sty) _xlWkfls) (Just mappedSheets) = do
   let
     sheetList :: [Worksheet]
     sheetList = (snd `fmap`)  (IM.toList.unMappedSheet $ mappedSheets)
@@ -66,7 +66,7 @@ constructXlsx s ws = do
     (sheetCells, shared) = runState (mapM collectSharedTransform ws) []
     sheetNumber = length ws
     sheetFiles = [FileData (T.concat ["xl/worksheets/sheet", txti n, ".xml"]) "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
-                  sheetXml (wsColumns w) (wsRowHeights w) cells (wsMerges w)| (n, cells, w) <- zip3 [1..] sheetCells ws]
+                  sheetXml (wsColumns w) (wsRowHeights w) cells (wsMerges w) | (n, cells, w) <- zip3 [1..] sheetCells ws]
     files = sheetFiles ++
       [ FileData "docProps/core.xml" "application/vnd.openxmlformats-package.core-properties+xml" $ coreXml utct "xlsxwriter"
       , FileData "docProps/app.xml" "application/vnd.openxmlformats-officedocument.extended-properties+xml" appXml
@@ -160,12 +160,11 @@ sheetXml cws rh d merges = renderLBS def $ Document (Prologue [] Nothing []) roo
                                ("customHeight", txtb hasHeight)]))
                        $ map (cellEl r) (numCols cells)
       where
-        (ht, hasHeight,s) = case M.lookup r rh of
-          Just (RowProps (Just h) (Just s))  -> ([("ht", txtd $ h)], True,[("s",txti $ s)])
-          Just (RowProps (Nothing) (Just s))  -> ([],True,[("s",txti $ s)])
+        (ht, hasHeight, s) = case M.lookup r rh of
+          Just (RowProps (Just h) (Just s))  -> ([("ht", txtd $ h)], True,[("s", txti $ s)])
+          Just (RowProps (Nothing) (Just s))  -> ([], True, [("s", txti $ s)])
           Just (RowProps (Just h) (Nothing))  -> ([("ht", txtd $ h)], True,[])
           _ -> ([], False,[])
-          Nothing -> ([], False,[])
     mergeE1 t = NodeElement $! Element "mergeCell" (M.fromList [("ref",t)]) []
     cellEl r (col, cell) =
       nEl "c" (M.fromList (cellAttrs r col cell)) [nEl "v" M.empty [NodeContent $ value cell] | isJust $ xlsxCellValue cell]

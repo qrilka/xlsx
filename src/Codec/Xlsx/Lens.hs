@@ -8,14 +8,9 @@
 module Codec.Xlsx.Lens where
 
 import Control.Lens
-import Control.Lens.Lens
-import Control.Lens.Prism
-import Control.Lens.TH
+import Control.Applicative (Applicative)
 import qualified Data.Foldable as F
 import Codec.Xlsx
-import Codec.Xlsx.Parser
-import Codec.Xlsx.Writer
-import Data.Text
 
 
 -- |Lens into the worksheet file stuff
@@ -88,18 +83,37 @@ makeLensesFor mappedSheetLensNames  ''MappedSheet
 -- p is the ~ (->) applier that is stored by declaring something Indexable
 -- in this case it takes (Maybe CellData) to (f (Maybe CellData))
 -- lensSheetCell :: (Indexable (Int,Int) p) => (Int,Int) -> IndexedLens (Int,Int) Worksheet Worksheet (Maybe CellData) (Maybe CellData)
+lensSheetCell :: (Functor f, Indexable (Int, Int) p)
+              => (Int, Int)
+              -> p (Maybe CellData) (f (Maybe CellData))
+              -> Worksheet
+              -> f Worksheet
 lensSheetCell i = lensWsCells . at i
 
-traverseSheetCellData i = (lensSheetCell i)._Just. lensCdValue
+traverseSheetCellData :: Applicative f
+                      => (Int, Int)
+                      -> (Maybe CellValue -> f (Maybe CellValue))
+                      -> Worksheet
+                      -> f Worksheet
+traverseSheetCellData i = (lensSheetCell i) . _Just . lensCdValue
 
+lensSheetMap :: (Functor f, Indexable Int p)
+             => Int
+             -> p (Maybe Worksheet) (f (Maybe Worksheet))
+             -> MappedSheet
+             -> f MappedSheet
 lensSheetMap i = lensMappedSheet. at i
 
-
+traverseMappedSheetCellData :: Applicative f
+                            => FullyIndexedCellValue
+                            -> (Maybe CellValue -> f (Maybe CellValue))
+                            -> MappedSheet
+                            -> f MappedSheet
 traverseMappedSheetCellData (FICV sheetIndex rowIndex colIndex _) = lensSheetMap sheetIndex . _Just .
-                                                                  traverseSheetCellData (rowIndex,colIndex)
+                                                                  traverseSheetCellData (rowIndex, colIndex)
 
 
-setMappedSheetCellData :: MappedSheet ->FullyIndexedCellValue -> MappedSheet
+setMappedSheetCellData :: MappedSheet -> FullyIndexedCellValue -> MappedSheet
 setMappedSheetCellData ms  i = ms & (traverseMappedSheetCellData i) ?~ (ficvValue i)
 
 setMultiMappedSheetCellData :: (F.Foldable f ) => MappedSheet -> f FullyIndexedCellValue -> MappedSheet

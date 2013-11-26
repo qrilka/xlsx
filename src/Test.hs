@@ -5,7 +5,6 @@ import           Codec.Xlsx.Writer
 import           Codec.Xlsx.Parser
 import           Codec.Xlsx.Lens
 
-import           Control.Applicative
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Map as M
 import           Data.Text (Text)

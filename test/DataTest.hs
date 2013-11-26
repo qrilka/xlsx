@@ -19,5 +19,5 @@ tests =
         ]
     ]
 
-prop_col2name (Positive i) = i == (col2Int $ int2col i)
+prop_col2name (Positive i) = i == (col2int $ int2col i)
     where types = (i::Int)
