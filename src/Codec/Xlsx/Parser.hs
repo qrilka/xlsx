@@ -49,9 +49,6 @@ xlsx fname = do
   ws <- getWorksheetFiles ar
   return $ Xlsx ar ss st ws
 
-
-
-
 -- | Get data from specified worksheet as conduit source.
 cellSource :: MonadThrow m => Xlsx -> Int -> [Text] -> Source m [Cell]
 cellSource x sheetN cols  =  getSheetCells x sheetN
@@ -59,14 +56,10 @@ cellSource x sheetN cols  =  getSheetCells x sheetN
                         $= groupRows
                         $= reverseRows
 
-
-
 decimal :: Monad m => Text -> m Int
 decimal t = case T.decimal t of
   Right (d, _) -> return d
   _ -> fail "invalid decimal"
-
-
 
 rational :: Monad m => Text -> m Double
 rational t = case T.rational t of
@@ -151,8 +144,6 @@ sheet Xlsx {xlArchive=ar, xlSharedStrings=ss, xlWorksheetFiles=sheets} sheetN
           (min minX x, max maxX x, min minY y, max maxY y, Map.insert (x,y) cd cellMap)
     
 
-
-
 -- | Get all rows from specified worksheet.
 sheetRowSource :: MonadThrow m => Xlsx -> Int -> Source m MapRow
 sheetRowSource x sheetN
@@ -166,8 +157,6 @@ sheetRowSource x sheetN
 -- | Make 'Conduit' from 'mkMapRowsSink'.
 mkMapRows :: Monad m => Conduit [Cell] m MapRow
 mkMapRows = CL.sequence (toConsumer mkMapRowsSink) =$= CL.concatMap id
-
-
 
 
 -- | Make 'MapRow' from list of 'Cell's.
@@ -267,7 +256,6 @@ tagSeq _ = error "no tags in tag sequence"
 
 
 -- | Get xml event stream from the specified file inside the zip archive.
-
 xmlSource :: MonadThrow m => Zip.Archive -> FilePath -> Maybe (Source m Event)
 xmlSource ar fname  =   Xml.parseLBS Xml.def
                         .   Zip.fromEntry
@@ -275,30 +263,22 @@ xmlSource ar fname  =   Xml.parseLBS Xml.def
 
 
 
--- Get shared strings (if there are some) into IntMap.
-
+-- | Get shared strings (if there are some) into IntMap.
 getSharedStrings  :: (MonadThrow m, Functor m)  => Zip.Archive -> m (M.IntMap Text)
 getSharedStrings x
   = case xmlSource x "xl/sharedStrings.xml" of
     Nothing -> return M.empty
     Just xml -> (M.fromAscList . zip [0..]) <$> getText xml
 
-getText xml = do
-  lms<- (xml $= ( mkXmlCond Xml.contentMaybe ) $$ CL.consume)
-  return  lms
 
-
+getText xml = 
+    xml $= mkXmlCond Xml.contentMaybe $$ CL.consume
 
 
 getStyles :: (MonadThrow m, Functor m) => Zip.Archive -> m Styles
 getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Nothing  -> return (Styles L.empty)
   Just xml -> return (Styles xml)
-
-
-{-| Incoming is a (Maybe Producer m Event) 
-    Use 
-|-}
 
 
 -- | getWorksheetFiles pulls the names of the sheets 
@@ -342,9 +322,6 @@ int :: Text -> Int
 int = either error fst . T.decimal
 
 
-
-
-
 -- | Create conduit from xml sink
 -- Resulting conduit filters nodes that `f` can consume and skips everything
 -- else.
@@ -359,9 +336,6 @@ mkXmlCond' f = f >>= (\x -> maybe
                             (CL.drop 1 >> return Nothing )
                             (\x -> return $ Just x )
                             x)
-
-
-
 
 
 stopWhen ::(Show a, Monad m) => (a -> Bool) -> Conduit a m a 
