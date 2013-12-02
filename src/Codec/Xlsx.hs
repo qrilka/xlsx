@@ -2,8 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 {-# Language TemplateHaskell #-}
-
-
+-- | This module provides solution for parsing and writing MIcrosoft
+-- Open Office XML Workbook format i.e. *.xlsx files
 module Codec.Xlsx(
   Xlsx(..),
   WorksheetFile(..),

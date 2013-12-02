@@ -2,7 +2,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TupleSections #-}
-
+-- | This module provides a solution for reading .xlsx files
+--
+-- As a simple example you could read cell B3 from the 1st sheet of workbook "report.xlsx"
+-- using the following code:
+--
+-- > import Codec.Xlsx
+-- > import Codec.Xlsx.Parser
+-- > import Data.Map ((!))
+-- >
+-- > main = do
+-- >   wb <- xlsx "report.xlsx"
+-- >   ws <- sheet wb 0
+-- >   let cellData = cdValue $ wsCells ws ! (1,2)
+-- >   putStrLn $ "Cell B3 contains " ++ show cellData
 module Codec.Xlsx.Parser(
   xlsx,
   sheet,
