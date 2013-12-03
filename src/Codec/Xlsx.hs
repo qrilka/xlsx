@@ -29,7 +29,6 @@ module Codec.Xlsx(
   cellLensNames,
   cellDataLensNames,
   mappedSheetLensNames
-  
   ) where
 
 import           Control.Arrow
@@ -45,18 +44,18 @@ import qualified Codec.Archive.Zip as Zip
 import qualified Data.ByteString.Lazy as L
 
 
-data Xlsx  = Xlsx{ xlArchive :: Zip.Archive
+data Xlsx = Xlsx{ xlArchive :: Zip.Archive
                 , xlSharedStrings :: IntMap Text
                 , xlStyles :: Styles
                 , xlWorksheetFiles :: [WorksheetFile]
                 }
+
 xlsxLensNames :: [ (String,String)]
-xlsxLensNames = [  ("xlArchive"        , "lensXlArchive"       )
+xlsxLensNames = [ ("xlArchive"        , "lensXlArchive"       )
                 , ("xlSharedStrings"  , "lensXlSharedStrings" )
                 , ("xlStyles"         , "lensXlStyles"        )
                 , ("xlWorksheetFiles" , "lensXlWorksheetFiles")]
 
-            
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving Show
@@ -66,9 +65,9 @@ data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
                                    }
                    deriving Show
+
 worksheetFileLensNames :: [ (String,String)]
 worksheetFileLensNames = [("wfName","lensWfName"),("wfPath","lensWfPath")]
-
 
 
 
@@ -97,25 +96,20 @@ data Worksheet = Worksheet { wsName       :: Text                   -- ^ workshe
                            , wsMaxY       :: Int                    -- ^ maximum non-empty row number (1-based)
                            , wsColumns    :: [ColumnsWidth]         -- ^ column widths
                            , wsRowHeights :: RowHeights             -- ^ custom row height map
-
                            , wsCells      :: Map (Int,Int) CellData -- ^ data mapped by (column, row) pairs
                            , wsMerges     :: [Text]
                            }
                deriving Show
 
-
-
-
 worksheetLensNames:: [ (String,String)]
-worksheetLensNames =[
-   ("wsName"         , "lensWsName"       )
-  ,("wsMinX"         , "lensWsMinX"       )
-  ,("wsMaxX"         , "lensWsMaxX"       )
-  ,("wsMinY"         , "lensWsMinY"       )
-  ,("wsMaxY"         , "lensWsMaxY"       )
-  ,("wsColumns"      , "lensWsColumns"    )
-  ,("wsRowHeights"   , "lensWsRowHeights" )
-  ,("wsCells"        , "lensWsCells"      )]
+worksheetLensNames = [ ("wsName"       , "lensWsName"       )
+                     , ("wsMinX"       , "lensWsMinX"       )
+                     , ("wsMaxX"       , "lensWsMaxX"       )
+                     , ("wsMinY"       , "lensWsMinY"       )
+                     , ("wsMaxY"       , "lensWsMaxY"       )
+                     , ("wsColumns"    , "lensWsColumns"    )
+                     , ("wsRowHeights" , "lensWsRowHeights" )
+                     , ("wsCells"      , "lensWsCells"      )]
 
 
 
@@ -129,8 +123,8 @@ type CellValue = CellValue_ Text Double LocalTime
 
 data Cell = Cell { cellIx   :: (Text, Int)
                  , cellData :: CellData
-                 } 
-          deriving Show
+                 }
+            deriving Show
 
 cellLensNames :: [ (String,String)]
 cellLensNames = [("cellIx","lensCellIx"),("cellData","lensCellData")]
@@ -138,7 +132,7 @@ cellLensNames = [("cellIx","lensCellIx"),("cellData","lensCellData")]
 data CellData = CellData { cdStyle  :: Maybe Int
                          , cdValue  :: Maybe CellValue
                          }
-              deriving Show
+                deriving Show
 
 
 cellDataLensNames :: [ (String,String)]
