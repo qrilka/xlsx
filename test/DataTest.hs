@@ -1,23 +1,15 @@
 module Main (main) where
 
-import Test.Framework (defaultMain, testGroup)
-import Test.Framework.Providers.HUnit
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import Test.Tasty (defaultMain, testGroup)
+import Test.Tasty.SmallCheck (testProperty)
 
-import Test.QuickCheck
-import Test.HUnit
-import Control.Monad
+import Test.SmallCheck.Series (Positive(..))
 
 import Codec.Xlsx
 
 
-main = defaultMain tests
-
-tests =
-    [ testGroup "Behaves to spec"
-        [ testProperty "col to name" prop_col2name 
-        ]
+main = defaultMain $
+  testGroup "Tests"
+    [ testProperty "col2int . int2col == id" $
+        \(Positive i) -> i == col2int (int2col i)
     ]
-
-prop_col2name (Positive i) = i == (col2int $ int2col i)
-    where types = (i::Int)

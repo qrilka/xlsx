@@ -73,9 +73,9 @@ test-suite data-test
   hs-source-dirs: test/
   Build-Depends: base, QuickCheck >= 2, HUnit,
                  xlsx,
-                 test-framework,
-                 test-framework-hunit,
-                 test-framework-quickcheck2
+                 smallcheck,
+                 tasty,
+                 tasty-smallcheck
   Default-Language:     Haskell2010
 
 source-repository head
