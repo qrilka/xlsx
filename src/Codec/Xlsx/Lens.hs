@@ -10,7 +10,8 @@ module Codec.Xlsx.Lens where
 import Control.Lens
 import Control.Applicative (Applicative)
 import qualified Data.Foldable as F
-import Codec.Xlsx
+
+import Codec.Xlsx.Types
 
 
 -- |Lens into the worksheet file stuff

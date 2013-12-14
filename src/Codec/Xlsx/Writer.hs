@@ -25,7 +25,7 @@ import           System.Locale
 import           System.Time
 import           Text.XML
 
-import           Codec.Xlsx
+import           Codec.Xlsx.Types
 import           Codec.Xlsx.Parser (sheet)
 
 

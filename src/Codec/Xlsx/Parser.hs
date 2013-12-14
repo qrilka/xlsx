@@ -49,7 +49,8 @@ import           System.FilePath
 import           Text.XML as X
 import           Text.XML.Cursor
 import qualified Text.XML.Stream.Parse as Xml
-import           Codec.Xlsx
+
+import           Codec.Xlsx.Types
 
 type MapRow = Map.Map Text Text
 

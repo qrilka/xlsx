@@ -1,9 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Codec.Xlsx
-import           Codec.Xlsx.Writer
-import           Codec.Xlsx.Parser
-import           Codec.Xlsx.Lens
 
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Map as M

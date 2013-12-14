@@ -23,7 +23,12 @@ Cabal-version:       >=1.10
 
 Library
   Hs-source-dirs:    src
-  Exposed-modules:   Codec.Xlsx, Codec.Xlsx.Parser, Codec.Xlsx.Writer, Codec.Xlsx.Lens
+  Exposed-modules:   Codec.Xlsx,
+                     Codec.Xlsx.Lens,
+                     Codec.Xlsx.Parser,
+                     Codec.Xlsx.Types,
+                     Codec.Xlsx.Writer
+
 
   Build-depends:     base         == 4.*
                     ,containers   >= 0.5.0.0
