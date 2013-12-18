@@ -76,11 +76,16 @@ test-suite data-test
   type: exitcode-stdio-1.0
   main-is:  DataTest.hs
   hs-source-dirs: test/
-  Build-Depends: base, QuickCheck >= 2, HUnit,
+  Build-Depends: base,
+                 containers,
+                 time,
+                 old-time,
                  xlsx,
                  smallcheck,
+                 HUnit,
                  tasty,
-                 tasty-smallcheck
+                 tasty-smallcheck,
+                 tasty-hunit
   Default-Language:     Haskell2010
 
 source-repository head
