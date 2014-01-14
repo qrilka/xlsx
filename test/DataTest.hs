@@ -45,7 +45,7 @@ testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
     cd2 = cd (CellDouble 42.4567)
     cd3 = cd (CellText "another text")
     cd4 = CellData{cdValue=Nothing, cdStyle=Nothing} -- shouldn't it be skipped?
-    cd5 = cd $ CellLocalTime $ LocalTime (fromGregorian 2012 05 06) (TimeOfDay 7 30 50)
+    cd5 = cd $(CellBool True)
 
 testTime :: ClockTime
 testTime = TOD 123 567

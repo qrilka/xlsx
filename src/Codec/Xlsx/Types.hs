@@ -36,7 +36,6 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Time.LocalTime (LocalTime)
 
 
 data Xlsx = Xlsx
@@ -103,9 +102,9 @@ worksheetLensNames = [ ("wsColumns"    , "lensWsColumns"    )
 data FullyIndexedCellValue = FICV { ficvSheetIdx :: Int , ficvColIdx ::Int, ficvRowIdx :: Int , ficvValue :: CellValue}
                              deriving (Show)
 
-data CellValue = CellText Text
+data CellValue = CellText   Text
                | CellDouble Double
-               | CellLocalTime LocalTime
+               | CellBool   Bool
                deriving (Eq, Show)
 
 data Cell = Cell { cellIx   :: (Text, Int)

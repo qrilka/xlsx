@@ -17,8 +17,6 @@ import           Data.Text.Lazy (toStrict)
 import           Data.Text.Lazy.Builder (toLazyText)
 import           Data.Text.Lazy.Builder.Int
 import           Data.Text.Lazy.Builder.RealFloat
-import           Data.Time.Calendar
-import           Data.Time.LocalTime
 import           System.Locale
 import           System.Time
 import           Text.XML
@@ -78,7 +76,10 @@ appXml :: L.ByteString
 appXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 \<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\" xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\"><TotalTime>0</TotalTime></Properties>"
 
-data XlsxCellData = XlsxSS Int | XlsxDouble Double deriving (Show, Eq)
+data XlsxCellData = XlsxSS Int
+                  | XlsxDouble Double
+                  | XlsxBool Bool
+                    deriving (Show, Eq)
 data XlsxCell = XlsxCell
     { xlsxCellStyle  :: Maybe Int
     , xlsxCellValue  :: Maybe XlsxCellData
@@ -86,11 +87,14 @@ data XlsxCell = XlsxCell
 
 xlsxCellType :: XlsxCell -> Text
 xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxSS _)} = "s"
-xlsxCellType _ = "n" -- default type, TODO: fix cell output?
+xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxBool _)} = "b"
+xlsxCellType _ = "n" -- default in SpreadsheetML schema, TODO: add other types
 
 value :: XlsxCell -> Text
 value XlsxCell{xlsxCellValue=Just(XlsxSS i)} = txti i
 value XlsxCell{xlsxCellValue=Just(XlsxDouble d)} = txtd d
+value XlsxCell{xlsxCellValue=Just(XlsxBool True)} = "1"
+value XlsxCell{xlsxCellValue=Just(XlsxBool False)} = "0"
 value _ = error "value undefined"
 
 collectSharedTransform :: Worksheet -> State [Text] [(Int, [(Int, XlsxCell)])]
@@ -112,17 +116,10 @@ collectSharedTransform Worksheet{wsCells=cells} = transformed
               return (c, XlsxCell s (Just $ XlsxSS (length shared)))
         Just(CellDouble dbl) ->
           return (c, XlsxCell s (Just $ XlsxDouble dbl))
-        Just(CellLocalTime t) ->
-          return (c, XlsxCell s (Just $ XlsxDouble (xlsxDoubleTime t)))
+        Just(CellBool b) ->
+          return (c, XlsxCell s (Just $ XlsxBool b))
         Nothing ->
           return (c, XlsxCell s Nothing)
-
-xlsxDoubleTime :: LocalTime -> Double
-xlsxDoubleTime LocalTime{localDay=day,localTimeOfDay=time} =
-  fromIntegral (diffDays day xlsxEpochStart) + timeFraction time
-  where
-    xlsxEpochStart = fromGregorian 1899 12 30
-    timeFraction = fromRational . timeOfDayToDayFraction
 
 sheetXml :: [ColumnsWidth] -> RowHeights -> [(Int, [(Int, XlsxCell)])] -> [Text]-> L.ByteString
 sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) root []

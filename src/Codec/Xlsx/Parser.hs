@@ -124,6 +124,8 @@ extractCellValue _ "n" v =
     case T.rational v of
       Right (d, _) -> [CellDouble d]
       _ -> []
+extractCellValue _ "b" "1" = [CellBool True]
+extractCellValue _ "b" "0" = [CellBool False]
 extractCellValue _ _ _ = []
 
 -- | Add sml namespace to name

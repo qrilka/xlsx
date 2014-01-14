@@ -5,8 +5,6 @@ import           Codec.Xlsx
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Map as M
 import           Data.Text (Text)
-import           Data.Time.Calendar
-import           Data.Time.LocalTime
 import           Control.Lens
 import           System.Time
 
@@ -16,9 +14,6 @@ xEmpty = CellData{cdValue=Nothing, cdStyle=Just 0}
 
 xText :: Text -> CellData
 xText t = CellData{cdValue=Just $ CellText t, cdStyle=Just 0}
-
-xDate :: LocalTime -> CellData
-xDate d = CellData{cdValue=Just $ CellLocalTime d, cdStyle=Just 0}
 
 xDouble :: Double -> CellData
 xDouble d = CellData{cdValue=Just $ CellDouble d, cdStyle=Just 0}
@@ -48,7 +43,6 @@ main =  do
           , xText "column2"
           , xEmpty
           , xText "column4"
-          , xDate $! LocalTime (fromGregorian 2012 05 06) (TimeOfDay 7 30 50)
           , xDouble 42.12345
           , xText  "False"]
     sheets = M.fromList [("List", Worksheet cols rowProps cells [])] -- wtf merges?
