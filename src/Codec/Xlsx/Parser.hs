@@ -1,23 +1,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
--- | This module provides a solution for reading .xlsx files
---
--- As a simple example you could read cell B3 from the 1st sheet of workbook "report.xlsx"
--- using the following code:
---
--- > {-# LANGUAGE OverloadedStrings #-}
--- > module Read where
--- > import Codec.Xlsx
--- > import qualified Data.ByteString.Lazy as L
--- > import Control.Lens
--- >
--- > main :: IO ()
--- > main = do
--- >   bs <- L.readFile "report.xlsx"
--- >   let value = toXlsx bs ^? xlSheets . ix "List1" .
--- >               wsCells . ix (3,2) . cellValue . _Just
--- >   putStrLn $ "Cell B3 contains " ++ show value
+-- | This module provides a function for reading .xlsx files
 module Codec.Xlsx.Parser
     ( toXlsx
     ) where

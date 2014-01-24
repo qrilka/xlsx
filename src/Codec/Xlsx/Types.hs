@@ -28,7 +28,10 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 
 
-
+-- | Cell values include text, numbers and booleans,
+-- standard includes date format also but actually dates
+-- are represented by numbers with a date format assigned
+-- to a cell containing it
 data CellValue = CellText   Text
                | CellDouble Double
                | CellBool   Bool
@@ -54,6 +57,7 @@ data ColumnsWidth = ColumnsWidth
     , cwStyle :: Int
     } deriving (Eq, Show)
 
+-- | Xlsx worksheet
 data Worksheet = Worksheet
     { _wsColumns          :: [ColumnsWidth]         -- ^ column widths
     , _wsRowPropertiesMap :: Map Int RowProperties  -- ^ custom row properties (height, style) map
@@ -66,6 +70,7 @@ makeLenses ''Worksheet
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)
 
+-- | Structured representation of Xlsx file (currently a subset of its contents)
 data Xlsx = Xlsx
     { _xlSheets :: Map Text Worksheet
     , _xlStyles :: Styles
@@ -94,14 +99,17 @@ col2int = T.foldl' (\i c -> i * 26 + let2int c) 0
     where
         let2int c = 1 + ord c - ord 'A'
 
+-- | converts cells mapped by (row, column) into rows which contain
+-- row index and cells as pairs of column indices and cell values
 toRows :: CellMap -> [(Int, [(Int, Cell)])]
-toRows cells = 
+toRows cells =
     map extractRow $ groupBy ((==) `on` (fst . fst)) $ M.toList cells
   where
     extractRow row@(((x,_),_):_) =
         (x, map (\((_,y),v) -> (y,v)) row)
     extractRow _ = error "invalid CellMap row"
 
+-- | reverse to 'toRows'
 fromRows :: [(Int, [(Int, Cell)])] -> CellMap
 fromRows rows = M.fromList $ concatMap mapRow rows
   where

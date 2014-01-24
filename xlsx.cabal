@@ -6,7 +6,11 @@ Synopsis:            Simple and incomplete Excel file parser/writer
 Description:
     This library can help you to get some data read and written in Office
     Open XML xlsx format. Small subset of xlsx format is supported.
-    TODO: add link to ECMA standard.
+    .
+    For examples look into "Codec.Xlsx".
+    .
+    Format is covered by ECMA-376 standard:
+    <http://www.ecma-international.org/publications/standards/Ecma-376.htm>
 
 Homepage:            https://github.com/qrilka/xlsx
 Bug-Reports:         https://github.com/qrilka/xlsx/issues
