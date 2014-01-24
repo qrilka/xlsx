@@ -57,6 +57,11 @@ toXlsx bs = Xlsx sheets styles
     wfs = getWorksheetFiles ar
     sheets = M.fromList $ map (wfName &&& extractSheet ar ss) wfs
 
+data WorksheetFile = WorksheetFile { wfName :: Text
+                                   , wfPath :: FilePath
+                                   }
+                   deriving Show
+
 decimal :: Monad m => Text -> m Int
 decimal t = case T.decimal t of
   Right (d, _) -> return d

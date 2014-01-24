@@ -3,7 +3,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types
     ( Xlsx(..), xlSheets, xlStyles
-    , WorksheetFile(..)
     , Styles(..)
     , emptyStyles
     , ColumnsWidth(..)
@@ -77,11 +76,6 @@ makeLenses ''Xlsx
 emptyStyles :: Styles
 emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 \<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"></styleSheet>"
-
-data WorksheetFile = WorksheetFile { wfName :: Text
-                                   , wfPath :: FilePath
-                                   }
-                   deriving Show
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> "C")
 int2col :: Int -> Text
