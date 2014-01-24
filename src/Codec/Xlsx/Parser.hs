@@ -6,15 +6,18 @@
 -- As a simple example you could read cell B3 from the 1st sheet of workbook "report.xlsx"
 -- using the following code:
 --
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- > module Read where
 -- > import Codec.Xlsx
--- > import Codec.Xlsx.Parser
--- > import Data.Map ((!))
+-- > import qualified Data.ByteString.Lazy as L
+-- > import Control.Lens
 -- >
+-- > main :: IO ()
 -- > main = do
--- >   wb <- xlsx "report.xlsx"
--- >   ws <- sheet wb 0
--- >   let cellData = cdValue $ wsCells ws ! (1,2)
--- >   putStrLn $ "Cell B3 contains " ++ show cellData
+-- >   bs <- L.readFile "report.xlsx"
+-- >   let value = toXlsx bs ^? xlSheets . ix "List1" .
+-- >               wsCells . ix (3,2) . cellValue . _Just
+-- >   putStrLn $ "Cell B3 contains " ++ show value
 module Codec.Xlsx.Parser
     ( toXlsx
     ) where
@@ -95,14 +98,14 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges
                then  Nothing
                else  Just (RowProps ht s)
       return (r, rp, c $/ element (n"c") >=> parseCell)
-    parseCell :: Cursor -> [(Int, Int, CellData)]
+    parseCell :: Cursor -> [(Int, Int, Cell)]
     parseCell cell = do
       let
         s = listToMaybe $ cell $| attribute "s" >=> decimal
         t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
         d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractCellValue ss t
       (c, r) <- T.span (>'9') <$> (cell $| attribute "r")
-      return (int r, col2int c, CellData s d)
+      return (int r, col2int c, Cell s d)
     collect = foldr collectRow (M.empty, M.empty)
     collectRow (_, Nothing, rowCells) (rowMap, cellMap) =
       (rowMap, foldr collectCell cellMap rowCells)

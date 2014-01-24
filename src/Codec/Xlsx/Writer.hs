@@ -4,10 +4,12 @@ module Codec.Xlsx.Writer
     ) where
 
 import qualified Codec.Archive.Zip as Zip
+import           Control.Lens hiding (transform)
 import           Control.Monad.Trans.State
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Lazy.Char8()
 import           Data.List
+import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Maybe
 import           Data.Monoid ((<>))
@@ -38,9 +40,9 @@ fromXlsx ct xlsx =
       , FileData "docProps/app.xml"
         "application/vnd.openxmlformats-officedocument.extended-properties+xml" appXml
       , FileData "xl/workbook.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" $ bookXml (xlSheets xlsx)
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" $ bookXml (xlsx ^. xlSheets)
       , FileData "xl/styles.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml" (unStyles $ xlStyles xlsx)
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml" $ unStyles (xlsx ^. xlStyles)
       , FileData "xl/sharedStrings.xml"
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" $ ssXml shared
       , FileData "xl/_rels/workbook.xml.rels"
@@ -50,9 +52,9 @@ fromXlsx ct xlsx =
     sheetFiles =
       [ FileData ("xl/worksheets/sheet" <> txti n <> ".xml")
         "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
-        sheetXml (wsColumns w) (wsRowHeights w) cells (wsMerges w) |
+        sheetXml (w ^. wsColumns) (w ^. wsRowPropertiesMap) cells (w ^. wsMerges) |
         (n, cells, w) <- zip3 [1..] sheetCells sheets]
-    sheets = M.elems (xlSheets xlsx)
+    sheets = xlsx ^. xlSheets . to M.elems
     sheetCount = length sheets
     (sheetCells, shared) = runState (mapM collectSharedTransform sheets) []
 
@@ -98,13 +100,13 @@ value XlsxCell{xlsxCellValue=Just(XlsxBool False)} = "0"
 value _ = error "value undefined"
 
 collectSharedTransform :: Worksheet -> State [Text] [(Int, [(Int, XlsxCell)])]
-collectSharedTransform Worksheet{wsCells=cells} = transformed
+collectSharedTransform ws = transformed
   where
-    transformed = mapM transformRow $ toRows cells
+    transformed = mapM transformRow $ toRows (ws ^. wsCells)
     transformRow (r, cells) = do
       cells' <- mapM transform cells
       return (r, cells')
-    transform (c, CellData{cdValue=v, cdStyle=s}) =
+    transform (c, Cell{_cellValue=v, _cellStyle=s}) =
       case v of
         Just(CellText t) -> do
           shared <- get
@@ -121,7 +123,7 @@ collectSharedTransform Worksheet{wsCells=cells} = transformed
         Nothing ->
           return (c, XlsxCell s Nothing)
 
-sheetXml :: [ColumnsWidth] -> RowHeights -> [(Int, [(Int, XlsxCell)])] -> [Text]-> L.ByteString
+sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> L.ByteString
 sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     cType = xlsxCellType
@@ -151,7 +153,7 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
     cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
     cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
 
-bookXml :: M.Map Text Worksheet -> L.ByteString
+bookXml :: Map Text Worksheet -> L.ByteString
 bookXml wss = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     numNames = [(txti i, name) | (i, name) <- zip [1..] (M.keys wss)]
@@ -206,7 +208,7 @@ addNS namespace (Element (Name ln _ _) as ns) = Element (Name ln (Just namespace
     addNS' (NodeElement e) = NodeElement $ addNS namespace e
     addNS' n = n
 
-nEl :: Name -> M.Map Name Text -> [Node] -> Node
+nEl :: Name -> Map Name Text -> [Node] -> Node
 nEl name attrs nodes = NodeElement $ Element name attrs nodes
 
 txti :: Int -> Text

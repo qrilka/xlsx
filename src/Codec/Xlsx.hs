@@ -7,4 +7,3 @@ module Codec.Xlsx
 import Codec.Xlsx.Types as X
 import Codec.Xlsx.Parser as X
 import Codec.Xlsx.Writer as X
-import Codec.Xlsx.Lens as X

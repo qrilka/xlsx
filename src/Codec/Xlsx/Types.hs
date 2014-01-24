@@ -1,36 +1,27 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types
-    ( Xlsx(..)
+    ( Xlsx(..), xlSheets, xlStyles
     , WorksheetFile(..)
     , Styles(..)
     , emptyStyles
     , ColumnsWidth(..)
-    , RowHeights
-    , Worksheet(..)
+    , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges
     , CellMap
     , CellValue(..)
-    , Cell(..)
-    , CellData(..)
-    , MappedSheet(..)
-    , FullyIndexedCellValue (..)
+    , Cell(..), cellValue, cellStyle
     , RowProperties (..)
     , int2col
     , col2int
     , toRows
     , fromRows
-    , xlsxLensNames
-    , worksheetFileLensNames
-    , worksheetLensNames
-    , cellLensNames
-    , cellDataLensNames
-    , mappedSheetLensNames
     ) where
 
+import           Control.Lens.TH
 import qualified Data.ByteString.Lazy as L
 import           Data.Char
 import           Data.Function (on)
-import           Data.IntMap (IntMap)
 import           Data.List (groupBy)
 import           Data.Map (Map)
 import qualified Data.Map as M
@@ -38,34 +29,23 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 
 
-data Xlsx = Xlsx
-    { xlSheets :: Map Text Worksheet
-    , xlStyles :: Styles
+
+data CellValue = CellText   Text
+               | CellDouble Double
+               | CellBool   Bool
+               deriving (Eq, Show)
+
+data Cell = Cell
+    { _cellStyle  :: Maybe Int
+    , _cellValue  :: Maybe CellValue
     } deriving (Eq, Show)
 
-xlsxLensNames :: [ (String,String)]
-xlsxLensNames = [ ("xlArchive"        , "lensXlArchive"       )
-                , ("xlSharedStrings"  , "lensXlSharedStrings" )
-                , ("xlStyles"         , "lensXlStyles"        )
-                , ("xlWorksheetFiles" , "lensXlWorksheetFiles")]
+makeLenses ''Cell
 
+type CellMap = Map (Int, Int) Cell
 
-newtype Styles = Styles {unStyles :: L.ByteString}
-            deriving (Eq, Show)
-
-emptyStyles :: Styles
-emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-\<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"></styleSheet>"
-
-data WorksheetFile = WorksheetFile { wfName :: Text
-                                   , wfPath :: FilePath
-                                   }
-                   deriving Show
-
-worksheetFileLensNames :: [ (String,String)]
-worksheetFileLensNames = [("wfName","lensWfName"),("wfPath","lensWfPath")]
-
-
+data RowProperties = RowProps { rowHeight :: Maybe Double, rowStyle::Maybe Int}
+                   deriving (Read,Eq,Show,Ord)
 
 -- | Column range (from cwMin to cwMax) width
 data ColumnsWidth = ColumnsWidth
@@ -75,55 +55,33 @@ data ColumnsWidth = ColumnsWidth
     , cwStyle :: Int
     } deriving (Eq, Show)
 
-type RowHeights = Map Int RowProperties
-
-data RowProperties = RowProps { rowHeight :: Maybe Double, rowStyle::Maybe Int}
-                   deriving (Read,Eq,Show,Ord)
-
-newtype MappedSheet = MappedSheet { unMappedSheet :: (IntMap  Worksheet )}
-
-mappedSheetLensNames :: [(String,String)]
-mappedSheetLensNames = [("unMappedSheet","lensMappedSheet")]
-
 data Worksheet = Worksheet
-    { wsColumns    :: [ColumnsWidth] -- ^ column widths
-    , wsRowHeights :: RowHeights     -- ^ custom row height map
-    , wsCells      :: CellMap        -- ^ data mapped by (row, column) pairs
-    , wsMerges     :: [Text]
+    { _wsColumns          :: [ColumnsWidth]         -- ^ column widths
+    , _wsRowPropertiesMap :: Map Int RowProperties  -- ^ custom row properties (height, style) map
+    , _wsCells            :: CellMap                -- ^ data mapped by (row, column) pairs
+    , _wsMerges           :: [Text]
     } deriving (Eq, Show)
 
-type CellMap = Map (Int, Int) CellData
+makeLenses ''Worksheet
 
-worksheetLensNames:: [ (String,String)]
-worksheetLensNames = [ ("wsColumns"    , "lensWsColumns"    )
-                     , ("wsRowHeights" , "lensWsRowHeights" )
-                     , ("wsCells"      , "lensWsCells"      )]
+newtype Styles = Styles {unStyles :: L.ByteString}
+            deriving (Eq, Show)
 
-data FullyIndexedCellValue = FICV { ficvSheetIdx :: Int , ficvColIdx ::Int, ficvRowIdx :: Int , ficvValue :: CellValue}
-                             deriving (Show)
-
-data CellValue = CellText   Text
-               | CellDouble Double
-               | CellBool   Bool
-               deriving (Eq, Show)
-
-data Cell = Cell { cellIx   :: (Text, Int)
-                 , cellData :: CellData
-                 }
-            deriving Show
-
-cellLensNames :: [ (String,String)]
-cellLensNames = [("cellIx","lensCellIx"),("cellData","lensCellData")]
-
-data CellData = CellData
-    { cdStyle  :: Maybe Int
-    , cdValue  :: Maybe CellValue
+data Xlsx = Xlsx
+    { _xlSheets :: Map Text Worksheet
+    , _xlStyles :: Styles
     } deriving (Eq, Show)
 
+makeLenses ''Xlsx
 
-cellDataLensNames :: [ (String,String)]
-cellDataLensNames = [("cdStyle","lensCdStyle"),("cdValue","lensCdValue")]
+emptyStyles :: Styles
+emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
+\<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"></styleSheet>"
 
+data WorksheetFile = WorksheetFile { wfName :: Text
+                                   , wfPath :: FilePath
+                                   }
+                   deriving Show
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> "C")
 int2col :: Int -> Text
@@ -142,7 +100,7 @@ col2int = T.foldl' (\i c -> i * 26 + let2int c) 0
     where
         let2int c = 1 + ord c - ord 'A'
 
-toRows :: CellMap -> [(Int, [(Int, CellData)])]
+toRows :: CellMap -> [(Int, [(Int, Cell)])]
 toRows cells = 
     map extractRow $ groupBy ((==) `on` (fst . fst)) $ M.toList cells
   where
@@ -150,7 +108,7 @@ toRows cells =
         (x, map (\((_,y),v) -> (y,v)) row)
     extractRow _ = error "invalid CellMap row"
 
-fromRows :: [(Int, [(Int, CellData)])] -> CellMap
+fromRows :: [(Int, [(Int, Cell)])] -> CellMap
 fromRows rows = M.fromList $ concatMap mapRow rows
   where
     mapRow (r, cells) = map (\(c, v) -> ((r, c), v)) cells
