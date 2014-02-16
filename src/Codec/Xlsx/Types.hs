@@ -20,6 +20,7 @@ module Codec.Xlsx.Types
 import           Control.Lens.TH
 import qualified Data.ByteString.Lazy as L
 import           Data.Char
+import           Data.Default
 import           Data.Function (on)
 import           Data.List (groupBy)
 import           Data.Map (Map)
@@ -67,6 +68,9 @@ data Worksheet = Worksheet
 
 makeLenses ''Worksheet
 
+instance Default Worksheet where
+    def = Worksheet [] M.empty M.empty []
+
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)
 
@@ -77,6 +81,9 @@ data Xlsx = Xlsx
     } deriving (Eq, Show)
 
 makeLenses ''Xlsx
+
+instance Default Xlsx where
+    def = Xlsx [] emptyStyles
 
 emptyStyles :: Styles
 emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
