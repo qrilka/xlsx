@@ -13,8 +13,8 @@
 -- > main :: IO ()
 -- > main = do
 -- >   bs <- L.readFile "report.xlsx"
--- >   let value = toXlsx bs ^? xlSheets . ix "List1" .
--- >               wsCells . ix (3,2) . cellValue . _Just
+-- >   let value = toXlsx bs ^? ixSheet "List1" .
+-- >               ixCell (3,2) . cellValue . _Just
 -- >   putStrLn $ "Cell B3 contains " ++ show value
 module Codec.Xlsx
     ( module X
@@ -23,3 +23,4 @@ module Codec.Xlsx
 import Codec.Xlsx.Types as X
 import Codec.Xlsx.Parser as X
 import Codec.Xlsx.Writer as X
+import Codec.Xlsx.Lens as X
