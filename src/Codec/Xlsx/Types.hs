@@ -3,6 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types
     ( Xlsx(..), xlSheets, xlStyles
+    , def
     , Styles(..)
     , emptyStyles
     , ColumnsWidth(..)
@@ -83,7 +84,7 @@ data Xlsx = Xlsx
 makeLenses ''Xlsx
 
 instance Default Xlsx where
-    def = Xlsx [] emptyStyles
+    def = Xlsx M.empty emptyStyles
 
 emptyStyles :: Styles
 emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
