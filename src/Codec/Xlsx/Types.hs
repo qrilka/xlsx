@@ -46,6 +46,9 @@ data Cell = Cell
 
 makeLenses ''Cell
 
+instance Default Cell where
+    def = Cell Nothing Nothing
+
 type CellMap = Map (Int, Int) Cell
 
 data RowProperties = RowProps { rowHeight :: Maybe Double, rowStyle::Maybe Int}

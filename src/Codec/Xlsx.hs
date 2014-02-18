@@ -1,7 +1,7 @@
 -- | This module provides solution for parsing and writing MIcrosoft
 -- Open Office XML Workbook format i.e. *.xlsx files
 --
--- As a simple example you could read cell B3 from the 1st sheet of workbook "report.xlsx"
+-- As a simple example you could read cell B3 from the 1st sheet of workbook \"report.xlsx\"
 -- using the following code:
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
@@ -16,6 +16,24 @@
 -- >   let value = toXlsx bs ^? ixSheet "List1" .
 -- >               ixCell (3,2) . cellValue . _Just
 -- >   putStrLn $ "Cell B3 contains " ++ show value
+--
+-- And the following example mudule shows a way to construct and write xlsx file
+--
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- > module Write where
+-- > import Codec.Xlsx
+-- > import Control.Lens
+-- > import qualified Data.ByteString.Lazy as L
+-- > import System.Time
+-- >
+-- > main :: IO ()
+-- > main = do
+-- >   ct <- getClockTime
+-- >   let
+-- >       sheet = def & cellValueAt (1,2) ?~ CellDouble 42.0
+-- >                   & cellValueAt (3,2) ?~ CellText "foo"
+-- >       xlsx = def & atSheet "List1" ?~ sheet
+-- >   L.writeFile "example.xlsx" $ fromXlsx ct xlsx
 module Codec.Xlsx
     ( module X
     ) where
