@@ -1,0 +1,7 @@
+0.1.0
+	* better tests and documentation
+	* lenses for worksheets/cells
+	* removed streaming support as it needs better API and improved implementaion
+	* removed CellLocalTime as ambiguous, added CellBool
+0.0.1
+	* initial release

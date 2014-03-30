@@ -11,6 +11,9 @@ Description:
     .
     Format is covered by ECMA-376 standard:
     <http://www.ecma-international.org/publications/standards/Ecma-376.htm>
+Extra-source-files:
+                     changelog
+
 
 Homepage:            https://github.com/qrilka/xlsx
 Bug-Reports:         https://github.com/qrilka/xlsx/issues
