@@ -142,8 +142,8 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
                        $ map (cellEl r) cells
       where
         (ht, hasHeight, s) = case M.lookup r rh of
-          Just (RowProps (Just h) (Just s)) -> ([("ht", txtd h)], True,[("s", txti s)])
-          Just (RowProps Nothing  (Just s)) -> ([], True, [("s", txti s)])
+          Just (RowProps (Just h) (Just st)) -> ([("ht", txtd h)], True,[("s", txti st)])
+          Just (RowProps Nothing  (Just st)) -> ([], True, [("s", txti st)])
           Just (RowProps (Just h) Nothing ) -> ([("ht", txtd h)], True,[])
           _ -> ([], False,[])
     mergeE1 t = NodeElement $! Element "mergeCell" (M.fromList [("ref",t)]) []
