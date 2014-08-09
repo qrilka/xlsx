@@ -24,7 +24,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Read as T
 import           Data.XML.Types
 import           Prelude hiding (sequence)
-import           System.FilePath
 import           Text.XML as X
 import           Text.XML.Cursor
 
