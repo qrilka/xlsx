@@ -42,9 +42,9 @@ Library
                      , bytestring   >= 0.10.0.2
                      , text         >= 0.11.3.1
                      , lens         >= 3.8 && < 5
-                     , conduit      == 1.0.*
+                     , conduit      >= 1.0.0
                      , xml-types    == 0.3.*
-                     , xml-conduit  == 1.1.*
+                     , xml-conduit  >= 1.1.0
                      , zip-archive  == 0.2.*
                      , digest       == 0.0.*
                      , zlib         == 0.5.4.*
@@ -66,9 +66,9 @@ Executable           test
   main-is:           Test.hs
 
   Build-depends:     base, containers, transformers, bytestring, text
-                     , conduit     == 1.0.*
+                     , conduit     >= 1.0.0
                      , xml-types   == 0.3.*
-                     , xml-conduit == 1.1.*
+                     , xml-conduit >= 1.1.0
                      , zip-archive == 0.2.*
                      , lens        >= 3.8 && < 5
                      , digest      >  0.0.0.1
