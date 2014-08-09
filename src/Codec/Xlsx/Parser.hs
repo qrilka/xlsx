@@ -173,7 +173,7 @@ getWorksheetFiles ar = case xmlCursor ar "xl/workbook.xml" of
         sheetData = c $/ element (n"sheets") &/ element (n"sheet") >=>
                     liftA2 (,) <$> attribute "name" <*> attribute (odr"id")
         wbRels = getWbRels ar
-    in [WorksheetFile name ("xl" </> T.unpack (fromJust $ lookup rId wbRels)) | (name, rId) <- sheetData]
+    in [WorksheetFile name ("xl/" ++ T.unpack (fromJust $ lookup rId wbRels)) | (name, rId) <- sheetData]
 
 getWbRels :: Zip.Archive -> [(Text, Text)]
 getWbRels ar = case xmlCursor ar "xl/_rels/workbook.xml.rels" of
