@@ -111,6 +111,7 @@ extractCellValue ss "s" v =
     case T.decimal v of
       Right (d, _) -> maybeToList $ fmap CellText $ IM.lookup d ss
       _ -> []
+extractCellValue _ "str" str = [CellText str]
 extractCellValue _ "n" v =
     case T.rational v of
       Right (d, _) -> [CellDouble d]
