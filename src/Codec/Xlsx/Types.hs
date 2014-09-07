@@ -96,7 +96,7 @@ emptyStyles :: Styles
 emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 \<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"></styleSheet>"
 
--- | convert column number (starting from 1) to its textual form (e.g. 3 -> "C")
+-- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
 int2col :: Int -> Text
 int2col = T.pack . reverse . map int2let . base26
     where
