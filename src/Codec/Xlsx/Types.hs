@@ -39,6 +39,9 @@ data CellValue = CellText   Text
                | CellBool   Bool
                deriving (Eq, Show)
 
+-- | Currently cell details include only cell values and style ids
+-- (e.g. formulas from @\<f\>@ and inline strings from @\<is\>@
+-- subelements are ignored)
 data Cell = Cell
     { _cellStyle  :: Maybe Int
     , _cellValue  :: Maybe CellValue
