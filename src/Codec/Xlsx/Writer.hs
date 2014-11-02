@@ -129,10 +129,10 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
   where
     cType = xlsxCellType
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
-           Element "worksheet" M.empty
-           [nEl "cols" M.empty $  map cwEl cws,
-            nEl "sheetData" M.empty $ map rowEl rows,
-            nEl "mergeCells" M.empty $ map mergeE1 merges]
+           Element "worksheet" M.empty $ catMaybes
+           [nElNE "cols" M.empty $  map cwEl cws,
+            nElAL "sheetData" M.empty $ map rowEl rows,
+            nElNE "mergeCells" M.empty $ map mergeE1 merges]
     cwEl cw = NodeElement $! Element "col" (M.fromList
               [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw), ("style", txti $ cwStyle cw)]) []
     rowEl (r, cells) = nEl "row"
@@ -208,6 +208,17 @@ addNS namespace (Element (Name ln _ _) as ns) = Element (Name ln (Just namespace
   where
     addNS' (NodeElement e) = NodeElement $ addNS namespace e
     addNS' n = n
+
+-- | Creates an element with the given name, attributes and children,
+-- if there is at least one children. Else returns `Nothing`.
+nElNE :: Name -> Map Name Text -> [Node] -> Maybe Node
+nElNE _ _ [] = Nothing
+nElNE name attrs nodes = Just $ nEl name attrs nodes
+
+-- | Creates an element with the given name, attributes and children.
+-- Always returns a node/`Just`.
+nElAL :: Name -> Map Name Text -> [Node] -> Maybe Node
+nElAL name attrs nodes = Just $ nEl name attrs nodes
 
 nEl :: Name -> Map Name Text -> [Node] -> Node
 nEl name attrs nodes = NodeElement $ Element name attrs nodes
