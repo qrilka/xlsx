@@ -39,7 +39,7 @@ fromXlsx ct xlsx =
       [ FileData "docProps/core.xml"
         "application/vnd.openxmlformats-package.core-properties+xml" $ coreXml (toUTCTime ct) "xlsxwriter"
       , FileData "docProps/app.xml"
-        "application/vnd.openxmlformats-officedocument.extended-properties+xml" appXml
+        "application/vnd.openxmlformats-officedocument.extended-properties+xml" $ appXml (xlsx ^. xlSheets)
       , FileData "xl/workbook.xml"
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" $ bookXml (xlsx ^. xlSheets)
       , FileData "xl/styles.xml"
@@ -68,16 +68,39 @@ coreXml created creator =
   renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     date = T.pack $ formatCalendarTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" created
-    nsAttrs = M.fromList [("xmlns:dcterms", "http://purl.org/dc/terms/")]
+    nsAttrs = M.fromList [("xmlns:dcterms", "http://purl.org/dc/terms/"),("xmlns:xsi","http://www.w3.org/2001/XMLSchema-instance")]
     root = Element (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "coreProperties") nsAttrs
-           [nEl (nm "http://purl.org/dc/terms/" "created")
-                                 (M.fromList [(nm "http://www.w3.org/2001/XMLSchema-instance" "type", "dcterms:W3CDTF")]) [NodeContent date],
-            nEl (nm "http://purl.org/dc/elements/1.1/" "creator") M.empty [NodeContent creator],
-            nEl (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "version") M.empty [NodeContent "0"]]
+           [{-nEl (nm "http://purl.org/dc/terms/" "created")
+                                 (M.fromList [("xsi:type", "dcterms:W3CDTF")]) [NodeContent date],
+            nEl (nm "http://purl.org/dc/terms/" "modified")
+                                 (M.fromList [("xsi:type", "dcterms:W3CDTF")]) [NodeContent date],-}
+            nEl (nm "http://purl.org/dc/elements/1.1/" "creator") M.empty [NodeContent creator]
+           ,nEl (nm "http://purl.org/dc/elements/1.1/" "title") M.empty [NodeContent creator]
+           ,nEl (nm "http://purl.org/dc/elements/1.1/" "subject") M.empty [NodeContent creator]
+           {-,nEl (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "version") M.empty [NodeContent "0"]-}]
 
-appXml :: L.ByteString
-appXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-\<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\" xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\"><TotalTime>0</TotalTime></Properties>"
+appXml :: Map Text Worksheet -> L.ByteString
+appXml s = renderLBS def $ Document (Prologue [] Nothing []) root []
+  where 
+    nsAttrs = M.fromList [("xmlns:vt","http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes")]
+    root = Element (nm "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" "Properties") nsAttrs
+            [ nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" "TotalTime") M.empty [NodeContent "0"]
+            , nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" "HeadingPairs") M.empty [
+                nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes" "vector") (M.fromList $ [("size","2"),("baseType","variant")]) [
+                  nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes" "variant") M.empty [
+                    nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes" "lpstr") M.empty [ NodeContent "Worksheets" ]
+                  ]
+                , nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes" "variant") M.empty [
+                    nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes" "i4") M.empty [NodeContent $ T.pack $ show $ M.size s]
+                  ]   
+                ]
+              ]   
+            , nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" "TitlesOfParts") M.empty [
+                nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes" "vector") (M.fromList $ [("size",T.pack $ show $ M.size s),("baseType","lpstr")]) $
+                  map sheetname $ M.keys s
+              ]
+            ]
+    sheetname n = nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes" "lpstr") M.empty [ NodeContent n ]
 
 data XlsxCellData = XlsxSS Int
                   | XlsxDouble Double
