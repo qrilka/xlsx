@@ -5,8 +5,8 @@ module Codec.Xlsx.Writer
     ) where
 
 import qualified Codec.Archive.Zip as Zip
+import           Control.Arrow (second)
 import           Control.Lens hiding (transform)
-import           Control.Monad.Trans.State
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Lazy.Char8()
 import           Data.List
@@ -20,6 +20,10 @@ import           Data.Text.Lazy (toStrict)
 import           Data.Text.Lazy.Builder (toLazyText)
 import           Data.Text.Lazy.Builder.Int
 import           Data.Text.Lazy.Builder.RealFloat
+import qualified Data.Set as S
+import           Data.Vector (Vector)
+import qualified Data.Vector as V
+import           Numeric.Search.Range (searchFromTo)
 import           System.Locale
 import           System.Time
 import           Text.XML
@@ -45,7 +49,7 @@ fromXlsx ct xlsx =
       , FileData "xl/styles.xml"
         "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml" $ unStyles (xlsx ^. xlStyles)
       , FileData "xl/sharedStrings.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" $ ssXml shared
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" $ ssXml $ V.toList shared
       , FileData "xl/_rels/workbook.xml.rels"
         "application/vnd.openxmlformats-package.relationships+xml" $ bookRelXml sheetCount
       , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml" rootRelXml
@@ -57,7 +61,11 @@ fromXlsx ct xlsx =
         (n, cells, w) <- zip3 [1..] sheetCells sheets]
     sheets = xlsx ^. xlSheets . to M.elems
     sheetCount = length sheets
-    (sheetCells, shared) = runState (mapM collectSharedTransform sheets) []
+    shared = V.fromList $ S.elems $ S.fromList $ concatMap (concatMap celltext . M.elems . _wsCells) sheets
+    sheetCells = map (collectSharedTransform shared) sheets
+    celltext (Cell{_cellValue=v}) = case v of
+                                      Just(CellText a) -> [a]
+                                      _ -> []
 
 data FileData = FileData { fdName :: Text
                          , fdContentType :: Text
@@ -124,29 +132,18 @@ value XlsxCell{xlsxCellValue=Just(XlsxBool True)} = "1"
 value XlsxCell{xlsxCellValue=Just(XlsxBool False)} = "0"
 value _ = error "value undefined"
 
-collectSharedTransform :: Worksheet -> State [Text] [(Int, [(Int, XlsxCell)])]
-collectSharedTransform ws = transformed
+collectSharedTransform :: Vector Text -> Worksheet -> [(Int, [(Int, XlsxCell)])]
+collectSharedTransform shared ws = transformed
   where
-    transformed = mapM transformRow $ toRows (ws ^. wsCells)
-    transformRow (r, cells) = do
-      cells' <- mapM transform cells
-      return (r, cells')
+    transformed = map transformRow $ toRows (ws ^. wsCells)
+    transformRow = second (map transform)
     transform (c, Cell{_cellValue=v, _cellStyle=s}) =
       case v of
-        Just(CellText t) -> do
-          shared <- get
-          case t `elemIndex` shared of
-            Just i ->
-              return (c, XlsxCell s (Just $ XlsxSS i))
-            Nothing -> do
-              put $ shared ++ [t]
-              return (c, XlsxCell s (Just $ XlsxSS (length shared)))
-        Just(CellDouble dbl) ->
-          return (c, XlsxCell s (Just $ XlsxDouble dbl))
-        Just(CellBool b) ->
-          return (c, XlsxCell s (Just $ XlsxBool b))
-        Nothing ->
-          return (c, XlsxCell s Nothing)
+        Just(CellText t) -> let Just i = searchFromTo (\p -> shared V.! p >= t) 0 (V.length shared - 1)
+                            in (c, XlsxCell s (Just $ XlsxSS i))
+        Just(CellDouble dbl) -> (c, XlsxCell s (Just $ XlsxDouble dbl))
+        Just(CellBool b) -> (c, XlsxCell s (Just $ XlsxBool b))
+        Nothing -> (c, XlsxCell s Nothing)
 
 sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> L.ByteString
 sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) root []

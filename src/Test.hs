@@ -6,7 +6,7 @@ import           Control.Applicative ((<$>))
 import           Control.Lens
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Map as M
-import           Data.Text (Text)
+import           Data.Text (Text,pack)
 import           System.Time
 
 
@@ -94,11 +94,11 @@ main =  do
   where
     cols = [ColumnsWidth 1 10 15 1]
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
-    cells = M.fromList [((r, c), v) | (c, v) <- zip [1..] row, r <- [1..10000]]
-    row = [ xText "column1"
-          , xText "column2"
-          , xEmpty
-          , xText "column4"
-          , xDouble 42.12345
-          , xText  "False"]
+    cells = M.fromList [((r, c), v) | r <- [1..10000], (c, v) <- zip [1..] (row r) ]
+    row r = [ xText $ pack $ "column1-r" ++ show r
+            , xText $ pack $ "column2-r" ++ show r
+            , xEmpty
+            , xText $ pack $ "column4-r" ++ show r
+            , xDouble 42.12345
+            , xText  "False"]
     sheets = M.fromList [("List", Worksheet cols rowProps cells [])] -- wtf merges?
