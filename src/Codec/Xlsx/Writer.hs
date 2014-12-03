@@ -9,7 +9,6 @@ import           Control.Arrow (second)
 import           Control.Lens hiding (transform)
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Lazy.Char8()
-import           Data.List
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Maybe
@@ -62,7 +61,7 @@ fromXlsx ct xlsx =
     sheets = xlsx ^. xlSheets . to M.elems
     sheetCount = length sheets
     shared = V.fromList $ S.elems $ S.fromList $ concatMap (concatMap celltext . M.elems . _wsCells) sheets
-    sheetCells = map (collectSharedTransform shared) sheets
+    sheetCells = map (transformSheetData shared) sheets
     celltext (Cell{_cellValue=v}) = case v of
                                       Just(CellText a) -> [a]
                                       _ -> []
@@ -79,37 +78,37 @@ coreXml created creator =
     nsAttrs = M.fromList [("xmlns:dcterms", "http://purl.org/dc/terms/"),("xmlns:xsi","http://www.w3.org/2001/XMLSchema-instance")]
     root = Element (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "coreProperties") nsAttrs
            [ --FIXME nEl (nm "http://purl.org/dc/terms/" "created") (M.fromList [("xsi:type", "dcterms:W3CDTF")]) [NodeContent date],
-             dce "creator"
-           , dce "title"
-           , dce "subject"
+             dcElement "creator"
+           , dcElement "title"
+           , dcElement "subject"
            , nEl (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "version") M.empty [NodeContent "0"]
            ]
-    dce n = nEl (nm "http://purl.org/dc/elements/1.1/" n) M.empty [NodeContent creator]
+    dcElement n = nEl (nm "http://purl.org/dc/elements/1.1/" n) M.empty [NodeContent creator]
 
 
 appXml :: Map Text Worksheet -> L.ByteString
 appXml s = renderLBS def $ Document (Prologue [] Nothing []) root []
-  where 
-    nsAttrs = M.fromList [("xmlns:vt","http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes")]
-    root = Element (nm "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" "Properties") nsAttrs
-            [ eprop "TotalTime" [NodeContent "0"]
-            , eprop "HeadingPairs" [
-                vta "vector" (M.fromList [("size","2"),("baseType","variant")]) [
-                  vt "variant" [
-                    vt "lpstr" [ NodeContent "Worksheets" ]
-                  ]
-                , vt "variant" [
-                    vt "i4" [NodeContent $ T.pack $ show $ M.size s]
-                  ]   
-                ]
-              ]   
-            , eprop "TitlesOfParts" [
-                vta "vector" (M.fromList [("size",T.pack $ show $ M.size s),("baseType","lpstr")]) $ map (vt "lpstr" . return . NodeContent) $ M.keys s
-              ]
-            ]
-    eprop n = nEl (nm "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" n) M.empty
-    vt n = vta n M.empty
-    vta = nEl . nm "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
+  where
+    nsAttrs = M.fromList [("xmlns:vt", "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes")]
+    root = Element (extPropNm "Properties") nsAttrs
+           [ extPropEl "TotalTime" [NodeContent "0"]
+           , extPropEl "HeadingPairs" [
+                            vTypeEl "vector" (M.fromList [("size", "2"), ("baseType", "variant")])
+                                        [ vTypeEl0 "variant"
+                                                       [vTypeEl0 "lpstr" [NodeContent "Worksheets"]]
+                                        , vTypeEl0 "variant"
+                                                       [vTypeEl0 "i4" [NodeContent $ txti $ M.size s]]
+                                        ]
+                           ]
+           , extPropEl "TitlesOfParts" [
+                            vTypeEl "vector" (M.fromList [("size", txti $ M.size s),("baseType","lpstr")]) $
+                                    map (vTypeEl0 "lpstr" . return . NodeContent) $ M.keys s
+                           ]
+           ]
+    extPropNm n = nm "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" n
+    extPropEl n = nEl (extPropNm n) M.empty
+    vTypeEl0 n = vTypeEl n M.empty
+    vTypeEl = nEl . nm "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
 
 data XlsxCellData = XlsxSS Int
                   | XlsxDouble Double
@@ -132,18 +131,17 @@ value XlsxCell{xlsxCellValue=Just(XlsxBool True)} = "1"
 value XlsxCell{xlsxCellValue=Just(XlsxBool False)} = "0"
 value _ = error "value undefined"
 
-collectSharedTransform :: Vector Text -> Worksheet -> [(Int, [(Int, XlsxCell)])]
-collectSharedTransform shared ws = transformed
+transformSheetData :: Vector Text -> Worksheet -> [(Int, [(Int, XlsxCell)])]
+transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
   where
-    transformed = map transformRow $ toRows (ws ^. wsCells)
-    transformRow = second (map transform)
-    transform (c, Cell{_cellValue=v, _cellStyle=s}) =
-      case v of
-        Just(CellText t) -> let Just i = searchFromTo (\p -> shared V.! p >= t) 0 (V.length shared - 1)
-                            in (c, XlsxCell s (Just $ XlsxSS i))
-        Just(CellDouble dbl) -> (c, XlsxCell s (Just $ XlsxDouble dbl))
-        Just(CellBool b) -> (c, XlsxCell s (Just $ XlsxBool b))
-        Nothing -> (c, XlsxCell s Nothing)
+    transformRow = second (map transformCell)
+    transformCell (c, Cell{_cellValue=v, _cellStyle=s}) =
+        (c, XlsxCell s (fmap transformValue v))
+    transformValue (CellText t) =
+        let Just i = searchFromTo (\p -> shared V.! p >= t) 0 (V.length shared - 1)
+        in XlsxSS i
+    transformValue (CellDouble dbl) =  XlsxDouble dbl
+    transformValue (CellBool b) = XlsxBool b
 
 sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> L.ByteString
 sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) root []
@@ -151,9 +149,9 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
     cType = xlsxCellType
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
            Element "worksheet" M.empty $ catMaybes
-           [nElNE "cols" M.empty $  map cwEl cws,
-            nElAL "sheetData" M.empty $ map rowEl rows,
-            nElNE "mergeCells" M.empty $ map mergeE1 merges]
+           [nonEmptyNmEl "cols" M.empty $  map cwEl cws,
+            justNmEl "sheetData" M.empty $ map rowEl rows,
+            nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges]
     cwEl cw = NodeElement $! Element "col" (M.fromList
               [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw), ("style", txti $ cwStyle cw)]) []
     rowEl (r, cells) = nEl "row"
@@ -231,15 +229,15 @@ addNS namespace (Element (Name ln _ _) as ns) = Element (Name ln (Just namespace
     addNS' n = n
 
 -- | Creates an element with the given name, attributes and children,
--- if there is at least one children. Else returns `Nothing`.
-nElNE :: Name -> Map Name Text -> [Node] -> Maybe Node
-nElNE _ _ [] = Nothing
-nElNE name attrs nodes = Just $ nEl name attrs nodes
+-- if there is at least one child. Otherwise returns `Nothing`.
+nonEmptyNmEl :: Name -> Map Name Text -> [Node] -> Maybe Node
+nonEmptyNmEl _ _ [] = Nothing
+nonEmptyNmEl name attrs nodes = justNmEl name attrs nodes
 
 -- | Creates an element with the given name, attributes and children.
 -- Always returns a node/`Just`.
-nElAL :: Name -> Map Name Text -> [Node] -> Maybe Node
-nElAL name attrs nodes = Just $ nEl name attrs nodes
+justNmEl :: Name -> Map Name Text -> [Node] -> Maybe Node
+justNmEl name attrs nodes = Just $ nEl name attrs nodes
 
 nEl :: Name -> Map Name Text -> [Node] -> Node
 nEl name attrs nodes = NodeElement $ Element name attrs nodes
