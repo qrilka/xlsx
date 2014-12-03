@@ -72,17 +72,21 @@ data FileData = FileData { fdName :: Text
 
 coreXml :: CalendarTime -> Text -> L.ByteString
 coreXml created creator =
-  renderLBS def $ Document (Prologue [] Nothing []) root []
+  renderLBS def{rsNamespaces=nss} $ Document (Prologue [] Nothing []) root []
   where
+    nss = [ ("cp", "http://schemas.openxmlformats.org/package/2006/metadata/core-properties")
+          , ("dc", "http://purl.org/dc/elements/1.1/")
+          , ("dcterms", "http://purl.org/dc/terms/")
+          , ("xsi","http://www.w3.org/2001/XMLSchema-instance")
+          ]
+    namespaced = nsName nss
     date = T.pack $ formatCalendarTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" created
-    nsAttrs = M.fromList [("xmlns:dcterms", "http://purl.org/dc/terms/"),("xmlns:xsi","http://www.w3.org/2001/XMLSchema-instance")]
-    root = Element (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "coreProperties") nsAttrs
-           [ --FIXME nEl (nm "http://purl.org/dc/terms/" "created") (M.fromList [("xsi:type", "dcterms:W3CDTF")]) [NodeContent date],
-             dcElement "creator"
-           , nEl (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "version") M.empty [NodeContent "0"]
+    root = Element (namespaced "cp" "coreProperties") M.empty
+           [ nEl (namespaced "dcterms" "created")
+                     (M.fromList [(namespaced "xsi" "type", "dcterms:W3CDTF")]) [NodeContent date]
+           , nEl (namespaced "dc" "creator") M.empty [NodeContent creator]
+           , nEl (namespaced "cp" "lastModifiedBy") M.empty [NodeContent creator]
            ]
-    dcElement n = nEl (nm "http://purl.org/dc/elements/1.1/" n) M.empty [NodeContent creator]
-
 
 appXml :: Map Text Worksheet -> L.ByteString
 appXml s = renderLBS def $ Document (Prologue [] Nothing []) root []
@@ -213,6 +217,21 @@ contentTypesXml fds = renderLBS def $ Document (Prologue [] Nothing []) root []
            Element "Types" M.empty $
            map (\fd -> nEl "Override" (M.fromList  [("PartName", T.concat ["/", fdName fd]),
                                        ("ContentType", fdContentType fd)]) []) fds
+
+-- | fully qualified XML name
+qName :: Text -> Text -> Text -> Name
+qName n ns p =
+    Name
+    { nameLocalName = n
+    , nameNamespace = Just ns
+    , namePrefix = Just p
+    }
+
+-- | fully qualified XML name from prefix to ns URL mapping
+nsName :: [(Text, Text)] -> Text -> Text -> Name
+nsName nss p n = qName n ns p
+    where
+      ns = fromJust $ lookup p nss
 
 nm :: Text -> Text -> Name
 nm ns n = Name
