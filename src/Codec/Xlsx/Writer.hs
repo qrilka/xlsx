@@ -79,8 +79,6 @@ coreXml created creator =
     root = Element (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "coreProperties") nsAttrs
            [ --FIXME nEl (nm "http://purl.org/dc/terms/" "created") (M.fromList [("xsi:type", "dcterms:W3CDTF")]) [NodeContent date],
              dcElement "creator"
-           , dcElement "title"
-           , dcElement "subject"
            , nEl (nm "http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "version") M.empty [NodeContent "0"]
            ]
     dcElement n = nEl (nm "http://purl.org/dc/elements/1.1/" n) M.empty [NodeContent creator]
