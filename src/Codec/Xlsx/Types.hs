@@ -10,7 +10,8 @@ module Codec.Xlsx.Types
     , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges
     , CellMap
     , CellValue(..)
-    , Cell(..), cellValue, cellStyle
+    , Cell(..), cellValue, cellFormula, cellStyle
+    , CellFormula(..), cellFormulaValue, cellFormulaAttrs
     , RowProperties (..)
     , int2col
     , col2int
@@ -28,7 +29,7 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Text (Text)
 import qualified Data.Text as T
-
+import           Text.XML (Name)
 
 -- | Cell values include text, numbers and booleans,
 -- standard includes date format also but actually dates
@@ -39,18 +40,26 @@ data CellValue = CellText   Text
                | CellBool   Bool
                deriving (Eq, Show)
 
--- | Currently cell details include only cell values and style ids
--- (e.g. formulas from @\<f\>@ and inline strings from @\<is\>@
--- subelements are ignored)
+data CellFormula = CellFormula { _cellFormulaValue :: Maybe Text
+                               , _cellFormulaAttrs :: [(Name, Text)] 
+                               } deriving (Eq, Show)
+
+makeLenses ''CellFormula
+
+-- | Currently cell details include only cell values, style ids,
+-- and formulas (e.g. inline strings from @\<is\>@ subelements
+-- are ignored). Formula (@\<f\>@) subelements are treated as 
+-- simple strings, and do not track cells in any way.
 data Cell = Cell
-    { _cellStyle  :: Maybe Int
-    , _cellValue  :: Maybe CellValue
+    { _cellStyle   :: Maybe Int
+    , _cellValue   :: Maybe CellValue
+    , _cellFormula :: Maybe CellFormula
     } deriving (Eq, Show)
 
 makeLenses ''Cell
 
 instance Default Cell where
-    def = Cell Nothing Nothing
+    def = Cell Nothing Nothing Nothing
 
 type CellMap = Map (Int, Int) Cell
 

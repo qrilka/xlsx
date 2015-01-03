@@ -116,15 +116,30 @@ data XlsxCellData = XlsxSS Int
                   | XlsxDouble Double
                   | XlsxBool Bool
                     deriving (Show, Eq)
+
+data XlsxCellFormula = XlsxCellFormula
+    { xlsxFormulaValue :: Maybe Text
+    , xlsxFormulaAttrs :: [(Name, Text)]
+    } deriving (Show, Eq)
+
+                     
+
 data XlsxCell = XlsxCell
-    { xlsxCellStyle  :: Maybe Int
-    , xlsxCellValue  :: Maybe XlsxCellData
+    { xlsxCellStyle   :: Maybe Int
+    , xlsxCellValue   :: Maybe XlsxCellData
+    , xlsxCellFormula :: Maybe XlsxCellFormula
     } deriving (Show, Eq)
 
 xlsxCellType :: XlsxCell -> Text
 xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxSS _)} = "s"
 xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxBool _)} = "b"
 xlsxCellType _ = "n" -- default in SpreadsheetML schema, TODO: add other types
+
+
+formula :: XlsxCell -> [Node]
+formula XlsxCell{xlsxCellFormula=Just(f)} =
+    [nEl "f" (M.fromList (xlsxFormulaAttrs f)) (maybeToList (fmap NodeContent (xlsxFormulaValue f)))]
+formula _ = []
 
 value :: XlsxCell -> Text
 value XlsxCell{xlsxCellValue=Just(XlsxSS i)} = txti i
@@ -137,13 +152,14 @@ transformSheetData :: Vector Text -> Worksheet -> [(Int, [(Int, XlsxCell)])]
 transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
   where
     transformRow = second (map transformCell)
-    transformCell (c, Cell{_cellValue=v, _cellStyle=s}) =
-        (c, XlsxCell s (fmap transformValue v))
+    transformCell (c, Cell{_cellValue=v, _cellStyle=s, _cellFormula=f}) =
+        (c, XlsxCell s (fmap transformValue v) (fmap transformFormula f))
     transformValue (CellText t) =
         let Just i = searchFromTo (\p -> shared V.! p >= t) 0 (V.length shared - 1)
         in XlsxSS i
-    transformValue (CellDouble dbl) =  XlsxDouble dbl
+    transformValue (CellDouble dbl) = XlsxDouble dbl
     transformValue (CellBool b) = XlsxBool b
+    transformFormula (CellFormula v a) = XlsxCellFormula v a
 
 sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> L.ByteString
 sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) root []
@@ -170,7 +186,9 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
     mergeE1 t = NodeElement $! Element "mergeCell" (M.fromList [("ref",t)]) []
     cellEl r (icol, cell) =
       nEl "c" (M.fromList (cellAttrs r (int2col icol) cell))
-              [nEl "v" M.empty [NodeContent $ value cell] | isJust $ xlsxCellValue cell]
+              (formula cell
+              ++
+              [nEl "v" M.empty [NodeContent $ value cell] | (isJust $ xlsxCellValue cell)])
     cellAttrs r col cell = cellStyleAttr cell ++ [("r", T.concat [col, txti r]), ("t", cType cell)]
     cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
     cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]

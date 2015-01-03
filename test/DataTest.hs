@@ -37,15 +37,17 @@ testXlsx = Xlsx sheets emptyStyles
 
 testCellMap :: CellMap
 testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
-                         , ((3, 1), cd3), ((3, 2), cd4), ((3, 7), cd5)
+                         , ((3, 1), cd3), ((3, 2), cd4)
+                         , ((3, 7), cd5), ((3,8), cd6)
                          ]
   where
-    cd v = Cell{_cellValue=Just v, _cellStyle=Nothing}
+    cd v = Cell{_cellValue=Just v, _cellStyle=Nothing, _cellFormula=Nothing}
     cd1 = cd (CellText "just a text")
     cd2 = cd (CellDouble 42.4567)
     cd3 = cd (CellText "another text")
-    cd4 = Cell{_cellValue=Nothing, _cellStyle=Nothing} -- shouldn't it be skipped?
+    cd4 = Cell{_cellValue=Nothing, _cellStyle=Nothing, _cellFormula=Nothing} -- shouldn't it be skipped?
     cd5 = cd $(CellBool True)
+    cd6 = Cell{_cellValue=Nothing, _cellStyle=Nothing, _cellFormula=Just (CellFormula (Just "A1+B2") [])}
 
 testTime :: ClockTime
 testTime = TOD 123 567

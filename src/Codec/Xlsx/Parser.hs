@@ -91,9 +91,10 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges
       let
         s = listToMaybe $ cell $| attribute "s" >=> decimal
         t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
+        f = listToMaybe $ cell $/ element (n"f") >=> extractCellFormula 
         d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractCellValue ss t
       (c, r) <- T.span (>'9') <$> (cell $| attribute "r")
-      return (int r, col2int c, Cell s d)
+      return (int r, col2int c, Cell s d f)
     collect = foldr collectRow (M.empty, M.empty)
     collectRow (_, Nothing, rowCells) (rowMap, cellMap) =
       (rowMap, foldr collectCell cellMap rowCells)
@@ -105,6 +106,22 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges
     parseMerges :: Cursor -> [Text]
     parseMerges = element (n"mergeCells") &/ element (n"mergeCell") >=> parseMerge
     parseMerge c = c $| attribute "ref"
+
+-- This is necessary to maintain shared formulas.
+-- See: https://groups.google.com/forum/#!topic/openpyxl-users/8-aGdgF58BM
+extractCellFormula :: Cursor -> [CellFormula]
+extractCellFormula c = [CellFormula val attrs]
+    where
+      attrs = t ++ si ++ ref
+      t = attrToTup c "t"
+      si = attrToTup c "si"
+      ref = attrToTup c "ref"
+      val = listToMaybe (c $/ content)
+
+attrToTup :: Cursor -> Name -> [(Name, Text)]
+attrToTup c n = case (c $| attribute n) of
+                  (x:_) -> [(n, x)]
+                  _ -> []
 
 extractCellValue :: IntMap Text -> Text -> Text -> [CellValue]
 extractCellValue ss "s" v =
