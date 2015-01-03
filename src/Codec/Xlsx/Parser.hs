@@ -91,9 +91,10 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges
       let
         s = listToMaybe $ cell $| attribute "s" >=> decimal
         t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
+        f = listToMaybe $ cell $/ element (n"f") &/ content 
         d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractCellValue ss t
       (c, r) <- T.span (>'9') <$> (cell $| attribute "r")
-      return (int r, col2int c, Cell s d)
+      return (int r, col2int c, Cell s d f)
     collect = foldr collectRow (M.empty, M.empty)
     collectRow (_, Nothing, rowCells) (rowMap, cellMap) =
       (rowMap, foldr collectCell cellMap rowCells)

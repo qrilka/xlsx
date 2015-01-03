@@ -10,7 +10,7 @@ module Codec.Xlsx.Types
     , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges
     , CellMap
     , CellValue(..)
-    , Cell(..), cellValue, cellStyle
+    , Cell(..), cellValue, cellFormula, cellStyle
     , RowProperties (..)
     , int2col
     , col2int
@@ -34,23 +34,24 @@ import qualified Data.Text as T
 -- standard includes date format also but actually dates
 -- are represented by numbers with a date format assigned
 -- to a cell containing it
-data CellValue = CellText   Text
-               | CellDouble Double
-               | CellBool   Bool
+data CellValue = CellText    Text
+               | CellDouble  Double
+               | CellBool    Bool
                deriving (Eq, Show)
 
 -- | Currently cell details include only cell values and style ids
 -- (e.g. formulas from @\<f\>@ and inline strings from @\<is\>@
 -- subelements are ignored)
 data Cell = Cell
-    { _cellStyle  :: Maybe Int
-    , _cellValue  :: Maybe CellValue
+    { _cellStyle   :: Maybe Int
+    , _cellValue   :: Maybe CellValue
+    , _cellFormula :: Maybe Text
     } deriving (Eq, Show)
 
 makeLenses ''Cell
 
 instance Default Cell where
-    def = Cell Nothing Nothing
+    def = Cell Nothing Nothing Nothing
 
 type CellMap = Map (Int, Int) Cell
 
