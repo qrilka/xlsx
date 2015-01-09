@@ -47,7 +47,11 @@ testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
     cd3 = cd (CellText "another text")
     cd4 = Cell{_cellValue=Nothing, _cellStyle=Nothing, _cellFormula=Nothing} -- shouldn't it be skipped?
     cd5 = cd $(CellBool True)
+<<<<<<< HEAD
     cd6 = Cell{_cellValue=Nothing, _cellStyle=Nothing, _cellFormula=Just (CellFormula (Just "A1+B2") [])}
+=======
+    cd6 = Cell{_cellValue=Nothing, _cellStyle=Nothing, _cellFormula=Just "A1+B2"}
+>>>>>>> 59492c6d253908272420203b8fb77654edc76831
 
 testTime :: ClockTime
 testTime = TOD 123 567

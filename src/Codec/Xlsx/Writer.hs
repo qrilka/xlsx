@@ -3,7 +3,7 @@
 module Codec.Xlsx.Writer
     ( fromXlsx
     ) where
-
+import Debug.Trace
 import qualified Codec.Archive.Zip as Zip
 import           Control.Arrow (second)
 import           Control.Lens hiding (transform)
@@ -117,6 +117,7 @@ data XlsxCellData = XlsxSS Int
                   | XlsxBool Bool
                     deriving (Show, Eq)
 
+<<<<<<< HEAD
 data XlsxCellFormula = XlsxCellFormula
     { xlsxFormulaValue :: Maybe Text
     , xlsxFormulaAttrs :: [(Name, Text)]
@@ -128,6 +129,12 @@ data XlsxCell = XlsxCell
     { xlsxCellStyle   :: Maybe Int
     , xlsxCellValue   :: Maybe XlsxCellData
     , xlsxCellFormula :: Maybe XlsxCellFormula
+=======
+data XlsxCell = XlsxCell
+    { xlsxCellStyle   :: Maybe Int
+    , xlsxCellValue   :: Maybe XlsxCellData
+    , xlsxCellFormula :: Maybe Text
+>>>>>>> 59492c6d253908272420203b8fb77654edc76831
     } deriving (Show, Eq)
 
 xlsxCellType :: XlsxCell -> Text
@@ -136,10 +143,16 @@ xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxBool _)} = "b"
 xlsxCellType _ = "n" -- default in SpreadsheetML schema, TODO: add other types
 
 
+<<<<<<< HEAD
 formula :: XlsxCell -> [Node]
 formula XlsxCell{xlsxCellFormula=Just(f)} =
     [nEl "f" (M.fromList (xlsxFormulaAttrs f)) (maybeToList (fmap NodeContent (xlsxFormulaValue f)))]
 formula _ = []
+=======
+formula :: XlsxCell -> Text
+formula XlsxCell{xlsxCellFormula=Just(f)} = f
+formula _ = error "no formula found"
+>>>>>>> 59492c6d253908272420203b8fb77654edc76831
 
 value :: XlsxCell -> Text
 value XlsxCell{xlsxCellValue=Just(XlsxSS i)} = txti i
@@ -153,7 +166,11 @@ transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
   where
     transformRow = second (map transformCell)
     transformCell (c, Cell{_cellValue=v, _cellStyle=s, _cellFormula=f}) =
+<<<<<<< HEAD
         (c, XlsxCell s (fmap transformValue v) (fmap transformFormula f))
+=======
+        (c, XlsxCell s (fmap transformValue v) f)
+>>>>>>> 59492c6d253908272420203b8fb77654edc76831
     transformValue (CellText t) =
         let Just i = searchFromTo (\p -> shared V.! p >= t) 0 (V.length shared - 1)
         in XlsxSS i
@@ -176,7 +193,7 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
                        (M.fromList (ht ++ s ++ [("r", txti r) ,("hidden", "false"), ("outlineLevel", "0"),
                                ("collapsed", "false"), ("customFormat", "true"),
                                ("customHeight", txtb hasHeight)]))
-                       $ map (cellEl r) cells
+                       $ map (cellEl' r) cells
       where
         (ht, hasHeight, s) = case M.lookup r rh of
           Just (RowProps (Just h) (Just st)) -> ([("ht", txtd h)], True,[("s", txti st)])
@@ -184,11 +201,18 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
           Just (RowProps (Just h) Nothing ) -> ([("ht", txtd h)], True,[])
           _ -> ([], False,[])
     mergeE1 t = NodeElement $! Element "mergeCell" (M.fromList [("ref",t)]) []
+    cellEl' r (icol, cell) = traceShow (cellEl r (icol, cell)) cellEl r (icol, cell)
     cellEl r (icol, cell) =
       nEl "c" (M.fromList (cellAttrs r (int2col icol) cell))
+<<<<<<< HEAD
               (formula cell
               ++
               [nEl "v" M.empty [NodeContent $ value cell] | (isJust $ xlsxCellValue cell)])
+=======
+              ([nEl "v" M.empty [NodeContent $ value cell] | (isJust $ xlsxCellValue cell)]
+              ++
+              [nEl "f" M.empty [NodeContent $ formula cell] | (isJust $ xlsxCellFormula cell)])
+>>>>>>> 59492c6d253908272420203b8fb77654edc76831
     cellAttrs r col cell = cellStyleAttr cell ++ [("r", T.concat [col, txti r]), ("t", cType cell)]
     cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
     cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
