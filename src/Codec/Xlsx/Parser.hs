@@ -119,9 +119,9 @@ extractCellFormula c = [CellFormula val attrs]
       val = listToMaybe (c $/ content)
 
 attrToTup :: Cursor -> Name -> [(Name, Text)]
-attrToTup c n = case (c $| attribute n) of
-                  (x:_) -> [(n, x)]
-                  _ -> []
+attrToTup c n' = case (c $| attribute n') of
+                   (x:_) -> [(n', x)]
+                   _ -> []
 
 extractCellValue :: IntMap Text -> Text -> Text -> [CellValue]
 extractCellValue ss "s" v =

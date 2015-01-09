@@ -11,10 +11,7 @@ module Codec.Xlsx.Types
     , CellMap
     , CellValue(..)
     , Cell(..), cellValue, cellFormula, cellStyle
-<<<<<<< HEAD
     , CellFormula(..), cellFormulaValue, cellFormulaAttrs
-=======
->>>>>>> 59492c6d253908272420203b8fb77654edc76831
     , RowProperties (..)
     , int2col
     , col2int
@@ -56,11 +53,7 @@ makeLenses ''CellFormula
 data Cell = Cell
     { _cellStyle   :: Maybe Int
     , _cellValue   :: Maybe CellValue
-<<<<<<< HEAD
     , _cellFormula :: Maybe CellFormula
-=======
-    , _cellFormula :: Maybe Text
->>>>>>> 59492c6d253908272420203b8fb77654edc76831
     } deriving (Eq, Show)
 
 makeLenses ''Cell

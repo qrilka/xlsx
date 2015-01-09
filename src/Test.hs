@@ -11,13 +11,13 @@ import           System.Time
 
 
 xEmpty :: Cell
-xEmpty = Cell{_cellValue=Nothing, _cellStyle=Just 0}
+xEmpty = Cell{_cellValue=Nothing, _cellStyle=Just 0, _cellFormula=Nothing}
 
 xText :: Text -> Cell
-xText t = Cell{_cellValue=Just $ CellText t, _cellStyle=Just 0}
+xText t = Cell{_cellValue=Just $ CellText t, _cellStyle=Just 0, _cellFormula=Nothing}
 
 xDouble :: Double -> Cell
-xDouble d = Cell{_cellValue=Just $ CellDouble d, _cellStyle=Just 0}
+xDouble d = Cell{_cellValue=Just $ CellDouble d, _cellStyle=Just 0, _cellFormula=Nothing}
 
 styles :: Styles
 styles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
