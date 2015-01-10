@@ -1,3 +1,8 @@
+0.1.0.4
+	* fixed generated xml so it gets read by MS Excel with no warnings (thanks Dmitriy Nikitinskiy <nick@linux-i294.site>)
+	* improved shared strings collection by using Vector (thanks Dmitriy Nikitinskiy <nick@linux-i294.site>)
+	* empty xml elements don't get emmitted anymore (thanks Philipp Hausmann <ph_git@314.ch>)
+	* imporoved and cleaned up core.xml generation
 0.1.0.3
 	* added "str" cells content extraction as text
 	* added a notice that formulas in <f> are not yet supported
