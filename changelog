@@ -1,3 +1,6 @@
+0.1.0.3
+	* added "str" cells content extraction as text
+	* added a notice that formulas in <f> are not yet supported
 0.1.0
 	* better tests and documentation
 	* lenses for worksheets/cells
