@@ -3,7 +3,7 @@
 module Codec.Xlsx.Writer
     ( fromXlsx
     ) where
-import Debug.Trace
+
 import qualified Codec.Archive.Zip as Zip
 import           Control.Arrow (second)
 import           Control.Lens hiding (transform)
@@ -119,7 +119,7 @@ data XlsxCellData = XlsxSS Int
 
 data XlsxCellFormula = XlsxCellFormula
     { xlsxFormulaValue :: Maybe Text
-    , xlsxFormulaAttrs :: [(Name, Text)]
+    , xlsxFormulaAttrs :: [(Text, Text)]
     } deriving (Show, Eq)
 
 data XlsxCell = XlsxCell
@@ -134,8 +134,9 @@ xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxBool _)} = "b"
 xlsxCellType _ = "n" -- default in SpreadsheetML schema, TODO: add other types
 
 formula :: XlsxCell -> [Node]
-formula XlsxCell{xlsxCellFormula=Just(f)} =
-    [nEl "f" (M.fromList (xlsxFormulaAttrs f)) (maybeToList (fmap NodeContent (xlsxFormulaValue f)))]
+formula XlsxCell{xlsxCellFormula=Just f} =
+    [nEl "f" (M.fromList (map (\(x,y) -> (Name x Nothing Nothing, y)) (xlsxFormulaAttrs f)))
+             (maybeToList (fmap NodeContent (xlsxFormulaValue f)))]
 formula _ = []
 
 value :: XlsxCell -> Text
@@ -173,7 +174,7 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
                        (M.fromList (ht ++ s ++ [("r", txti r) ,("hidden", "false"), ("outlineLevel", "0"),
                                ("collapsed", "false"), ("customFormat", "true"),
                                ("customHeight", txtb hasHeight)]))
-                       $ map (cellEl' r) cells
+                       $ map (cellEl r) cells
       where
         (ht, hasHeight, s) = case M.lookup r rh of
           Just (RowProps (Just h) (Just st)) -> ([("ht", txtd h)], True,[("s", txti st)])
@@ -181,12 +182,11 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
           Just (RowProps (Just h) Nothing ) -> ([("ht", txtd h)], True,[])
           _ -> ([], False,[])
     mergeE1 t = NodeElement $! Element "mergeCell" (M.fromList [("ref",t)]) []
-    cellEl' r (icol, cell) = traceShow (cellEl r (icol, cell)) cellEl r (icol, cell)
     cellEl r (icol, cell) =
       nEl "c" (M.fromList (cellAttrs r (int2col icol) cell))
               (formula cell
               ++
-              [nEl "v" M.empty [NodeContent $ value cell] | (isJust $ xlsxCellValue cell)])
+              [nEl "v" M.empty [NodeContent $ value cell] | isJust $ xlsxCellValue cell])
     cellAttrs r col cell = cellStyleAttr cell ++ [("r", T.concat [col, txti r]), ("t", cType cell)]
     cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
     cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]

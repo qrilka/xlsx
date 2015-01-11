@@ -29,19 +29,18 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Text.XML (Name)
 
 -- | Cell values include text, numbers and booleans,
 -- standard includes date format also but actually dates
 -- are represented by numbers with a date format assigned
 -- to a cell containing it
-data CellValue = CellText    Text
-               | CellDouble  Double
-               | CellBool    Bool
+data CellValue = CellText   Text
+               | CellDouble Double
+               | CellBool   Bool
                deriving (Eq, Show)
 
 data CellFormula = CellFormula { _cellFormulaValue :: Maybe Text
-                               , _cellFormulaAttrs :: [(Name, Text)] 
+                               , _cellFormulaAttrs :: [(Text, Text)] 
                                } deriving (Eq, Show)
 
 makeLenses ''CellFormula
