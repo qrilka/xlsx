@@ -1,4 +1,4 @@
--- | This module provides solution for parsing and writing MIcrosoft
+-- | This module provides solution for parsing and writing Microsoft
 -- Open Office XML Workbook format i.e. *.xlsx files
 --
 -- As a simple example you could read cell B3 from the 1st sheet of workbook \"report.xlsx\"
@@ -17,7 +17,7 @@
 -- >               ixCell (3,2) . cellValue . _Just
 -- >   putStrLn $ "Cell B3 contains " ++ show value
 --
--- And the following example mudule shows a way to construct and write xlsx file
+-- And the following example module shows a way to construct and write xlsx file
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
 -- > module Write where
