@@ -1,3 +1,5 @@
+0.1.0.5
+	* loosened dependency on zlib package
 0.1.0.4
 	* fixed generated xml so it gets read by MS Excel with no warnings (thanks Dmitriy Nikitinskiy <nick@linux-i294.site>)
 	* improved shared strings collection by using Vector (thanks Dmitriy Nikitinskiy <nick@linux-i294.site>)
