@@ -152,11 +152,17 @@ xmlCursor ar fname = parse <$> Zip.findEntryByPath fname ar
         Left _  -> error "could not read file"
         Right d -> fromDocument d
 
--- | Get shared strings (if there are some) into IntMap.
+  -- | Get shared strings (if there are some) into IntMap.
 getSharedStrings  :: Zip.Archive -> IM.IntMap Text
 getSharedStrings x = case xmlCursor x "xl/sharedStrings.xml" of
     Nothing  -> IM.empty
-    Just c -> IM.fromAscList $ zip [0..] (c $/ element (n"si") &/ element (n"t") &/ content)
+    Just c -> IM.fromAscList $ zip [0..] (c $/ element (n"si") >=> parseValue)
+      where
+        parseValue :: Cursor -> [Text]
+        parseValue csr = 
+            let ts  = csr $/ element (n"t") &/ content
+                rts = csr $/ element (n"r") &/ element (n"t") &/ content
+            in [T.concat (ts++rts)]
 
 getStyles :: Zip.Archive -> Styles
 getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
