@@ -152,7 +152,7 @@ xmlCursor ar fname = parse <$> Zip.findEntryByPath fname ar
         Left _  -> error "could not read file"
         Right d -> fromDocument d
 
-  -- | Get shared strings (if there are some) into IntMap.
+-- | Get shared strings (if there are some) into IntMap.
 getSharedStrings  :: Zip.Archive -> IM.IntMap Text
 getSharedStrings x = case xmlCursor x "xl/sharedStrings.xml" of
     Nothing  -> IM.empty
