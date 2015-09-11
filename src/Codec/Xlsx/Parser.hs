@@ -27,6 +27,7 @@ import           Prelude hiding (sequence)
 import           Text.XML as X
 import           Text.XML.Cursor
 
+import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types
 
 
@@ -119,14 +120,6 @@ extractCellValue _ "n" v =
 extractCellValue _ "b" "1" = [CellBool True]
 extractCellValue _ "b" "0" = [CellBool False]
 extractCellValue _ _ _ = []
-
--- | Add sml namespace to name
-n :: Text -> Name
-n x = Name
-  { nameLocalName = x
-  , nameNamespace = Just "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-  , namePrefix = Nothing
-  }
 
 -- | Add office document relationship namespace to name
 odr :: Text -> Name
