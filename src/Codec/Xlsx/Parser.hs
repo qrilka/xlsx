@@ -151,7 +151,6 @@ getSharedStrings x = case xmlCursor x "xl/sharedStrings.xml" of
     Nothing  -> IM.empty
     Just c -> parseSharedStrings c
 
-
 getStyles :: Zip.Archive -> Styles
 getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Nothing  -> Styles L.empty
