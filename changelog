@@ -1,3 +1,5 @@
+0.1.1.1
+	* fixed use of internal function for parsing shared strings, previous change was unused in practice
 0.1.1
 	* added support for rich text shared strings (thanks to Steve Bigham <steve.bigham@gmail.com>)
 0.1.0.5
