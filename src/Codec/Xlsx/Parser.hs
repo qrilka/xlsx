@@ -149,7 +149,8 @@ xmlCursor ar fname = parse <$> Zip.findEntryByPath fname ar
 getSharedStrings  :: Zip.Archive -> IM.IntMap Text
 getSharedStrings x = case xmlCursor x "xl/sharedStrings.xml" of
     Nothing  -> IM.empty
-    Just c -> IM.fromAscList $ zip [0..] (c $/ element (n"si") &/ element (n"t") &/ content)
+    Just c -> parseSharedStrings c
+
 
 getStyles :: Zip.Archive -> Styles
 getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
