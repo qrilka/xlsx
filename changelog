@@ -1,3 +1,5 @@
+0.1.1
+	* added support for rich text shared strings (thanks to Steve Bigham <steve.bigham@gmail.com>)
 0.1.0.5
 	* loosened dependency on zlib package
 0.1.0.4

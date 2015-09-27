@@ -1,6 +1,6 @@
 Name:                xlsx
 
-Version:             0.1.0.5
+Version:             0.1.1
 
 Synopsis:            Simple and incomplete Excel file parser/writer
 Description:
@@ -35,6 +35,7 @@ Library
                      , Codec.Xlsx.Types
                      , Codec.Xlsx.Writer
                      , Codec.Xlsx.Lens
+                     , Codec.Xlsx.Parser.Internal
 
   Build-depends:     base         == 4.*
                      , containers   >= 0.5.0.0
@@ -93,6 +94,7 @@ test-suite data-test
                  time,
                  old-time,
                  xlsx,
+                 xml-conduit >= 1.1.0,
                  smallcheck,
                  HUnit,
                  tasty,

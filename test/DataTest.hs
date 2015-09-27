@@ -1,11 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
+import qualified Data.IntMap as IM
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Time.Calendar
 import           Data.Time.LocalTime
 import           System.Time
+import           Text.XML
+import           Text.XML.Cursor
 
 import           Test.Tasty (defaultMain, testGroup)
 import           Test.Tasty.SmallCheck (testProperty)
@@ -15,6 +18,7 @@ import           Test.HUnit ((@=?))
 import           Test.SmallCheck.Series (Positive(..))
 
 import           Codec.Xlsx
+import           Codec.Xlsx.Parser.Internal
 
 
 main = defaultMain $
@@ -25,6 +29,8 @@ main = defaultMain $
          testXlsx @=? toXlsx (fromXlsx testTime testXlsx)
     , testCase "fromRows . toRows == id" $
          testCellMap @=? fromRows (toRows testCellMap)
+    , testCase "correct shared strings parsing" $
+         testSharedStrings @=? testParseSharedStrings
     ]
 
 testXlsx :: Xlsx
@@ -49,3 +55,14 @@ testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
 
 testTime :: ClockTime
 testTime = TOD 123 567
+
+testSharedStrings = IM.fromAscList $ zip [0..] ["plain text", "Just example"]
+
+testParseSharedStrings = parseSharedStrings $ fromDocument $ parseLBS_ def strings
+    where
+      strings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
+                \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
+                \<si><t>plain text</t></si>\
+                \<si><r><t>Just </t></r><r><rPr><b val=\"true\"/><u val=\"single\"/>\
+                \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
+                \</sst>"
