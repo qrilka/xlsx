@@ -10,6 +10,7 @@ module Codec.Xlsx.Writer.Internal (
     -- * Rendering elements
   , ToElement(..)
   , elementList
+  , elementContent
   , elementValue
     -- * Rendering attributes
   , ToAttrVal(..)
@@ -57,6 +58,21 @@ elementList nm as = Element {
     , elementAttributes = Map.fromList [ "count" .= length as ]
     }
 
+elementContent :: Name -> Text -> Element
+elementContent nm txt = Element {
+      elementName       = nm
+    , elementAttributes = Map.fromList [ preserveSpace ]
+    , elementNodes      = [NodeContent txt]
+    }
+  where
+    preserveSpace = (
+        Name { nameLocalName = "space"
+             , nameNamespace = Just "http://www.w3.org/XML/1998/namespace"
+             , namePrefix    = Nothing
+             }
+      , "preserve"
+      )
+
 {-------------------------------------------------------------------------------
   Rendering attributes
 -------------------------------------------------------------------------------}
@@ -102,11 +118,14 @@ addNS ns Element{..} = Element{
     }
   where
     goName :: Name -> Name
-    goName Name{..} = Name{
-        nameLocalName = nameLocalName
-      , nameNamespace = Just ns
-      , namePrefix    = Nothing
-      }
+    goName n@Name{..} =
+      case nameNamespace of
+        Just _  -> n -- If a namespace was explicitly set, leave it
+        Nothing -> Name{
+            nameLocalName = nameLocalName
+          , nameNamespace = Just ns
+          , namePrefix    = Nothing
+          }
 
     goNode :: Node -> Node
     goNode (NodeElement e) = NodeElement $ addNS ns e

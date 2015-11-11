@@ -39,6 +39,8 @@ Library
                      , Codec.Xlsx.StyleSheet
                      , Codec.Xlsx.Formatted
                      , Codec.Xlsx.Writer.Internal
+                     , Codec.Xlsx.SharedStringTable
+                     , Codec.Xlsx.RichText
 
   Build-depends:     base         == 4.*
                      , containers   >= 0.5.0.0

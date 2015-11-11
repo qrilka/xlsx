@@ -37,6 +37,7 @@ import qualified Data.Text as T
 import           Text.XML (renderLBS)
 
 import           Codec.Xlsx.StyleSheet
+import           Codec.Xlsx.RichText
 import           Codec.Xlsx.Writer.Internal
 
 -- | Cell values include text, numbers and booleans,
@@ -46,6 +47,7 @@ import           Codec.Xlsx.Writer.Internal
 data CellValue = CellText   Text
                | CellDouble Double
                | CellBool   Bool
+               | CellRich   [RichTextRun]
                deriving (Eq, Show)
 
 -- | Currently cell details include only cell values and style ids
