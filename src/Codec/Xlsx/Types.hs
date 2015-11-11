@@ -6,6 +6,7 @@ module Codec.Xlsx.Types
     , def
     , Styles(..)
     , emptyStyles
+    , renderStyleSheet
     , DefinedNames(..)
     , ColumnsWidth(..)
     , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges
@@ -33,7 +34,10 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           Text.XML (renderLBS)
 
+import           Codec.Xlsx.StyleSheet
+import           Codec.Xlsx.Writer.Internal
 
 -- | Cell values include text, numbers and booleans,
 -- standard includes date format also but actually dates
@@ -137,6 +141,16 @@ instance Default DefinedNames where
 emptyStyles :: Styles
 emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 \<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"></styleSheet>"
+
+-- | Render 'StyleSheet'
+--
+-- This is used to render a structured 'StyleSheet' into a raw XML 'Styles'
+-- document. Actually /replacing/ 'Styles' with 'StyleSheet' would mean we
+-- would need to write a /parser/ for 'StyleSheet' as well (and would moreover
+-- require that we support the full style sheet specification, which is still
+-- quite a bit of work).
+renderStyleSheet :: StyleSheet -> Styles
+renderStyleSheet = Styles . renderLBS def . toDocument
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
 int2col :: Int -> Text

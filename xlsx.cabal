@@ -36,6 +36,8 @@ Library
                      , Codec.Xlsx.Writer
                      , Codec.Xlsx.Lens
                      , Codec.Xlsx.Parser.Internal
+                     , Codec.Xlsx.StyleSheet
+                     , Codec.Xlsx.Writer.Internal
 
   Build-depends:     base         == 4.*
                      , containers   >= 0.5.0.0
@@ -57,6 +59,14 @@ Library
                      , vector       >= 0.10
                      , binary-search
   Default-Language:     Haskell2010
+  Other-Extensions:  CPP
+                     FlexibleInstances
+                     NoMonomorphismRestriction
+                     OverloadedStrings
+                     RecordWildCards
+                     TemplateHaskell
+                     TupleSections
+
 
 
 Executable           test
