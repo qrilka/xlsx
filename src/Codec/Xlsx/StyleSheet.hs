@@ -138,6 +138,7 @@ import Codec.Xlsx.Writer.Internal
 --   specifies the top-level style sheet format.
 --
 -- TODO: the following child elements:
+--
 -- * cellStyles
 -- * cellStyleXfs
 -- * colors
@@ -147,7 +148,10 @@ import Codec.Xlsx.Writer.Internal
 -- * tableStyles
 --
 -- NOTE: You will probably want to base your style sheet on 'minimalStyleSheet'.
--- See also 'renderStyleSheet'.
+-- See also:
+--
+-- * 'Codec.Xlsx.Types.renderStyleSheet' to translate a 'StyleSheet' to 'Styles'
+-- * 'Codec.Xlsx.Formatted.formatted' for a higher level interface.
 data StyleSheet = StyleSheet {
     -- | This element contains borders formatting information, specifying all
     -- border definitions for all cells in the workbook.

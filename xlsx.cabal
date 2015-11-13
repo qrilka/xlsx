@@ -37,6 +37,7 @@ Library
                      , Codec.Xlsx.Lens
                      , Codec.Xlsx.Parser.Internal
                      , Codec.Xlsx.StyleSheet
+                     , Codec.Xlsx.Formatted
                      , Codec.Xlsx.Writer.Internal
 
   Build-depends:     base         == 4.*
@@ -57,12 +58,14 @@ Library
                      , old-locale   >= 1.0.0.5
                      , data-default == 0.5.*
                      , vector       >= 0.10
+                     , mtl          >= 2.2.1
                      , binary-search
   Default-Language:     Haskell2010
   Other-Extensions:  CPP
                      FlexibleInstances
                      NoMonomorphismRestriction
                      OverloadedStrings
+                     RankNTypes
                      RecordWildCards
                      TemplateHaskell
                      TupleSections
