@@ -70,7 +70,7 @@ data Worksheet = Worksheet
     { _wsColumns          :: [ColumnsWidth]         -- ^ column widths
     , _wsRowPropertiesMap :: Map Int RowProperties  -- ^ custom row properties (height, style) map
     , _wsCells            :: CellMap                -- ^ data mapped by (row, column) pairs
-    , _wsMerges           :: [Text]
+    , _wsMerges           :: [Text]                 -- ^ list of cell merges (entries of the form @D13:H14@)
     } deriving (Eq, Show)
 
 makeLenses ''Worksheet
