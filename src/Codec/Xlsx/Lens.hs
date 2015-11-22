@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 module Codec.Xlsx.Lens
     ( ixSheet
     , atSheet
@@ -7,41 +8,20 @@ module Codec.Xlsx.Lens
  ) where
 
 import Codec.Xlsx.Types
-import Control.Applicative
 import Control.Lens
 import Data.Text
 
-ixSheet :: Applicative f
-        => Text
-        -> (Worksheet -> f Worksheet)
-        -> Xlsx
-        -> f Xlsx
+ixSheet :: Text -> Traversal' Xlsx Worksheet
 ixSheet s = xlSheets . ix s
 
-atSheet :: Functor f
-        => Text
-        -> (Maybe Worksheet -> f (Maybe Worksheet))
-        -> Xlsx
-        -> f Xlsx
+atSheet :: Text -> Lens' Xlsx (Maybe Worksheet)
 atSheet s = xlSheets . at s
 
-ixCell :: Applicative f
-       => (Int, Int)
-       -> (Cell -> f Cell)
-       -> Worksheet
-       -> f Worksheet
+ixCell :: (Int, Int) -> Traversal' Worksheet Cell
 ixCell i = wsCells . ix i
 
-atCell :: Functor f
-       => (Int, Int)
-       -> (Maybe Cell -> f (Maybe Cell))
-       -> Worksheet
-       -> f Worksheet
+atCell :: (Int, Int) -> Lens' Worksheet (Maybe Cell)
 atCell i = wsCells . at i
 
-cellValueAt :: Functor f
-           => (Int, Int)
-           -> (Maybe CellValue -> f (Maybe CellValue))
-           -> Worksheet
-           -> f Worksheet
+cellValueAt :: (Int, Int) -> Lens' Worksheet (Maybe CellValue)
 cellValueAt i = atCell i . non def . cellValue
