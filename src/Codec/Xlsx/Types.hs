@@ -52,6 +52,9 @@ makeLenses ''Cell
 instance Default Cell where
     def = Cell Nothing Nothing
 
+-- | Map containing cell values which are indexed by row and column
+-- if you need to use more traditional (x,y) indexing please you could
+-- use corresponding accessors from ''Codec.Xlsx.Lens''
 type CellMap = Map (Int, Int) Cell
 
 data RowProperties = RowProps { rowHeight :: Maybe Double, rowStyle::Maybe Int}
