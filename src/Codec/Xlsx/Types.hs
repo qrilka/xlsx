@@ -12,8 +12,12 @@ module Codec.Xlsx.Types
     , CellValue(..)
     , Cell(..), cellValue, cellStyle
     , RowProperties (..)
+    , CellRef
+    , Range
     , int2col
     , col2int
+    , mkCellRef
+    , mkRange
     , toRows
     , fromRows
     ) where
@@ -68,12 +72,18 @@ data ColumnsWidth = ColumnsWidth
     , cwStyle :: Int
     } deriving (Eq, Show)
 
+-- | Excel cell reference (e.g. @E3@)
+type CellRef = Text
+
+-- | Excel range (e.g. @D13:H14@)
+type Range = Text
+
 -- | Xlsx worksheet
 data Worksheet = Worksheet
     { _wsColumns          :: [ColumnsWidth]         -- ^ column widths
     , _wsRowPropertiesMap :: Map Int RowProperties  -- ^ custom row properties (height, style) map
     , _wsCells            :: CellMap                -- ^ data mapped by (row, column) pairs
-    , _wsMerges           :: [Text]                 -- ^ list of cell merges (entries of the form @D13:H14@)
+    , _wsMerges           :: [Range]                -- ^ list of cell merges
     } deriving (Eq, Show)
 
 makeLenses ''Worksheet
@@ -131,3 +141,15 @@ fromRows :: [(Int, [(Int, Cell)])] -> CellMap
 fromRows rows = M.fromList $ concatMap mapRow rows
   where
     mapRow (r, cells) = map (\(c, v) -> ((r, c), v)) cells
+
+-- | Render position in @(row, col)@ format to an Excel reference.
+--
+-- > mkCellRef (2, 4) == "D2"
+mkCellRef :: (Int, Int) -> CellRef
+mkCellRef (row, col) = T.concat [int2col col, T.pack (show row)]
+
+-- | Render range
+--
+-- > mkRange (2, 4) (6, 8) == "D2:H6"
+mkRange :: (Int, Int) -> (Int, Int) -> Range
+mkRange fr to = T.concat [mkCellRef fr, T.pack ":", mkCellRef to]

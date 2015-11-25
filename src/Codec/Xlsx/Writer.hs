@@ -169,9 +169,9 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
           _ -> ([], False,[])
     mergeE1 t = NodeElement $! Element "mergeCell" (M.fromList [("ref",t)]) []
     cellEl r (icol, cell) =
-      nEl "c" (M.fromList (cellAttrs r (int2col icol) cell))
+      nEl "c" (M.fromList (cellAttrs (mkCellRef (r, icol)) cell))
               [nEl "v" M.empty [NodeContent $ value cell] | isJust $ xlsxCellValue cell]
-    cellAttrs r col cell = cellStyleAttr cell ++ [("r", T.concat [col, txti r]), ("t", cType cell)]
+    cellAttrs ref cell = cellStyleAttr cell ++ [("r", ref), ("t", cType cell)]
     cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
     cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
 
