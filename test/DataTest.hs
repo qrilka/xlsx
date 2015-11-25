@@ -37,7 +37,7 @@ testXlsx :: Xlsx
 testXlsx = Xlsx sheets emptyStyles def
   where
     sheets = M.fromList [( "List1", sheet )]
-    sheet = Worksheet cols rowProps testCellMap []
+    sheet = Worksheet cols rowProps testCellMap [] Nothing
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
 

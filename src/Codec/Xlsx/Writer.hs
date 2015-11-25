@@ -4,6 +4,7 @@ module Codec.Xlsx.Writer
     ( fromXlsx
     ) where
 
+import           Control.Applicative
 import qualified Codec.Archive.Zip as Zip
 import           Control.Arrow (second)
 import           Control.Lens hiding (transform)
@@ -53,7 +54,7 @@ fromXlsx ct xlsx =
     sheetFiles =
       [ FileData ("xl/worksheets/sheet" <> txti n <> ".xml")
         "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
-        sheetXml (w ^. wsColumns) (w ^. wsRowPropertiesMap) cells (w ^. wsMerges) |
+        sheetXml (w ^. wsColumns) (w ^. wsRowPropertiesMap) cells (w ^. wsMerges) (w ^. wsSheetViews)|
         (n, cells, w) <- zip3 [1..] sheetCells sheets]
     sheets = xlsx ^. xlSheets . to M.elems
     sheetCount = length sheets
@@ -138,13 +139,14 @@ transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
     transformValue (CellBool b) = XlsxBool b
     transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
 
-sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> L.ByteString
-sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) root []
+sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> Maybe RawSheetViews -> L.ByteString
+sheetXml cws rh rows merges sheetViews = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     cType = xlsxCellType
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
            Element "worksheet" M.empty $ catMaybes
-           [nonEmptyNmEl "cols" M.empty $  map cwEl cws,
+           [unRawSheetViews <$> sheetViews,
+            nonEmptyNmEl "cols" M.empty $  map cwEl cws,
             justNmEl "sheetData" M.empty $ map rowEl rows,
             nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges]
     cwEl cw = NodeElement $! Element "col" (M.fromList

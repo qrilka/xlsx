@@ -9,7 +9,8 @@ module Codec.Xlsx.Types
     , renderStyleSheet
     , DefinedNames(..)
     , ColumnsWidth(..)
-    , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges
+    , RawSheetViews(..)
+    , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges, wsSheetViews
     , CellMap
     , CellValue(..)
     , Cell(..), cellValue, cellStyle
@@ -34,7 +35,7 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Text.XML (renderLBS)
+import           Text.XML (Node, renderLBS)
 
 import           Codec.Xlsx.StyleSheet
 import           Codec.Xlsx.RichText
@@ -85,18 +86,23 @@ type CellRef = Text
 -- | Excel range (e.g. @D13:H14@)
 type Range = Text
 
+-- | Raw (unparsed) sheet views (see 'renderSheetViews')
+newtype RawSheetViews = RawSheetViews {unRawSheetViews :: Node}
+  deriving (Eq, Show)
+
 -- | Xlsx worksheet
 data Worksheet = Worksheet
     { _wsColumns          :: [ColumnsWidth]         -- ^ column widths
     , _wsRowPropertiesMap :: Map Int RowProperties  -- ^ custom row properties (height, style) map
     , _wsCells            :: CellMap                -- ^ data mapped by (row, column) pairs
     , _wsMerges           :: [Range]                -- ^ list of cell merges
+    , _wsSheetViews       :: Maybe RawSheetViews
     } deriving (Eq, Show)
 
 makeLenses ''Worksheet
 
 instance Default Worksheet where
-    def = Worksheet [] M.empty M.empty []
+    def = Worksheet [] M.empty M.empty [] Nothing
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)

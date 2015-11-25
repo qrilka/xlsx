@@ -101,4 +101,4 @@ main =  do
             , xText $ pack $ "column4-r" ++ show r
             , xDouble 42.12345
             , xText  "False"]
-    sheets = M.fromList [("List", Worksheet cols rowProps cells [])] -- wtf merges?
+    sheets = M.fromList [("List", Worksheet cols rowProps cells [] Nothing)] -- wtf merges?
