@@ -179,8 +179,15 @@ bookXml :: Map Text Worksheet -> L.ByteString
 bookXml wss = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     numNames = [(txti i, name) | (i, name) <- zip [1..] (M.keys wss)]
+
+    -- The @bookViews@ element is not required according to the schema, but its
+    -- absence can cause Excel to crash when opening the print preview
+    -- (see <https://phpexcel.codeplex.com/workitem/2935>). It suffices however
+    -- to define a bookViews with a single empty @workbookView@ element
+    -- (the @bookViews@ must contain at least one @wookbookView@).
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "workbook" M.empty
-           [nEl "sheets" M.empty $
+           [nEl "bookViews" M.empty [nEl "workbookView" M.empty []]
+           ,nEl "sheets" M.empty $
             map (\(n, name) -> nEl "sheet"
                                (M.fromList [("name", name), ("sheetId", n), ("state", "visible"),
                                             (rId, T.concat ["rId", n])]) []) numNames]
