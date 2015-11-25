@@ -41,6 +41,7 @@ Library
                      , Codec.Xlsx.Writer.Internal
                      , Codec.Xlsx.SharedStringTable
                      , Codec.Xlsx.RichText
+                     , Codec.Xlsx.SheetViews
 
   Build-depends:     base         == 4.*
                      , containers   >= 0.5.0.0
