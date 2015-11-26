@@ -54,7 +54,7 @@ fromXlsx ct xlsx =
     sheetFiles =
       [ FileData ("xl/worksheets/sheet" <> txti n <> ".xml")
         "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
-        sheetXml (w ^. wsColumns) (w ^. wsRowPropertiesMap) cells (w ^. wsMerges) (w ^. wsSheetViews)|
+        sheetXml (w ^. wsColumns) (w ^. wsRowPropertiesMap) cells (w ^. wsMerges) (w ^. wsSheetViews) (w ^. wsPageSetup) |
         (n, cells, w) <- zip3 [1..] sheetCells sheets]
     sheets = xlsx ^. xlSheets . to M.elems
     sheetCount = length sheets
@@ -139,8 +139,8 @@ transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
     transformValue (CellBool b) = XlsxBool b
     transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
 
-sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> Maybe RawSheetViews -> L.ByteString
-sheetXml cws rh rows merges sheetViews = renderLBS def $ Document (Prologue [] Nothing []) root []
+sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> Maybe RawSheetViews -> Maybe RawPageSetup -> L.ByteString
+sheetXml cws rh rows merges sheetViews pageSetup = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     cType = xlsxCellType
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
@@ -148,7 +148,8 @@ sheetXml cws rh rows merges sheetViews = renderLBS def $ Document (Prologue [] N
            [unRawSheetViews <$> sheetViews,
             nonEmptyNmEl "cols" M.empty $  map cwEl cws,
             justNmEl "sheetData" M.empty $ map rowEl rows,
-            nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges]
+            nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges,
+            unRawPageSetup <$> pageSetup]
     cwEl cw = NodeElement $! Element "col" (M.fromList
               [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw), ("style", txti $ cwStyle cw)]) []
     rowEl (r, cells) = nEl "row"

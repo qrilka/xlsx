@@ -10,7 +10,8 @@ module Codec.Xlsx.Types
     , DefinedNames(..)
     , ColumnsWidth(..)
     , RawSheetViews(..)
-    , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges, wsSheetViews
+    , RawPageSetup(..)
+    , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges, wsSheetViews, wsPageSetup
     , CellMap
     , CellValue(..)
     , Cell(..), cellValue, cellStyle
@@ -90,6 +91,10 @@ type Range = Text
 newtype RawSheetViews = RawSheetViews {unRawSheetViews :: Node}
   deriving (Eq, Show)
 
+-- | Raw (unparsed) page setup (see 'renderPageSetup')
+newtype RawPageSetup = RawPageSetup {unRawPageSetup :: Node}
+  deriving (Eq, Show)
+
 -- | Xlsx worksheet
 data Worksheet = Worksheet
     { _wsColumns          :: [ColumnsWidth]         -- ^ column widths
@@ -97,12 +102,13 @@ data Worksheet = Worksheet
     , _wsCells            :: CellMap                -- ^ data mapped by (row, column) pairs
     , _wsMerges           :: [Range]                -- ^ list of cell merges
     , _wsSheetViews       :: Maybe RawSheetViews
+    , _wsPageSetup        :: Maybe RawPageSetup
     } deriving (Eq, Show)
 
 makeLenses ''Worksheet
 
 instance Default Worksheet where
-    def = Worksheet [] M.empty M.empty [] Nothing
+    def = Worksheet [] M.empty M.empty [] Nothing Nothing
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)

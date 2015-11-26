@@ -60,7 +60,7 @@ extractSheet :: Zip.Archive
              -> IM.IntMap Text
              -> WorksheetFile
              -> Worksheet
-extractSheet ar ss wf = Worksheet cws rowProps cells merges sheetViews
+extractSheet ar ss wf = Worksheet cws rowProps cells merges sheetViews pageSetup
   where
     file = fromJust $ Zip.fromEntry <$> Zip.findEntryByPath (wfPath wf) ar
     cur = case parseLBS def file of
@@ -70,6 +70,9 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges sheetViews
     -- The specification says the file should contain either 0 or 1 @sheetViews@
     -- (2nd edition, section 18.3.1.88, p. 1884 and definition CT_Worksheet, p. 4459)
     sheetViews = fmap RawSheetViews . listToMaybe . map node $ cur $/ element (n"sheetViews")
+
+    -- Likewise, @pageSetup@ also occurs either 0 or 1 times
+    pageSetup = fmap RawPageSetup . listToMaybe . map node $ cur $/ element (n"pageSetup")
 
     cws = cur $/ element (n"cols") &/ element (n"col") >=>
                  liftM4 ColumnsWidth <$>
