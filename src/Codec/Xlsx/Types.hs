@@ -2,10 +2,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types
-    ( Xlsx(..), xlSheets, xlStyles
+    ( Xlsx(..), xlSheets, xlStyles, xlDefinedNames
     , def
     , Styles(..)
     , emptyStyles
+    , DefinedNames(..)
     , ColumnsWidth(..)
     , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges
     , CellMap
@@ -96,14 +97,42 @@ newtype Styles = Styles {unStyles :: L.ByteString}
 
 -- | Structured representation of Xlsx file (currently a subset of its contents)
 data Xlsx = Xlsx
-    { _xlSheets :: Map Text Worksheet
-    , _xlStyles :: Styles
+    { _xlSheets       :: Map Text Worksheet
+    , _xlStyles       :: Styles
+    , _xlDefinedNames :: DefinedNames
     } deriving (Eq, Show)
+
+-- | Defined names
+--
+-- Each defined name consists of a name, an optional local sheet ID, and a value.
+--
+-- This element defines the collection of defined names for this workbook.
+-- Defined names are descriptive names to represent cells, ranges of cells,
+-- formulas, or constant values. Defined names can be used to represent a range
+-- on any worksheet.
+--
+-- Excel also defines a number of reserved names with a special interpretation:
+--
+-- * @_xlnm.Print_Area@ specifies the workbook's print area.
+--   Example value: @SheetName!$A:$A,SheetName!$1:$4@
+-- * @_xlnm.Print_Titles@ specifies the row(s) or column(s) to repeat
+--   at the top of each printed page.
+-- * @_xlnm.Sheet_Title@:refers to a sheet title.
+--
+-- and others. See Section 18.2.6, "definedNames (Defined Names)" (p. 1728) of
+-- the spec (second edition).
+--
+-- NOTE: Right now this is only a minimal implementation of defined names.
+newtype DefinedNames = DefinedNames [(Text, Maybe Text, Text)]
+  deriving (Eq, Show)
 
 makeLenses ''Xlsx
 
 instance Default Xlsx where
-    def = Xlsx M.empty emptyStyles
+    def = Xlsx M.empty emptyStyles def
+
+instance Default DefinedNames where
+    def = DefinedNames []
 
 emptyStyles :: Styles
 emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\

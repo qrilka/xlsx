@@ -33,12 +33,12 @@ import           Codec.Xlsx.Types
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)
 toXlsx :: L.ByteString -> Xlsx
-toXlsx bs = Xlsx sheets styles
+toXlsx bs = Xlsx sheets styles names
   where
     ar = Zip.toArchive bs
     ss = getSharedStrings ar
     styles = getStyles ar
-    wfs = getWorksheetFiles ar
+    (wfs, names) = readWorkbook ar
     sheets = M.fromList $ map (wfName &&& extractSheet ar ss) wfs
 
 data WorksheetFile = WorksheetFile { wfName :: Text
@@ -156,9 +156,9 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Nothing  -> Styles L.empty
   Just xml -> Styles xml
 
--- | getWorksheetFiles pulls the names of the sheets
-getWorksheetFiles :: Zip.Archive -> [WorksheetFile]
-getWorksheetFiles ar = case xmlCursor ar "xl/workbook.xml" of
+-- | readWorkbook pulls the names of the sheets and the defined names
+readWorkbook :: Zip.Archive -> ([WorksheetFile], DefinedNames)
+readWorkbook ar = case xmlCursor ar "xl/workbook.xml" of
   Nothing ->
     error "invalid workbook"
   Just c ->
@@ -166,7 +166,16 @@ getWorksheetFiles ar = case xmlCursor ar "xl/workbook.xml" of
         sheetData = c $/ element (n"sheets") &/ element (n"sheet") >=>
                     liftA2 (,) <$> attribute "name" <*> attribute (odr"id")
         wbRels = getWbRels ar
-    in [WorksheetFile name ("xl/" ++ T.unpack (fromJust $ lookup rId wbRels)) | (name, rId) <- sheetData]
+        names = c $/ element (n"definedNames") &/ element (n"definedName") >=> mkDefinedName
+    in ([WorksheetFile name ("xl/" ++ T.unpack (fromJust $ lookup rId wbRels)) | (name, rId) <- sheetData]
+       ,DefinedNames names)
+ where
+  -- Specification says the 'name' is required.
+  mkDefinedName :: Cursor -> [(Text, Maybe Text, Text)]
+  mkDefinedName c = return ( head $ attribute "name" c
+                           , listToMaybe $ attribute "localSheetId" c
+                           , T.concat $ c $/ content
+                           )
 
 getWbRels :: Zip.Archive -> [(Text, Text)]
 getWbRels ar = case xmlCursor ar "xl/_rels/workbook.xml.rels" of
