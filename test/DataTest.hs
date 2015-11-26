@@ -34,7 +34,7 @@ main = defaultMain $
     ]
 
 testXlsx :: Xlsx
-testXlsx = Xlsx sheets emptyStyles
+testXlsx = Xlsx sheets emptyStyles def
   where
     sheets = M.fromList [( "List1", sheet )]
     sheet = Worksheet cols rowProps testCellMap []

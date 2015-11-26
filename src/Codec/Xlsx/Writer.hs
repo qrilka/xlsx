@@ -44,7 +44,7 @@ fromXlsx ct xlsx =
       , FileData "docProps/app.xml"
         "application/vnd.openxmlformats-officedocument.extended-properties+xml" $ appXml (xlsx ^. xlSheets)
       , FileData "xl/workbook.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" $ bookXml (xlsx ^. xlSheets)
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" $ bookXml (xlsx ^. xlSheets) (xlsx ^. xlDefinedNames)
       , FileData "xl/styles.xml"
         "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml" $ unStyles (xlsx ^. xlStyles)
       , FileData "xl/sharedStrings.xml"
@@ -175,8 +175,8 @@ sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) 
     cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
     cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
 
-bookXml :: Map Text Worksheet -> L.ByteString
-bookXml wss = renderLBS def $ Document (Prologue [] Nothing []) root []
+bookXml :: Map Text Worksheet -> DefinedNames -> L.ByteString
+bookXml wss (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     numNames = [(txti i, name) | (i, name) <- zip [1..] (M.keys wss)]
 
@@ -190,8 +190,16 @@ bookXml wss = renderLBS def $ Document (Prologue [] Nothing []) root []
            ,nEl "sheets" M.empty $
             map (\(n, name) -> nEl "sheet"
                                (M.fromList [("name", name), ("sheetId", n), ("state", "visible"),
-                                            (rId, T.concat ["rId", n])]) []) numNames]
+                                            (rId, T.concat ["rId", n])]) []) numNames
+           ,nEl "definedNames" M.empty $ map (\(name, lsId, val) ->
+              nEl "definedName" (definedName name lsId) [NodeContent val]) names
+           ]
+
     rId = nm "http://schemas.openxmlformats.org/officeDocument/2006/relationships" "id"
+
+    definedName :: Text -> Maybe Text -> Map Name Text
+    definedName name Nothing     = M.fromList [("name", name)]
+    definedName name (Just lsId) = M.fromList [("name", name), ("localSheetId", lsId)]
 
 ssXml :: [Text] -> L.ByteString
 ssXml ss =

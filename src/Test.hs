@@ -87,7 +87,7 @@ styles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 main :: IO ()
 main =  do
     ct <- getClockTime
-    L.writeFile "test.xlsx" $ fromXlsx ct $ Xlsx sheets styles
+    L.writeFile "test.xlsx" $ fromXlsx ct $ Xlsx sheets styles def
     x <- toXlsx <$> L.readFile "test.xlsx"
     putStrLn $ "And cell (3,2) value in list 'List' is " ++
              show (x ^? xlSheets . ix "List" . wsCells . ix (3,2) . cellValue . _Just)
