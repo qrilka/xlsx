@@ -4,6 +4,7 @@ module Codec.Xlsx.Writer
     ( fromXlsx
     ) where
 
+import           Control.Applicative
 import qualified Codec.Archive.Zip as Zip
 import           Control.Arrow (second)
 import           Control.Lens hiding (transform)
@@ -19,16 +20,13 @@ import           Data.Text.Lazy (toStrict)
 import           Data.Text.Lazy.Builder (toLazyText)
 import           Data.Text.Lazy.Builder.Int
 import           Data.Text.Lazy.Builder.RealFloat
-import qualified Data.Set as S
-import           Data.Vector (Vector)
-import qualified Data.Vector as V
-import           Numeric.Search.Range (searchFromTo)
 import           System.Locale
 import           System.Time
 import           Text.XML
 
 import           Codec.Xlsx.Types
-
+import           Codec.Xlsx.SharedStringTable
+import           Codec.Xlsx.Writer.Internal
 
 -- | Writes `Xlsx' to raw data (lazy bytestring)
 fromXlsx :: ClockTime -> Xlsx -> L.ByteString
@@ -48,7 +46,7 @@ fromXlsx ct xlsx =
       , FileData "xl/styles.xml"
         "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml" $ unStyles (xlsx ^. xlStyles)
       , FileData "xl/sharedStrings.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" $ ssXml $ V.toList shared
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" $ ssXml shared
       , FileData "xl/_rels/workbook.xml.rels"
         "application/vnd.openxmlformats-package.relationships+xml" $ bookRelXml sheetCount
       , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml" rootRelXml
@@ -56,15 +54,12 @@ fromXlsx ct xlsx =
     sheetFiles =
       [ FileData ("xl/worksheets/sheet" <> txti n <> ".xml")
         "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
-        sheetXml (w ^. wsColumns) (w ^. wsRowPropertiesMap) cells (w ^. wsMerges) |
+        sheetXml (w ^. wsColumns) (w ^. wsRowPropertiesMap) cells (w ^. wsMerges) (w ^. wsSheetViews) (w ^. wsPageSetup) |
         (n, cells, w) <- zip3 [1..] sheetCells sheets]
     sheets = xlsx ^. xlSheets . to M.elems
     sheetCount = length sheets
-    shared = V.fromList $ S.elems $ S.fromList $ concatMap (concatMap celltext . M.elems . _wsCells) sheets
+    shared = sstConstruct sheets
     sheetCells = map (transformSheetData shared) sheets
-    celltext (Cell{_cellValue=v}) = case v of
-                                      Just(CellText a) -> [a]
-                                      _ -> []
 
 data FileData = FileData { fdName :: Text
                          , fdContentType :: Text
@@ -133,27 +128,28 @@ value XlsxCell{xlsxCellValue=Just(XlsxBool True)} = "1"
 value XlsxCell{xlsxCellValue=Just(XlsxBool False)} = "0"
 value _ = error "value undefined"
 
-transformSheetData :: Vector Text -> Worksheet -> [(Int, [(Int, XlsxCell)])]
+transformSheetData :: SharedStringTable -> Worksheet -> [(Int, [(Int, XlsxCell)])]
 transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
   where
     transformRow = second (map transformCell)
     transformCell (c, Cell{_cellValue=v, _cellStyle=s}) =
         (c, XlsxCell s (fmap transformValue v))
-    transformValue (CellText t) =
-        let Just i = searchFromTo (\p -> shared V.! p >= t) 0 (V.length shared - 1)
-        in XlsxSS i
+    transformValue (CellText t) = XlsxSS (sstLookupText shared t)
     transformValue (CellDouble dbl) =  XlsxDouble dbl
     transformValue (CellBool b) = XlsxBool b
+    transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
 
-sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> L.ByteString
-sheetXml cws rh rows merges = renderLBS def $ Document (Prologue [] Nothing []) root []
+sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> Maybe RawSheetViews -> Maybe RawPageSetup -> L.ByteString
+sheetXml cws rh rows merges sheetViews pageSetup = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     cType = xlsxCellType
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
            Element "worksheet" M.empty $ catMaybes
-           [nonEmptyNmEl "cols" M.empty $  map cwEl cws,
+           [unRawSheetViews <$> sheetViews,
+            nonEmptyNmEl "cols" M.empty $  map cwEl cws,
             justNmEl "sheetData" M.empty $ map rowEl rows,
-            nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges]
+            nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges,
+            unRawPageSetup <$> pageSetup]
     cwEl cw = NodeElement $! Element "col" (M.fromList
               [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw), ("style", txti $ cwStyle cw)]) []
     rowEl (r, cells) = nEl "row"
@@ -201,12 +197,8 @@ bookXml wss (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing
     definedName name Nothing     = M.fromList [("name", name)]
     definedName name (Just lsId) = M.fromList [("name", name), ("localSheetId", lsId)]
 
-ssXml :: [Text] -> L.ByteString
-ssXml ss =
-  renderLBS def $ Document (Prologue [] Nothing []) root []
-  where
-    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "sst" M.empty $
-           map (\s -> nEl "si" M.empty [nEl "t" M.empty [NodeContent s]]) ss
+ssXml :: SharedStringTable -> L.ByteString
+ssXml = renderLBS def . toDocument
 
 bookRelXml :: Int -> L.ByteString
 bookRelXml n = renderLBS def $ Document (Prologue [] Nothing []) root []
@@ -253,12 +245,6 @@ nm ns n = Name
   { nameLocalName = n
   , nameNamespace = Just ns
   , namePrefix = Nothing}
-
-addNS :: Text -> Element -> Element
-addNS namespace (Element (Name ln _ _) as ns) = Element (Name ln (Just namespace) Nothing) as (map addNS' ns)
-  where
-    addNS' (NodeElement e) = NodeElement $ addNS namespace e
-    addNS' n = n
 
 -- | Creates an element with the given name, attributes and children,
 -- if there is at least one child. Otherwise returns `Nothing`.

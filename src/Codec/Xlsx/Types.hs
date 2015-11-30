@@ -6,9 +6,12 @@ module Codec.Xlsx.Types
     , def
     , Styles(..)
     , emptyStyles
+    , renderStyleSheet
     , DefinedNames(..)
     , ColumnsWidth(..)
-    , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges
+    , RawSheetViews(..)
+    , RawPageSetup(..)
+    , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges, wsSheetViews, wsPageSetup
     , CellMap
     , CellValue(..)
     , Cell(..), cellValue, cellStyle
@@ -33,7 +36,11 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           Text.XML (Node, renderLBS)
 
+import           Codec.Xlsx.StyleSheet
+import           Codec.Xlsx.RichText
+import           Codec.Xlsx.Writer.Internal
 
 -- | Cell values include text, numbers and booleans,
 -- standard includes date format also but actually dates
@@ -42,6 +49,7 @@ import qualified Data.Text as T
 data CellValue = CellText   Text
                | CellDouble Double
                | CellBool   Bool
+               | CellRich   [RichTextRun]
                deriving (Eq, Show)
 
 -- | Currently cell details include only cell values and style ids
@@ -79,18 +87,28 @@ type CellRef = Text
 -- | Excel range (e.g. @D13:H14@)
 type Range = Text
 
+-- | Raw (unparsed) sheet views (see 'renderSheetViews')
+newtype RawSheetViews = RawSheetViews {unRawSheetViews :: Node}
+  deriving (Eq, Show)
+
+-- | Raw (unparsed) page setup (see 'renderPageSetup')
+newtype RawPageSetup = RawPageSetup {unRawPageSetup :: Node}
+  deriving (Eq, Show)
+
 -- | Xlsx worksheet
 data Worksheet = Worksheet
     { _wsColumns          :: [ColumnsWidth]         -- ^ column widths
     , _wsRowPropertiesMap :: Map Int RowProperties  -- ^ custom row properties (height, style) map
     , _wsCells            :: CellMap                -- ^ data mapped by (row, column) pairs
     , _wsMerges           :: [Range]                -- ^ list of cell merges
+    , _wsSheetViews       :: Maybe RawSheetViews
+    , _wsPageSetup        :: Maybe RawPageSetup
     } deriving (Eq, Show)
 
 makeLenses ''Worksheet
 
 instance Default Worksheet where
-    def = Worksheet [] M.empty M.empty []
+    def = Worksheet [] M.empty M.empty [] Nothing Nothing
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)
@@ -137,6 +155,16 @@ instance Default DefinedNames where
 emptyStyles :: Styles
 emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 \<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"></styleSheet>"
+
+-- | Render 'StyleSheet'
+--
+-- This is used to render a structured 'StyleSheet' into a raw XML 'Styles'
+-- document. Actually /replacing/ 'Styles' with 'StyleSheet' would mean we
+-- would need to write a /parser/ for 'StyleSheet' as well (and would moreover
+-- require that we support the full style sheet specification, which is still
+-- quite a bit of work).
+renderStyleSheet :: StyleSheet -> Styles
+renderStyleSheet = Styles . renderLBS def . toDocument
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
 int2col :: Int -> Text
