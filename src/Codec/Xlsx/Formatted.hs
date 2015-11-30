@@ -260,7 +260,8 @@ cellXf FormattedCell{..} = do
           }
     return $ if xf == def then Nothing else Just xf
   where
-    -- If we have formatting instructions, we want to apply them
+    -- If we have formatting instructions, we want to set the corresponding
+    -- applyXXX properties
     apply :: Maybe a -> Maybe Bool
     apply Nothing  = Nothing
     apply (Just _) = Just True
