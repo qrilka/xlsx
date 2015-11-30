@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 -- | This module provides a function for serializing structured `Xlsx` into lazy bytestring
 module Codec.Xlsx.Writer
     ( fromXlsx
@@ -20,8 +21,14 @@ import           Data.Text.Lazy (toStrict)
 import           Data.Text.Lazy.Builder (toLazyText)
 import           Data.Text.Lazy.Builder.Int
 import           Data.Text.Lazy.Builder.RealFloat
-import           System.Locale
-import           System.Time
+import           Data.Time (UTCTime)
+import           Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime)
+import           Data.Time.Format (formatTime)
+#if MIN_VERSION_time(1,5,0)
+import           Data.Time.Format (defaultTimeLocale)
+#else
+import           System.Locale (defaultTimeLocale)
+#endif
 import           Text.XML
 
 import           Codec.Xlsx.Types
@@ -29,16 +36,17 @@ import           Codec.Xlsx.Types.SharedStringTable
 import           Codec.Xlsx.Writer.Internal
 
 -- | Writes `Xlsx' to raw data (lazy bytestring)
-fromXlsx :: ClockTime -> Xlsx -> L.ByteString
-fromXlsx ct xlsx =
+fromXlsx :: POSIXTime -> Xlsx -> L.ByteString
+fromXlsx pt xlsx =
     Zip.fromArchive $ foldr Zip.addEntryToArchive Zip.emptyArchive entries
   where
-    TOD t _ = ct
+    t = round pt
+    utcTime = posixSecondsToUTCTime pt
     entries = Zip.toEntry "[Content_Types].xml" t (contentTypesXml files) :
               map (\fd -> Zip.toEntry (T.unpack $ fdName fd) t (fdContents fd)) files
     files = sheetFiles ++
       [ FileData "docProps/core.xml"
-        "application/vnd.openxmlformats-package.core-properties+xml" $ coreXml (toUTCTime ct) "xlsxwriter"
+        "application/vnd.openxmlformats-package.core-properties+xml" $ coreXml utcTime "xlsxwriter"
       , FileData "docProps/app.xml"
         "application/vnd.openxmlformats-officedocument.extended-properties+xml" $ appXml (xlsx ^. xlSheets)
       , FileData "xl/workbook.xml"
@@ -65,7 +73,7 @@ data FileData = FileData { fdName :: Text
                          , fdContentType :: Text
                          , fdContents :: L.ByteString}
 
-coreXml :: CalendarTime -> Text -> L.ByteString
+coreXml :: UTCTime -> Text -> L.ByteString
 coreXml created creator =
   renderLBS def{rsNamespaces=nss} $ Document (Prologue [] Nothing []) root []
   where
@@ -75,7 +83,7 @@ coreXml created creator =
           , ("xsi","http://www.w3.org/2001/XMLSchema-instance")
           ]
     namespaced = nsName nss
-    date = T.pack $ formatCalendarTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" created
+    date = T.pack $ formatTime defaultTimeLocale "%FT%T%QZ" created
     root = Element (namespaced "cp" "coreProperties") M.empty
            [ nEl (namespaced "dcterms" "created")
                      (M.fromList [(namespaced "xsi" "type", "dcterms:W3CDTF")]) [NodeContent date]
@@ -214,8 +222,7 @@ bookRelXml n = renderLBS def $ Document (Prologue [] Nothing []) root []
        ("Type", T.concat ["http://schemas.openxmlformats.org/officeDocument/2006/relationships/", typ])]) []
 
 rootRelXml :: L.ByteString
-rootRelXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
-\<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/><Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties\" Target=\"docProps/app.xml\"/></Relationships>"
+rootRelXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/><Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties\" Target=\"docProps/app.xml\"/></Relationships>"
 
 contentTypesXml :: [FileData] -> L.ByteString
 contentTypesXml fds = renderLBS def $ Document (Prologue [] Nothing []) root []

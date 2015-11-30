@@ -2,12 +2,13 @@
 
 import           Codec.Xlsx
 
-import           Control.Applicative ((<$>))
+import           Control.Applicative
 import           Control.Lens
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Map as M
 import           Data.Text (Text,pack)
-import           System.Time
+import           Data.Time.Clock.POSIX (getPOSIXTime)
+import           Prelude
 
 
 xEmpty :: Cell
@@ -86,8 +87,8 @@ styles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
 
 main :: IO ()
 main =  do
-    ct <- getClockTime
-    L.writeFile "test.xlsx" $ fromXlsx ct $ Xlsx sheets styles def
+    pt <- getPOSIXTime
+    L.writeFile "test.xlsx" $ fromXlsx pt $ Xlsx sheets styles def
     x <- toXlsx <$> L.readFile "test.xlsx"
     putStrLn $ "And cell (3,2) value in list 'List' is " ++
              show (x ^? xlSheets . ix "List" . wsCells . ix (3,2) . cellValue . _Just)

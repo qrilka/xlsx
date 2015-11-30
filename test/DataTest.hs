@@ -5,9 +5,7 @@ import           Control.Lens
 import qualified Data.IntMap as IM
 import           Data.Map (Map)
 import qualified Data.Map as M
-import           Data.Time.Calendar
-import           Data.Time.LocalTime
-import           System.Time
+import           Data.Time.Clock.POSIX (POSIXTime)
 import           Text.XML
 import           Text.XML.Cursor
 
@@ -71,8 +69,8 @@ testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
     cd4 = Cell{_cellValue=Nothing, _cellStyle=Nothing} -- shouldn't it be skipped?
     cd5 = cd $(CellBool True)
 
-testTime :: ClockTime
-testTime = TOD 123 567
+testTime :: POSIXTime
+testTime = 123
 
 testSharedStrings = IM.fromAscList $ zip [0..] ["plain text", "Just example"]
 

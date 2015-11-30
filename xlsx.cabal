@@ -61,7 +61,6 @@ Library
                      , zlib         >= 0.5.4.0
                      , utf8-string  >= 0.3.7
                      , time         >= 1.4.0.1
-                     , old-time     >= 1.1.0.1
                      , old-locale   >= 1.0.0.5
                      , data-default == 0.5.*
                      , vector       >= 0.10
@@ -98,7 +97,6 @@ Executable           test
                      , zlib
                      , utf8-string
                      , time
-                     , old-time
                      , old-locale
                      , data-default == 0.5.*
                      , vector       >= 0.10
@@ -112,7 +110,6 @@ test-suite data-test
   Build-Depends: base,
                  containers,
                  time,
-                 old-time,
                  xlsx,
                  xml-conduit >= 1.1.0,
                  smallcheck,
