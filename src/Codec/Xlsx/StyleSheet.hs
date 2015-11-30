@@ -380,6 +380,7 @@ data Border = Border {
   deriving (Show, Eq, Ord)
 
 -- | Border style
+-- See @CT_BorderPr@ (p. 3934)
 data BorderStyle = BorderStyle {
     _borderStyleColor :: Maybe Color
   , _borderStyleLine  :: Maybe LineStyle
