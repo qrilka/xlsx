@@ -81,7 +81,7 @@ data PageSetup = PageSetup {
      --
      -- (Explicit reference to a parent XML element.)
      --
-     -- See 22.8.2.1 "ST_RelationshipId (Explicit Relationship ID)" (p. 4324)
+     -- See 22.8.2.1 "ST_RelationshipId (Explicit Relationship ID)" (p. 3784)
   , _pageSetupId :: Maybe String
 
      -- | Orientation of the page.
@@ -95,7 +95,7 @@ data PageSetup = PageSetup {
      -- When paperHeight and paperWidth are specified, paperSize shall be ignored.
      -- Examples: @"297mm"@, @"11in"@.
      --
-     -- See 22.9.2.12 "ST_PositiveUniversalMeasure (Positive Universal Measurement)" (p. 4336)
+     -- See 22.9.2.12 "ST_PositiveUniversalMeasure (Positive Universal Measurement)" (p. 3792)
   , _pageSetupPaperHeight :: Maybe String
 
      -- | Pager size
@@ -145,7 +145,7 @@ data PageSetup = PageSetup {
 -- These enumerations specify how cell comments shall be displayed for paper
 -- printing purposes.
 --
--- See 18.18.5 "ST_CellComments (Cell Comments)" (p. 2676).
+-- See 18.18.5 "ST_CellComments (Cell Comments)" (p. 2441).
 data CellComments =
     -- | Print cell comments as displayed
     CellCommentsAsDisplayed
@@ -302,7 +302,7 @@ makeLenses ''PageSetup
 renderPageSetup :: PageSetup -> RawPageSetup
 renderPageSetup = RawPageSetup . NodeElement . toElement "pageSetup"
 
--- | See @CT_PageSetup@, p. 4471
+-- | See @CT_PageSetup@, p. 3922
 instance ToElement PageSetup where
   toElement nm PageSetup{..} = Element {
       elementName       = nm
@@ -330,31 +330,31 @@ instance ToElement PageSetup where
         ]
     }
 
--- | See @ST_CellComments@, p. 4472
+-- | See @ST_CellComments@, p. 3923
 instance ToAttrVal CellComments where
   toAttrVal CellCommentsNone        = "none"
   toAttrVal CellCommentsAsDisplayed = "asDisplayed"
   toAttrVal CellCommentsAtEnd       = "atEnd"
 
--- | See @ST_PrintError@, p. 4472
+-- | See @ST_PrintError@, p. 3923
 instance ToAttrVal PrintErrors where
   toAttrVal PrintErrorsDisplayed = "displayed"
   toAttrVal PrintErrorsBlank     = "blank"
   toAttrVal PrintErrorsDash      = "dash"
   toAttrVal PrintErrorsNA        = "NA"
 
--- | See @ST_Orientation@, p. 4472
+-- | See @ST_Orientation@, p. 3923
 instance ToAttrVal Orientation where
   toAttrVal OrientationDefault   = "default"
   toAttrVal OrientationPortrait  = "portrait"
   toAttrVal OrientationLandscape = "landscape"
 
--- | See @ST_PageOrder@, p. 4472
+-- | See @ST_PageOrder@, p. 3923
 instance ToAttrVal PageOrder where
   toAttrVal PageOrderDownThenOver = "downThenOver"
   toAttrVal PageOrderOverThenDown = "overThenDown"
 
--- | See @paperSize@ (attribute of @pageSetup@), p. 1837
+-- | See @paperSize@ (attribute of @pageSetup@), p. 1659
 instance ToAttrVal PaperSize where
   toAttrVal PaperLetter                 = "1"
   toAttrVal PaperLetterSmall            = "2"

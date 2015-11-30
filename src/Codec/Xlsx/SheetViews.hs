@@ -363,7 +363,7 @@ instance Default Pane where
 --
 -- The list should be non-empty to be conform to the spec.
 --
--- See Section 18.3.1.88 "sheetViews (Sheet Views)" (p. 1884)
+-- See Section 18.3.1.88 "sheetViews (Sheet Views)" (p. 1704)
 renderSheetViews :: [SheetView] -> RawSheetViews
 renderSheetViews views = RawSheetViews $ NodeElement sheetViews
   where
@@ -374,7 +374,7 @@ renderSheetViews views = RawSheetViews $ NodeElement sheetViews
       , elementNodes      = map (NodeElement . toElement "sheetView") views
       }
 
--- | See @CT_SheetView@, p. 4462
+-- | See @CT_SheetView@, p. 3913
 instance ToElement SheetView where
   toElement nm SheetView{..} = Element {
       elementName       = nm
@@ -407,7 +407,7 @@ instance ToElement SheetView where
         ]
     }
 
--- | See @CT_Selection@, p. 4463
+-- | See @CT_Selection@, p. 3914
 instance ToElement Selection where
   toElement nm Selection{..} = Element {
       elementName       = nm
@@ -421,11 +421,11 @@ instance ToElement Selection where
     }
     where
       -- The @sqref@ is a space delimited list
-      -- See 18.18.76, "ST_Sqref (Reference Sequence)", p. 2730.
+      -- See 18.18.76, "ST_Sqref (Reference Sequence)", p. 2488.
       spaceDelim :: [Text] -> Text
       spaceDelim = Text.intercalate " "
 
--- | See @CT_Pane@, p. 4463
+-- | See @CT_Pane@, p. 3913
 instance ToElement Pane where
   toElement nm Pane{..} = Element {
       elementName       = nm
@@ -439,20 +439,20 @@ instance ToElement Pane where
         ]
     }
 
--- | See @ST_SheetViewType@, p. 4464
+-- | See @ST_SheetViewType@, p. 3913
 instance ToAttrVal SheetViewType where
   toAttrVal SheetViewTypeNormal           = "normal"
   toAttrVal SheetViewTypePageBreakPreview = "pageBreakPreview"
   toAttrVal SheetViewTypePageLayout       = "pageLayout"
 
--- | See @ST_Pane@, p. 4463
+-- | See @ST_Pane@, p. 3914
 instance ToAttrVal PaneType where
   toAttrVal PaneTypeBottomRight = "bottomRight"
   toAttrVal PaneTypeTopRight    = "topRight"
   toAttrVal PaneTypeBottomLeft  = "bottomLeft"
   toAttrVal PaneTypeTopLeft     = "topLeft"
 
--- | See @ST_PaneState@, p. 4478
+-- | See @ST_PaneState@, p. 3929
 instance ToAttrVal PaneState where
   toAttrVal PaneStateSplit       = "split"
   toAttrVal PaneStateFrozen      = "frozen"

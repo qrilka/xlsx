@@ -68,7 +68,7 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges sheetViews pageSetup
       Right d -> fromDocument d
 
     -- The specification says the file should contain either 0 or 1 @sheetViews@
-    -- (2nd edition, section 18.3.1.88, p. 1884 and definition CT_Worksheet, p. 4459)
+    -- (4th edition, section 18.3.1.88, p. 1704 and definition CT_Worksheet, p. 3910)
     sheetViews = fmap RawSheetViews . listToMaybe . map node $ cur $/ element (n"sheetViews")
 
     -- Likewise, @pageSetup@ also occurs either 0 or 1 times

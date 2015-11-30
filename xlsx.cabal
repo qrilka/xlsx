@@ -11,6 +11,8 @@ Description:
     .
     Format is covered by ECMA-376 standard:
     <http://www.ecma-international.org/publications/standards/Ecma-376.htm>
+    .
+    4th edition of the standard with the transitional schema is used for this library.
 Extra-source-files:
                      changelog
 

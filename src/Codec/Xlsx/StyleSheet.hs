@@ -125,16 +125,16 @@ import Codec.Xlsx.Writer.Internal
 
 -- | StyleSheet for an XML document
 --
--- Relevant parts of the EMCA standard (2nd edition, part 1,
+-- Relevant parts of the EMCA standard (4th edition, part 1,
 -- <http://www.ecma-international.org/publications/standards/Ecma-376.htm>),
 -- page numbers refer to the page in the PDF rather than the page number as
 -- printed on the page):
 --
 -- * Chapter 12, "SpreadsheetML" (p. 74)
 --   In particular Section 12.3.20, "Styles Part" (p. 104)
--- * Chapter 18, "SpreadsheetML Reference Material" (p. 1692)
---   In particular Section 18.8, "Styles" (p. 1944) and Section 18.8.39
---   "styleSheet" (Style Sheet)" (p. 1993); it is the latter section that
+-- * Chapter 18, "SpreadsheetML Reference Material" (p. 1528)
+--   In particular Section 18.8, "Styles" (p. 1754) and Section 18.8.39
+--   "styleSheet" (Style Sheet)" (p. 1796); it is the latter section that
 --   specifies the top-level style sheet format.
 --
 -- TODO: the following child elements:
@@ -156,7 +156,7 @@ data StyleSheet = StyleSheet {
     -- | This element contains borders formatting information, specifying all
     -- border definitions for all cells in the workbook.
     --
-    -- Section 18.8.5, "borders (Borders)" (p. 1951)
+    -- Section 18.8.5, "borders (Borders)" (p. 1760)
     _styleSheetBorders :: [Border]
 
     -- | Cell formats
@@ -166,7 +166,7 @@ data StyleSheet = StyleSheet {
     -- starting point for determining the formatting for a cell. Cells in the
     -- Sheet Part reference the xf records by zero-based index.
     --
-    -- Section 18.8.10, "cellXfs (Cell Formats)" (p. 1956)
+    -- Section 18.8.10, "cellXfs (Cell Formats)" (p. 1764)
   , _styleSheetCellXfs :: [CellXf]
 
     -- | This element defines the cell fills portion of the Styles part,
@@ -174,12 +174,12 @@ data StyleSheet = StyleSheet {
     -- background color, foreground color, and pattern to be applied across the
     -- cell.
     --
-    -- Section 18.8.21, "fills (Fills)" (p. 1963)
+    -- Section 18.8.21, "fills (Fills)" (p. 1768)
   , _styleSheetFills :: [Fill]
 
     -- | This element contains all font definitions for this workbook.
     --
-    -- Section 18.8.23 "fonts (Fonts)" (p. 1965)
+    -- Section 18.8.23 "fonts (Fonts)" (p. 1769)
   , _styleSheetFonts :: [Font]
   }
   deriving (Show, Eq, Ord)
@@ -188,7 +188,7 @@ data StyleSheet = StyleSheet {
 --
 -- TODO: The @extLst@ field is currently unsupported.
 --
--- Section 18.8.45 "xf (Format)" (p. 1999)
+-- Section 18.8.45 "xf (Format)" (p. 1800)
 data CellXf = CellXf {
     -- | A boolean value indicating whether the alignment formatting specified
     -- for this xf should be applied.
@@ -216,25 +216,25 @@ data CellXf = CellXf {
 
     -- | Zero-based index of the border record used by this cell format.
     --
-    -- (18.18.2, p. 2673).
+    -- (18.18.2, p. 2437).
   , _cellXfBorderId :: Maybe Int
 
     -- | Zero-based index of the fill record used by this cell format.
     --
-    -- (18.18.30, p. 2693)
+    -- (18.18.30, p. 2455)
   , _cellXfFillId :: Maybe Int
 
     -- | Zero-based index of the font record used by this cell format.
     --
     -- An integer that represents a zero based index into the `styleSheetFonts`
-    -- collection in the style sheet (18.18.32, p. 2694).
+    -- collection in the style sheet (18.18.32, p. 2456).
   , _cellXfFontId :: Maybe Int
 
     -- | Id of the number format (numFmt) record used by this cell format.
     --
     -- This simple type defines the identifier to a style sheet number format
     -- entry in CT_NumFmts. Number formats are written to the styles part
-    -- (18.18.47, p. 2708). See also 18.8.31 (p. 1981) for more information on
+    -- (18.18.47, p. 2468). See also 18.8.31 (p. 1784) for more information on
     -- number formats.
     --
     -- TODO: The numFmts part of the style sheet is currently not implemented.
@@ -256,7 +256,7 @@ data CellXf = CellXf {
     -- Not present for xf records contained in cellStyleXfs.
     --
     -- Used by xf records and cellStyle records to reference xf records defined
-    -- in the cellStyleXfs collection. (18.18.10, p. 2678)
+    -- in the cellStyleXfs collection. (18.18.10, p. 2442)
     -- TODO: the cellStyleXfs field of a style sheet not currently implemented.
   , _cellXfId :: Maybe Int
 
@@ -278,7 +278,7 @@ data CellXf = CellXf {
 
 -- | Alignment
 --
--- See 18.8.1 "alignment (Alignment)" (p. 1944)
+-- See 18.8.1 "alignment (Alignment)" (p. 1754)
 data Alignment = Alignment {
     -- | Specifies the type of horizontal alignment in cells.
     _alignmentHorizontal :: Maybe CellHorizontalAlignment
@@ -324,7 +324,7 @@ data Alignment = Alignment {
 -- | Expresses a single set of cell border formats (left, right, top, bottom,
 -- diagonal). Color is optional. When missing, 'automatic' is implied.
 --
--- See 18.8.4 "border (Border)" (p. 1949)
+-- See 18.8.4 "border (Border)" (p. 1759)
 data Border = Border {
     -- | A boolean value indicating if the cell's diagonal border includes a
     -- diagonal line, starting at the top left corner of the cell and moving
@@ -354,6 +354,18 @@ data Border = Border {
     -- | Horizontal inner borders
   , _borderHorizontal :: Maybe BorderStyle
 
+    -- | Left border
+    --
+    -- NOTE: The spec does not formally list a 'left' border element, but the
+    -- examples do mention 'left' and the scheme contains it too. See also 'borderStart'.
+  , _borderLeft :: Maybe BorderStyle
+
+    -- | Right border
+    --
+    -- NOTE: The spec does not formally list a 'right' border element, but the
+    -- examples do mention 'right' and the scheme contains it too. See also 'borderEnd'.
+  , _borderRight :: Maybe BorderStyle
+
     -- | Leading edge border
     --
     -- See also 'borderLeft'
@@ -364,18 +376,6 @@ data Border = Border {
 
     -- | Vertical inner border
   , _borderVertical :: Maybe BorderStyle
-
-    -- | Left border
-    --
-    -- NOTE: The spec does not formally support a 'left' border, but the
-    -- examples do mention 'left'. See also 'borderStart'.
-  , _borderLeft :: Maybe BorderStyle
-
-    -- | Right border
-    --
-    -- NOTE: The spec does not formally support a 'right' border, but the
-    -- examples do mention 'right'. See also 'borderEnd'.
-  , _borderRight :: Maybe BorderStyle
   }
   deriving (Show, Eq, Ord)
 
@@ -391,7 +391,7 @@ data BorderStyle = BorderStyle {
 -- The 'indexed' attribute (used for backwards compatibility only) is not
 -- modelled here.
 --
--- See 18.3.1.15 "color (Data Bar Color)" (p. 1780)
+-- See 18.3.1.15 "color (Data Bar Color)" (p. 1608)
 data Color = Color {
     -- | A boolean value indicating the color is automatic and system color
     -- dependent.
@@ -401,7 +401,7 @@ data Color = Color {
     --
     -- This simple type's contents have a length of exactly 8 hexadecimal
     -- digit(s); see "18.18.86 ST_UnsignedIntHex (Hex Unsigned Integer)" (p.
-    -- 2754).
+    -- 2511).
   , _colorARGB :: Maybe String
 
     -- | A zero-based index into the <clrScheme> collection (20.1.6.2),
@@ -423,10 +423,10 @@ data Color = Color {
 -- | This element specifies fill formatting.
 --
 -- TODO: Gradient fills (18.8.4) are currently unsupported. If we add them,
--- then the spec says (@CT_Fill@, p. 4484), _eithre_ a gradient _or_ a solid
+-- then the spec says (@CT_Fill@, p. 3935), _either_ a gradient _or_ a solid
 -- fill pattern should be specified.
 --
--- Section 18.8.20, "fill (Fill)" (p. 1962)
+-- Section 18.8.20, "fill (Fill)" (p. 1768)
 data Fill = Fill {
     _fillPattern :: Maybe FillPattern
   }
@@ -437,7 +437,7 @@ data Fill = Fill {
 -- cell fills with patterns specified, then the cell fill color is specified by
 -- the bgColor element.
 --
--- Section 18.8.32 "patternFill (Pattern)" (p. 1990)
+-- Section 18.8.32 "patternFill (Pattern)" (p. 1793)
 data FillPattern = FillPattern {
     _fillPatternBgColor :: Maybe Color
   , _fillPatternFgColor :: Maybe Color
@@ -448,7 +448,7 @@ data FillPattern = FillPattern {
 -- | This element defines the properties for one of the fonts used in this
 -- workbook.
 --
--- Section 18.2.22 "font (Font)" (p. 1964)
+-- Section 18.2.22 "font (Font)" (p. 1769)
 data Font = Font {
     -- | Displays characters in bold face font style.
     _fontBold :: Maybe Bool
@@ -553,7 +553,7 @@ data Font = Font {
 -- protection properties that can be set. The cell protection properties do not
 -- take effect unless the sheet has been protected.
 --
--- Section 18.8.3, "protection (Protection Properties)", p. 1990
+-- Section 18.8.33, "protection (Protection Properties)", p. 1793
 data Protection = Protection {
     _protectionHidden :: Maybe Bool
   , _protectionLocked :: Maybe Bool
@@ -566,7 +566,7 @@ data Protection = Protection {
 
 -- | Horizontal alignment in cells
 --
--- See 18.18.40 "ST_HorizontalAlignment (Horizontal Alignment Type)" (p. 2698)
+-- See 18.18.40 "ST_HorizontalAlignment (Horizontal Alignment Type)" (p. 2459)
 data CellHorizontalAlignment =
     CellHorizontalAlignmentCenter
   | CellHorizontalAlignmentCenterContinuous
@@ -580,7 +580,7 @@ data CellHorizontalAlignment =
 
 -- | Vertical alignment in cells
 --
--- See 18.18.88 "ST_VerticalAlignment (Vertical Alignment Types)" (p. 2755)
+-- See 18.18.88 "ST_VerticalAlignment (Vertical Alignment Types)" (p. 2512)
 data CellVerticalAlignment =
     CellVerticalAlignmentBottom
   | CellVerticalAlignmentCenter
@@ -591,8 +591,8 @@ data CellVerticalAlignment =
 
 -- | Font family
 --
--- See 18.8.18 "family (Font Family)" (p. 1960)
--- and 17.18.30 "ST_FontFamily (Font Family Value)" (p. 1546)
+-- See 18.8.18 "family (Font Family)" (p. 1766)
+-- and 17.18.30 "ST_FontFamily (Font Family Value)" (p. 1388)
 data FontFamily =
     -- | Proportional font with serifs
     FontFamilyRoman
@@ -612,7 +612,7 @@ data FontFamily =
 
 -- | Font scheme
 --
--- See 18.18.33 "ST_FontScheme (Font scheme Styles)" (p. 2694)
+-- See 18.18.33 "ST_FontScheme (Font scheme Styles)" (p. 2456)
 data FontScheme =
     -- | This font is the major font for this theme.
     FontSchemeMajor
@@ -626,7 +626,7 @@ data FontScheme =
 
 -- | Vertical alignment
 --
--- See 22.9.2.17 "ST_VerticalAlignRun (Vertical Positioning Location)" (p. 4341)
+-- See 22.9.2.17 "ST_VerticalAlignRun (Vertical Positioning Location)" (p. 3794)
 data FontVerticalAlignment =
     FontVerticalAlignmentBaseline
   | FontVerticalAlignmentSubscript
@@ -652,7 +652,7 @@ data LineStyle =
 
 -- | Indicates the style of fill pattern being used for a cell format.
 --
--- Section 18.18.55 "ST_PatternType (Pattern Type)" (p. 2713)
+-- Section 18.18.55 "ST_PatternType (Pattern Type)" (p. 2472)
 data PatternType =
     PatternTypeDarkDown
   | PatternTypeDarkGray
@@ -677,7 +677,7 @@ data PatternType =
 
 -- | Reading order
 --
--- See 18.8.1 "alignment (Alignment)" (p. 1944, esp. p. 1945)
+-- See 18.8.1 "alignment (Alignment)" (p. 1754, esp. p. 1755)
 data ReadingOrder =
     ReadingOrderContextDependent
   | ReadingOrderLeftToRight
@@ -946,10 +946,8 @@ instance ToElement Border where
         ]
     , elementNodes      = map NodeElement . catMaybes $ [
           toElement "start"      <$> _borderStart
-          -- Using position of @start@ for the not-per-spec @left@ element
-        , toElement "left"       <$> _borderLeft
         , toElement "end"        <$> _borderEnd
-          -- Using position of @end@ for the not-per-spec @right@ element
+        , toElement "left"       <$> _borderLeft
         , toElement "right"      <$> _borderRight
         , toElement "top"        <$> _borderTop
         , toElement "bottom"     <$> _borderBottom
