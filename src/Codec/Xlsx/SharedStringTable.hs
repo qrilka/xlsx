@@ -157,9 +157,6 @@ sstLookupRich :: SharedStringTable -> [RichTextRun] -> Int
 sstLookupRich sst = sstLookup sst . StringItemRich
 
 -- | Internal generalization used by 'sstLookupText' and 'sstLookupRich'
---
--- TODO: I don't know why this is using @(>=)@ instead of @(==)@ in the
--- definition (behaviour inherited from the old sst search).
 sstLookup :: SharedStringTable -> StringItem -> Int
 sstLookup SharedStringTable{_sharedStringTable = shared} si =
     case searchFromTo (\p -> shared V.! p >= si) 0 (V.length shared - 1) of
