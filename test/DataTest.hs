@@ -19,6 +19,7 @@ import           Test.SmallCheck.Series (Positive(..))
 
 import           Codec.Xlsx
 import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.StyleSheet
 
 
 main = defaultMain $
@@ -34,12 +35,15 @@ main = defaultMain $
     ]
 
 testXlsx :: Xlsx
-testXlsx = Xlsx sheets emptyStyles def
+testXlsx = Xlsx sheets minimalStyles definedNames
   where
     sheets = M.fromList [( "List1", sheet )]
-    sheet = Worksheet cols rowProps testCellMap [] Nothing Nothing
+    sheet = Worksheet cols rowProps testCellMap ranges Nothing Nothing
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
+    ranges = [mkRange (1,1) (1,2), mkRange (2,2) (10, 5)]
+    minimalStyles = renderStyleSheet minimalStyleSheet
+    definedNames = DefinedNames [("SampleName", Nothing, "A10:A20")]
 
 testCellMap :: CellMap
 testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
