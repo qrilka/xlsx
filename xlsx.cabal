@@ -35,6 +35,7 @@ Library
   Exposed-modules:   Codec.Xlsx
                      , Codec.Xlsx.Parser
                      , Codec.Xlsx.Types
+                     , Codec.Xlsx.Types.Common
                      , Codec.Xlsx.Writer
                      , Codec.Xlsx.Lens
                      , Codec.Xlsx.Parser.Internal
@@ -64,7 +65,7 @@ Library
                      , old-locale   >= 1.0.0.5
                      , data-default == 0.5.*
                      , vector       >= 0.10
-                     , mtl          >= 2.2.1
+                     , mtl          >= 2.1
                      , binary-search
   Default-Language:     Haskell2010
   Other-Extensions:  CPP
@@ -118,7 +119,8 @@ test-suite data-test
                  HUnit,
                  tasty,
                  tasty-smallcheck,
-                 tasty-hunit
+                 tasty-hunit,
+                 lens
   Default-Language:     Haskell2010
 
 source-repository head

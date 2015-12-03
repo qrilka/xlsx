@@ -9,7 +9,6 @@ module Codec.Xlsx.Parser
 import qualified Codec.Archive.Zip as Zip
 import           Control.Applicative
 import           Control.Arrow ((&&&))
-import           Control.Monad (liftM4)
 import           Control.Monad.IO.Class()
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Lazy.Char8()
@@ -46,16 +45,6 @@ data WorksheetFile = WorksheetFile { wfName :: Text
                                    }
                    deriving Show
 
-decimal :: Monad m => Text -> m Int
-decimal t = case T.decimal t of
-  Right (d, _) -> return d
-  _ -> fail "invalid decimal"
-
-rational :: Monad m => Text -> m Double
-rational t = case T.rational t of
-  Right (r, _) -> return r
-  _ -> fail "invalid rational"
-
 extractSheet :: Zip.Archive
              -> IM.IntMap Text
              -> WorksheetFile
@@ -69,17 +58,15 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges sheetViews pageSetup
 
     -- The specification says the file should contain either 0 or 1 @sheetViews@
     -- (4th edition, section 18.3.1.88, p. 1704 and definition CT_Worksheet, p. 3910)
-    sheetViews = fmap RawSheetViews . listToMaybe . map node $ cur $/ element (n"sheetViews")
+    sheetViewList = cur $/ element (n"sheetViews") &/ element (n"sheetView") >=> fromCursor
+    sheetViews = case sheetViewList of
+      [] -> Nothing
+      views -> Just views
 
     -- Likewise, @pageSetup@ also occurs either 0 or 1 times
-    pageSetup = fmap RawPageSetup . listToMaybe . map node $ cur $/ element (n"pageSetup")
+    pageSetup = listToMaybe $ cur $/ element (n"pageSetup") >=> fromCursor
 
-    cws = cur $/ element (n"cols") &/ element (n"col") >=>
-                 liftM4 ColumnsWidth <$>
-                 (attribute "min"   >=> decimal)  <*>
-                 (attribute "max"   >=> decimal)  <*>
-                 (attribute "width" >=> rational) <*>
-                 (attribute "style" >=> decimal)
+    cws = cur $/ element (n"cols") &/ element (n"col") >=> fromCursor
 
     (rowProps, cells) = collect $ cur $/ element (n"sheetData") &/ element (n"row") >=> parseRow
     parseRow c = do

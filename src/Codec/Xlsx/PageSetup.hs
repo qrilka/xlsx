@@ -5,7 +5,7 @@
 module Codec.Xlsx.PageSetup (
     -- * Main types
     PageSetup(..)
-  , renderPageSetup
+--  , renderPageSetup
     -- * Enumerations
   , CellComments(..)
   , PrintErrors(..)
@@ -38,11 +38,12 @@ module Codec.Xlsx.PageSetup (
 import Control.Lens (makeLenses)
 import Data.Default
 import Data.Maybe (catMaybes)
+import Data.Text (Text)
 import Text.XML
 import qualified Data.Map as Map
 
-import Codec.Xlsx.Types
 import Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
 
 {-------------------------------------------------------------------------------
   Main types
@@ -82,7 +83,7 @@ data PageSetup = PageSetup {
      -- (Explicit reference to a parent XML element.)
      --
      -- See 22.8.2.1 "ST_RelationshipId (Explicit Relationship ID)" (p. 3784)
-  , _pageSetupId :: Maybe String
+  , _pageSetupId :: Maybe Text
 
      -- | Orientation of the page.
   , _pageSetupOrientation :: Maybe Orientation
@@ -96,7 +97,7 @@ data PageSetup = PageSetup {
      -- Examples: @"297mm"@, @"11in"@.
      --
      -- See 22.9.2.12 "ST_PositiveUniversalMeasure (Positive Universal Measurement)" (p. 3792)
-  , _pageSetupPaperHeight :: Maybe String
+  , _pageSetupPaperHeight :: Maybe Text
 
      -- | Pager size
      --
@@ -110,7 +111,7 @@ data PageSetup = PageSetup {
      --
      -- When paperHeight and paperWidth are specified, paperSize shall be
      -- ignored.
-  , _pageSetupPaperWidth :: Maybe String
+  , _pageSetupPaperWidth :: Maybe Text
 
      -- | Print scaling.
      --
@@ -298,9 +299,9 @@ makeLenses ''PageSetup
   Rendering
 -------------------------------------------------------------------------------}
 
--- | Render page setup
-renderPageSetup :: PageSetup -> RawPageSetup
-renderPageSetup = RawPageSetup . NodeElement . toElement "pageSetup"
+---- | Render page setup
+--renderPageSetup :: PageSetup -> RawPageSetup
+--renderPageSetup = RawPageSetup . NodeElement . toElement "pageSetup"
 
 -- | See @CT_PageSetup@, p. 3922
 instance ToElement PageSetup where
@@ -422,3 +423,128 @@ instance ToAttrVal PaperSize where
   toAttrVal PaperA2                     = "66"
   toAttrVal PaperA3Transverse           = "67"
   toAttrVal PaperA3ExtraTransverse      = "68"
+
+{-------------------------------------------------------------------------------
+  Parsing
+-------------------------------------------------------------------------------}
+-- | See @CT_PageSetup@, p. 3922
+instance FromCursor PageSetup where
+    fromCursor cur = do
+      _pageSetupPaperSize           <- maybeAttribute "paperSize" cur
+      _pageSetupPaperHeight         <- maybeAttribute "paperHeight" cur
+      _pageSetupPaperWidth          <- maybeAttribute "paperWidth" cur
+      _pageSetupScale               <- maybeAttribute "scale" cur
+      _pageSetupFirstPageNumber     <- maybeAttribute "firstPageNumber" cur
+      _pageSetupFitToWidth          <- maybeAttribute "fitToWidth" cur
+      _pageSetupFitToHeight         <- maybeAttribute "fitToHeight" cur
+      _pageSetupPageOrder           <- maybeAttribute "pageOrder" cur
+      _pageSetupOrientation         <- maybeAttribute "orientation" cur
+      _pageSetupUsePrinterDefaults  <- maybeAttribute "usePrinterDefaults" cur
+      _pageSetupBlackAndWhite       <- maybeAttribute "blackAndWhite" cur
+      _pageSetupDraft               <- maybeAttribute "draft" cur
+      _pageSetupCellComments        <- maybeAttribute "cellComments" cur
+      _pageSetupUseFirstPageNumber  <- maybeAttribute "useFirstPageNumber" cur
+      _pageSetupErrors              <- maybeAttribute "errors" cur
+      _pageSetupHorizontalDpi       <- maybeAttribute "horizontalDpi" cur
+      _pageSetupVerticalDpi         <- maybeAttribute "verticalDpi" cur
+      _pageSetupCopies              <- maybeAttribute "copies" cur
+      _pageSetupId                  <- maybeAttribute "id" cur
+      return PageSetup{..}
+
+-- | See @paperSize@ (attribute of @pageSetup@), p. 1659
+instance FromAttrVal PaperSize where
+    fromAttrVal "1"  = readSuccess PaperLetter
+    fromAttrVal "2"  = readSuccess PaperLetterSmall
+    fromAttrVal "3"  = readSuccess PaperTabloid
+    fromAttrVal "4"  = readSuccess PaperLedger
+    fromAttrVal "5"  = readSuccess PaperLegal
+    fromAttrVal "6"  = readSuccess PaperStatement
+    fromAttrVal "7"  = readSuccess PaperExecutive
+    fromAttrVal "8"  = readSuccess PaperA3
+    fromAttrVal "9"  = readSuccess PaperA4
+    fromAttrVal "10" = readSuccess PaperA4Small
+    fromAttrVal "11" = readSuccess PaperA5
+    fromAttrVal "12" = readSuccess PaperB4
+    fromAttrVal "13" = readSuccess PaperB5
+    fromAttrVal "14" = readSuccess PaperFolio
+    fromAttrVal "15" = readSuccess PaperQuarto
+    fromAttrVal "16" = readSuccess PaperStandard10_14
+    fromAttrVal "17" = readSuccess PaperStandard11_17
+    fromAttrVal "18" = readSuccess PaperNote
+    fromAttrVal "19" = readSuccess Envelope9
+    fromAttrVal "20" = readSuccess Envelope10
+    fromAttrVal "21" = readSuccess Envelope11
+    fromAttrVal "22" = readSuccess Envelope12
+    fromAttrVal "23" = readSuccess Envelope14
+    fromAttrVal "24" = readSuccess PaperC
+    fromAttrVal "25" = readSuccess PaperD
+    fromAttrVal "26" = readSuccess PaperE
+    fromAttrVal "27" = readSuccess EnvelopeDL
+    fromAttrVal "28" = readSuccess EnvelopeC5
+    fromAttrVal "29" = readSuccess EnvelopeC3
+    fromAttrVal "30" = readSuccess EnvelopeC4
+    fromAttrVal "31" = readSuccess EnvelopeC6
+    fromAttrVal "32" = readSuccess EnvelopeC65
+    fromAttrVal "33" = readSuccess EnvelopeB4
+    fromAttrVal "34" = readSuccess EnvelopeB5
+    fromAttrVal "35" = readSuccess EnvelopeB6
+    fromAttrVal "36" = readSuccess EnvelopeItaly
+    fromAttrVal "37" = readSuccess EnvelopeMonarch
+    fromAttrVal "38" = readSuccess Envelope6_3_4
+    fromAttrVal "39" = readSuccess PaperFanfoldUsStandard
+    fromAttrVal "40" = readSuccess PaperFanfoldGermanStandard
+    fromAttrVal "41" = readSuccess PaperFanfoldGermanLegal
+    fromAttrVal "42" = readSuccess PaperIsoB4
+    fromAttrVal "43" = readSuccess PaperJapaneseDoublePostcard
+    fromAttrVal "44" = readSuccess PaperStandard9_11
+    fromAttrVal "45" = readSuccess PaperStandard10_11
+    fromAttrVal "46" = readSuccess PaperStandard15_11
+    fromAttrVal "47" = readSuccess EnvelopeInvite
+    fromAttrVal "50" = readSuccess PaperLetterExtra
+    fromAttrVal "51" = readSuccess PaperLegalExtra
+    fromAttrVal "52" = readSuccess PaperTabloidExtra
+    fromAttrVal "53" = readSuccess PaperA4Extra
+    fromAttrVal "54" = readSuccess PaperLetterTransverse
+    fromAttrVal "55" = readSuccess PaperA4Transverse
+    fromAttrVal "56" = readSuccess PaperLetterExtraTransverse
+    fromAttrVal "57" = readSuccess PaperSuperA
+    fromAttrVal "58" = readSuccess PaperSuperB
+    fromAttrVal "59" = readSuccess PaperLetterPlus
+    fromAttrVal "60" = readSuccess PaperA4Plus
+    fromAttrVal "61" = readSuccess PaperA5Transverse
+    fromAttrVal "62" = readSuccess PaperJisB5Transverse
+    fromAttrVal "63" = readSuccess PaperA3Extra
+    fromAttrVal "64" = readSuccess PaperA5Extra
+    fromAttrVal "65" = readSuccess PaperIsoB5Extra
+    fromAttrVal "66" = readSuccess PaperA2
+    fromAttrVal "67" = readSuccess PaperA3Transverse
+    fromAttrVal "68" = readSuccess PaperA3ExtraTransverse
+    fromAttrVal t    = invalidText "PaperSize" t
+
+-- | See @ST_PageOrder@, p. 3923
+instance FromAttrVal PageOrder where
+    fromAttrVal "downThenOver" = readSuccess PageOrderDownThenOver
+    fromAttrVal "overThenDown" = readSuccess PageOrderOverThenDown
+    fromAttrVal t              = invalidText "PageOrder" t
+
+-- | See @ST_CellComments@, p. 3923
+instance FromAttrVal CellComments where
+    fromAttrVal "none"        = readSuccess CellCommentsNone
+    fromAttrVal "asDisplayed" = readSuccess CellCommentsAsDisplayed
+    fromAttrVal "atEnd"       = readSuccess CellCommentsAtEnd
+    fromAttrVal t             = invalidText "CellComments" t
+
+-- | See @ST_PrintError@, p. 3923
+instance FromAttrVal PrintErrors where
+    fromAttrVal "displayed" = readSuccess PrintErrorsDisplayed
+    fromAttrVal "blank"     = readSuccess PrintErrorsBlank
+    fromAttrVal "dash"      = readSuccess PrintErrorsDash
+    fromAttrVal "NA"        = readSuccess PrintErrorsNA
+    fromAttrVal t           = invalidText "PrintErrors" t
+
+-- | See @ST_Orientation@, p. 3923
+instance FromAttrVal Orientation where
+    fromAttrVal "default"   = readSuccess OrientationDefault
+    fromAttrVal "portrait"  = readSuccess OrientationPortrait
+    fromAttrVal "landscape" = readSuccess OrientationLandscape
+    fromAttrVal t           = invalidText "Orientation" t

@@ -50,9 +50,11 @@ module Codec.Xlsx.SheetViews (
 
 import Control.Lens (makeLenses)
 import Data.Default
-import Data.Maybe (catMaybes, maybeToList)
+import Data.Maybe (catMaybes, maybeToList, listToMaybe)
 import Data.Text (Text)
+import qualified Data.Text as T
 import Text.XML
+import Text.XML.Cursor
 import qualified Data.Map  as Map
 import qualified Data.Text as Text
 
@@ -60,7 +62,8 @@ import qualified Data.Text as Text
 import Control.Applicative
 #endif
 
-import Codec.Xlsx.Types
+import Codec.Xlsx.Types.Common
+import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Writer.Internal
 
 {-------------------------------------------------------------------------------
@@ -364,8 +367,8 @@ instance Default Pane where
 -- The list should be non-empty to be conform to the spec.
 --
 -- See Section 18.3.1.88 "sheetViews (Sheet Views)" (p. 1704)
-renderSheetViews :: [SheetView] -> RawSheetViews
-renderSheetViews views = RawSheetViews $ NodeElement sheetViews
+renderSheetViews :: [SheetView] -> Node
+renderSheetViews views = NodeElement sheetViews
   where
     sheetViews :: Element
     sheetViews = Element {
@@ -457,3 +460,73 @@ instance ToAttrVal PaneState where
   toAttrVal PaneStateSplit       = "split"
   toAttrVal PaneStateFrozen      = "frozen"
   toAttrVal PaneStateFrozenSplit = "frozenSplit"
+
+{-------------------------------------------------------------------------------
+  Parsing
+-------------------------------------------------------------------------------}
+-- | See @CT_SheetView@, p. 3913
+instance FromCursor SheetView where
+  fromCursor cur = do
+    _sheetViewWindowProtection         <- maybeAttribute "windowProtection" cur
+    _sheetViewShowFormulas             <- maybeAttribute "showFormulas" cur
+    _sheetViewShowGridLines            <- maybeAttribute "showGridLines" cur
+    _sheetViewShowRowColHeaders        <- maybeAttribute "showRowColHeaders"cur
+    _sheetViewShowZeros                <- maybeAttribute "showZeros" cur
+    _sheetViewRightToLeft              <- maybeAttribute "rightToLeft" cur
+    _sheetViewTabSelected              <- maybeAttribute "tabSelected" cur
+    _sheetViewShowRuler                <- maybeAttribute "showRuler" cur
+    _sheetViewShowOutlineSymbols       <- maybeAttribute "showOutlineSymbols" cur
+    _sheetViewDefaultGridColor         <- maybeAttribute "defaultGridColor" cur
+    _sheetViewShowWhiteSpace           <- maybeAttribute "showWhiteSpace" cur
+    _sheetViewType                     <- maybeAttribute "view" cur
+    _sheetViewTopLeftCell              <- maybeAttribute "topLeftCell" cur
+    _sheetViewColorId                  <- maybeAttribute "colorId" cur
+    _sheetViewZoomScale                <- maybeAttribute "zoomScale" cur
+    _sheetViewZoomScaleNormal          <- maybeAttribute "zoomScaleNormal" cur
+    _sheetViewZoomScaleSheetLayoutView <- maybeAttribute "zoomScaleSheetLayoutView" cur
+    _sheetViewZoomScalePageLayoutView  <- maybeAttribute "zoomScalePageLayoutView" cur
+    _sheetViewWorkbookViewId           <- fromAttribute "workbookViewId" cur
+    let _sheetViewPane = listToMaybe $ cur $/ element (n"pane") >=> fromCursor
+        _sheetViewSelection = cur $/ element (n"selection") >=> fromCursor
+    return SheetView{..}
+
+-- | See @CT_Pane@, p. 3913
+instance FromCursor Pane where
+  fromCursor cur = do
+    _paneXSplit      <- maybeAttribute "xSplit" cur
+    _paneYSplit      <- maybeAttribute "ySplit" cur
+    _paneTopLeftCell <- maybeAttribute "topLeftCell" cur
+    _paneActivePane  <- maybeAttribute "activePane" cur
+    _paneState       <- maybeAttribute "state" cur
+    return Pane{..}
+
+-- | See @CT_Selection@, p. 3914
+instance FromCursor Selection where
+  fromCursor cur = do
+    _selectionPane         <- maybeAttribute "pane" cur
+    _selectionActiveCell   <- maybeAttribute "activeCell" cur
+    _selectionActiveCellId <- maybeAttribute "activeCellId" cur
+    _selectionSqref        <- fmap (T.split (== ' ')) <$> maybeAttribute "sqref" cur
+    return Selection{..}
+
+-- | See @ST_SheetViewType@, p. 3913
+instance FromAttrVal SheetViewType where
+  fromAttrVal "normal"           = readSuccess SheetViewTypeNormal
+  fromAttrVal "pageBreakPreview" = readSuccess SheetViewTypePageBreakPreview
+  fromAttrVal "pageLayout"       = readSuccess SheetViewTypePageLayout
+  fromAttrVal t                  = invalidText "SheetViewType" t
+
+-- | See @ST_Pane@, p. 3914
+instance FromAttrVal PaneType where
+  fromAttrVal "bottomRight" = readSuccess PaneTypeBottomRight
+  fromAttrVal "topRight"    = readSuccess PaneTypeTopRight
+  fromAttrVal "bottomLeft"  = readSuccess PaneTypeBottomLeft
+  fromAttrVal "topLeft"     = readSuccess PaneTypeTopLeft
+  fromAttrVal t             = invalidText "PaneType" t
+
+-- | See @ST_PaneState@, p. 3929
+instance FromAttrVal PaneState where
+  fromAttrVal "split"       = readSuccess PaneStateSplit
+  fromAttrVal "frozen"      = readSuccess PaneStateFrozen
+  fromAttrVal "frozenSplit" = readSuccess PaneStateFrozenSplit
+  fromAttrVal t             = invalidText "PaneState" t

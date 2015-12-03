@@ -139,17 +139,17 @@ transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
     transformValue (CellBool b) = XlsxBool b
     transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
 
-sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> Maybe RawSheetViews -> Maybe RawPageSetup -> L.ByteString
+sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> Maybe [SheetView] -> Maybe PageSetup -> L.ByteString
 sheetXml cws rh rows merges sheetViews pageSetup = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     cType = xlsxCellType
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
            Element "worksheet" M.empty $ catMaybes
-           [unRawSheetViews <$> sheetViews,
+           [renderSheetViews <$> sheetViews,
             nonEmptyNmEl "cols" M.empty $  map cwEl cws,
             justNmEl "sheetData" M.empty $ map rowEl rows,
             nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges,
-            unRawPageSetup <$> pageSetup]
+            NodeElement . toElement "pageSetup" <$> pageSetup]
     cwEl cw = NodeElement $! Element "col" (M.fromList
               [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw), ("style", txti $ cwStyle cw)]) []
     rowEl (r, cells) = nEl "row"

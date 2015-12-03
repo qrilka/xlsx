@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -9,14 +10,12 @@ module Codec.Xlsx.Types
     , renderStyleSheet
     , DefinedNames(..)
     , ColumnsWidth(..)
-    , RawSheetViews(..)
-    , RawPageSetup(..)
+    , PageSetup(..)
     , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges, wsSheetViews, wsPageSetup
     , CellMap
     , CellValue(..)
     , Cell(..), cellValue, cellStyle
     , RowProperties (..)
-    , CellRef
     , Range
     , int2col
     , col2int
@@ -24,6 +23,7 @@ module Codec.Xlsx.Types
     , mkRange
     , toRows
     , fromRows
+    , module X
     ) where
 
 import           Control.Lens.TH
@@ -36,10 +36,16 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Text.XML (Node, renderLBS)
+import           Text.XML (renderLBS)
+import           Text.XML.Cursor
 
-import           Codec.Xlsx.StyleSheet
-import           Codec.Xlsx.RichText
+
+import           Codec.Xlsx.PageSetup as X
+import           Codec.Xlsx.StyleSheet as X
+import           Codec.Xlsx.Types.Common as X
+import           Codec.Xlsx.RichText as X
+import           Codec.Xlsx.SheetViews as X
+import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Writer.Internal
 
 -- | Cell values include text, numbers and booleans,
@@ -81,19 +87,16 @@ data ColumnsWidth = ColumnsWidth
     , cwStyle :: Int
     } deriving (Eq, Show)
 
--- | Excel cell reference (e.g. @E3@)
-type CellRef = Text
+instance FromCursor ColumnsWidth where
+    fromCursor c = do
+      cwMin <- decimal =<< attribute "min" c
+      cwMax <- decimal =<< attribute "max" c
+      cwWidth <- rational =<< attribute "width" c
+      cwStyle <- decimal =<< attribute "style" c
+      return ColumnsWidth{..}
 
 -- | Excel range (e.g. @D13:H14@)
 type Range = Text
-
--- | Raw (unparsed) sheet views (see 'renderSheetViews')
-newtype RawSheetViews = RawSheetViews {unRawSheetViews :: Node}
-  deriving (Eq, Show)
-
--- | Raw (unparsed) page setup (see 'renderPageSetup')
-newtype RawPageSetup = RawPageSetup {unRawPageSetup :: Node}
-  deriving (Eq, Show)
 
 -- | Xlsx worksheet
 data Worksheet = Worksheet
@@ -101,8 +104,8 @@ data Worksheet = Worksheet
     , _wsRowPropertiesMap :: Map Int RowProperties  -- ^ custom row properties (height, style) map
     , _wsCells            :: CellMap                -- ^ data mapped by (row, column) pairs
     , _wsMerges           :: [Range]                -- ^ list of cell merges
-    , _wsSheetViews       :: Maybe RawSheetViews
-    , _wsPageSetup        :: Maybe RawPageSetup
+    , _wsSheetViews       :: Maybe [SheetView]
+    , _wsPageSetup        :: Maybe PageSetup
     } deriving (Eq, Show)
 
 makeLenses ''Worksheet

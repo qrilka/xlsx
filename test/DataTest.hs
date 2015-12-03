@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
+import           Control.Lens
 import qualified Data.IntMap as IM
 import           Data.Map (Map)
 import qualified Data.Map as M
@@ -19,7 +20,6 @@ import           Test.SmallCheck.Series (Positive(..))
 
 import           Codec.Xlsx
 import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.StyleSheet
 
 
 main = defaultMain $
@@ -38,12 +38,26 @@ testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames
   where
     sheets = M.fromList [( "List1", sheet )]
-    sheet = Worksheet cols rowProps testCellMap ranges Nothing Nothing
+    sheet = Worksheet cols rowProps testCellMap ranges sheetViews pageSetup
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
     ranges = [mkRange (1,1) (1,2), mkRange (2,2) (10, 5)]
     minimalStyles = renderStyleSheet minimalStyleSheet
     definedNames = DefinedNames [("SampleName", Nothing, "A10:A20")]
+    sheetViews = Just [sheetView1, sheetView2]
+    sheetView1 = def & sheetViewRightToLeft .~ Just True
+                     & sheetViewTopLeftCell .~ Just "B5"
+    sheetView2 = def & sheetViewType .~ Just SheetViewTypePageBreakPreview
+                     & sheetViewWorkbookViewId .~ 5
+                     & sheetViewSelection .~ [ def & selectionActiveCell .~ Just "C2"
+                                                   & selectionPane .~ Just PaneTypeBottomRight
+                                             , def & selectionActiveCellId .~ Just 1
+                                                   & selectionSqref .~ Just ["A3:A10","B1:G3"]
+                                             ]
+    pageSetup = Just $ def & pageSetupBlackAndWhite .~ Just True
+                           & pageSetupCopies .~ Just 2
+                           & pageSetupErrors .~ Just PrintErrorsDash
+                           & pageSetupPaperSize .~ Just PaperA4
 
 testCellMap :: CellMap
 testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
