@@ -26,7 +26,7 @@ Maintainer:          qrilka@gmail.com
 
 Category:            Codec
 Build-type:          Simple
-
+Tested-with:         GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.2
 Cabal-version:       >=1.10
 
 
