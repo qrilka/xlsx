@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
 {-# OPTIONS_GHC -Wall #-}
-module Codec.Xlsx.SharedStringTable (
+module Codec.Xlsx.Types.SharedStringTable (
     -- * Main types
     SharedStringTable(..)
   , StringItem(..)
@@ -15,24 +15,23 @@ module Codec.Xlsx.SharedStringTable (
   , sharedStringTable
   ) where
 
-import Control.Lens
-import Control.Monad
-import Data.IntMap (IntMap)
-import Data.Maybe (mapMaybe)
-import Data.Text (Text)
-import Data.Vector (Vector)
-import Numeric.Search.Range (searchFromTo)
-import Text.XML
-import Text.XML.Cursor (Cursor)
+import           Control.Lens
+import           Control.Monad
+import           Data.IntMap (IntMap)
+import           Data.Maybe (mapMaybe)
+import           Data.Text (Text)
+import           Data.Vector (Vector)
+import           Numeric.Search.Range (searchFromTo)
+import           Text.XML
+import           Text.XML.Cursor (Cursor)
 import qualified Data.IntMap as IM
-import qualified Data.Map    as Map
-import qualified Data.Set    as Set
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Vector as V
 
-import Codec.Xlsx.Writer.Internal
-import Codec.Xlsx.Parser.Internal
-import Codec.Xlsx.RichText
-import Codec.Xlsx.Types
+import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Types
+import           Codec.Xlsx.Writer.Internal
 
 -- | Shared string table
 --

@@ -34,7 +34,6 @@ import Data.Traversable (mapM)
 import Data.Tuple (swap)
 import qualified Data.Map as Map
 
-import Codec.Xlsx.StyleSheet
 import Codec.Xlsx.Types
 
 {-------------------------------------------------------------------------------

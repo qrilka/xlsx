@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
 {-# OPTIONS_GHC -Wall #-}
-module Codec.Xlsx.RichText (
+module Codec.Xlsx.Types.RichText (
     -- * Main types
     RichTextRun(..)
   , RunProperties(..)
@@ -38,7 +38,7 @@ import Data.Text (Text)
 import Text.XML
 import qualified Data.Map as Map
 
-import Codec.Xlsx.StyleSheet
+import Codec.Xlsx.Types.StyleSheet
 import Codec.Xlsx.Writer.Internal
 
 #if !MIN_VERSION_base(4,8,0)

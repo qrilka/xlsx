@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# OPTIONS_GHC -Wall #-}
-module Codec.Xlsx.PageSetup (
+module Codec.Xlsx.Types.PageSetup (
     -- * Main types
     PageSetup(..)
 --  , renderPageSetup

@@ -9,7 +9,7 @@ import qualified Codec.Archive.Zip as Zip
 import           Control.Arrow (second)
 import           Control.Lens hiding (transform)
 import qualified Data.ByteString.Lazy as L
-import           Data.ByteString.Lazy.Char8()
+import           Data.ByteString.Lazy.Char8 ()
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Maybe
@@ -25,7 +25,7 @@ import           System.Time
 import           Text.XML
 
 import           Codec.Xlsx.Types
-import           Codec.Xlsx.SharedStringTable
+import           Codec.Xlsx.Types.SharedStringTable
 import           Codec.Xlsx.Writer.Internal
 
 -- | Writes `Xlsx' to raw data (lazy bytestring)

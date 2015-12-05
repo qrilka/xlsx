@@ -33,19 +33,19 @@ Cabal-version:       >=1.10
 Library
   Hs-source-dirs:    src
   Exposed-modules:   Codec.Xlsx
-                     , Codec.Xlsx.Parser
                      , Codec.Xlsx.Types
                      , Codec.Xlsx.Types.Common
-                     , Codec.Xlsx.Writer
+                     , Codec.Xlsx.Types.SharedStringTable
+                     , Codec.Xlsx.Types.RichText
+                     , Codec.Xlsx.Types.SheetViews
+                     , Codec.Xlsx.Types.PageSetup
+                     , Codec.Xlsx.Types.StyleSheet
                      , Codec.Xlsx.Lens
+                     , Codec.Xlsx.Parser
                      , Codec.Xlsx.Parser.Internal
-                     , Codec.Xlsx.StyleSheet
                      , Codec.Xlsx.Formatted
+                     , Codec.Xlsx.Writer
                      , Codec.Xlsx.Writer.Internal
-                     , Codec.Xlsx.SharedStringTable
-                     , Codec.Xlsx.RichText
-                     , Codec.Xlsx.SheetViews
-                     , Codec.Xlsx.PageSetup
 
   Build-depends:     base         == 4.*
                      , containers   >= 0.5.0.0

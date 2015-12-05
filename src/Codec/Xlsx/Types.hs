@@ -40,12 +40,12 @@ import           Text.XML (renderLBS)
 import           Text.XML.Cursor
 
 
-import           Codec.Xlsx.PageSetup as X
-import           Codec.Xlsx.StyleSheet as X
-import           Codec.Xlsx.Types.Common as X
-import           Codec.Xlsx.RichText as X
-import           Codec.Xlsx.SheetViews as X
 import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Types.Common as X
+import           Codec.Xlsx.Types.PageSetup as X
+import           Codec.Xlsx.Types.RichText as X
+import           Codec.Xlsx.Types.SheetViews as X
+import           Codec.Xlsx.Types.StyleSheet as X
 import           Codec.Xlsx.Writer.Internal
 
 -- | Cell values include text, numbers and booleans,

@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
 {-# OPTIONS_GHC -Wall #-}
-module Codec.Xlsx.SheetViews (
+module Codec.Xlsx.Types.SheetViews (
     -- * Structured type to construct 'SheetViews'
     SheetView(..)
   , Selection(..)

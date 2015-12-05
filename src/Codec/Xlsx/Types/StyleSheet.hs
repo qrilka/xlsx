@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell    #-}
 {-# OPTIONS_GHC -Wall #-}
 -- | Support for writing (but not reading) style sheets
-module Codec.Xlsx.StyleSheet (
+module Codec.Xlsx.Types.StyleSheet (
     -- * The main two types
     StyleSheet(..)
   , CellXf(..)
