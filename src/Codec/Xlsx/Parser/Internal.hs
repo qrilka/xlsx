@@ -1,12 +1,16 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Codec.Xlsx.Parser.Internal
-    ( n
+    ( ParseException(..)
+    , n
     , parseSharedStrings
     , FromCursor(..)
     , FromAttrVal(..)
     , fromAttribute
     , maybeAttribute
+    , maybeElementValue
+    , maybeFromElement
     , readSuccess
     , readFailure
     , invalidText
@@ -15,16 +19,23 @@ module Codec.Xlsx.Parser.Internal
     , rational
     ) where
 
+import           Control.Exception (Exception)
 import qualified Data.IntMap as IM
-import Data.Text (Text)
+import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Read as T
-import Data.XML.Types
-import Text.XML.Cursor
+import           Data.Typeable (Typeable)
+import           Data.XML.Types
+import           Text.XML.Cursor
 
 #if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
+import           Control.Applicative
 #endif
+
+data ParseException = ParseException String
+                    deriving (Show, Typeable)
+
+instance Exception ParseException
 
 class FromCursor a where
     fromCursor :: Cursor -> [a]
@@ -57,6 +68,18 @@ maybeAttribute name cursor =
     case attribute name cursor of
       [attr] -> Just <$> runReader fromAttrVal attr
       _ -> [Nothing]
+
+maybeElementValue :: FromAttrVal a => Name -> Cursor -> [Maybe a]
+maybeElementValue name cursor =
+  case cursor $/ element name of
+    [cursor'] -> maybeAttribute "val" cursor'
+    _ -> [Nothing]
+
+maybeFromElement :: FromCursor a => Name -> Cursor -> [Maybe a]
+maybeFromElement name cursor = case cursor $/ element name of
+  [cursor'] -> Just <$> fromCursor cursor'
+  _ -> [Nothing]
+
 
 readSuccess :: a -> Either String (a, Text)
 readSuccess x = Right (x, T.empty)

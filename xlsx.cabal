@@ -68,6 +68,7 @@ Library
                      , binary-search
   Default-Language:     Haskell2010
   Other-Extensions:  CPP
+                     DeriveDataTypeable
                      FlexibleInstances
                      NoMonomorphismRestriction
                      OverloadedStrings

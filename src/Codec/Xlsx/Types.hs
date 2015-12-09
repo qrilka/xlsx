@@ -8,6 +8,7 @@ module Codec.Xlsx.Types
     , Styles(..)
     , emptyStyles
     , renderStyleSheet
+    , parseStyleSheet
     , DefinedNames(..)
     , ColumnsWidth(..)
     , PageSetup(..)
@@ -26,6 +27,7 @@ module Codec.Xlsx.Types
     , module X
     ) where
 
+import           Control.Exception (SomeException, toException)
 import           Control.Lens.TH
 import qualified Data.ByteString.Lazy as L
 import           Data.Char
@@ -36,9 +38,8 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Text.XML (renderLBS)
+import           Text.XML (renderLBS, parseLBS)
 import           Text.XML.Cursor
-
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Common as X
@@ -168,6 +169,18 @@ emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\
 -- quite a bit of work).
 renderStyleSheet :: StyleSheet -> Styles
 renderStyleSheet = Styles . renderLBS def . toDocument
+
+-- | Parse 'StyleSheet'
+--
+-- This is used to parse raw 'Styles' into structured 'StyleSheet'
+-- currently not all of the style sheet specification is supported
+-- so parser (and the data model) is to be completed
+parseStyleSheet :: Styles -> Either SomeException StyleSheet
+parseStyleSheet (Styles bs) = parseLBS def bs >>= parseDoc
+  where
+    parseDoc doc = case fromCursor (fromDocument doc) of
+      [stylesheet] -> Right stylesheet
+      _ -> Left . toException $ ParseException "Could not parse style sheets"
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
 int2col :: Int -> Text

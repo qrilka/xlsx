@@ -28,6 +28,8 @@ main = defaultMain $
          testXlsx @=? toXlsx (fromXlsx testTime testXlsx)
     , testCase "fromRows . toRows == id" $
          testCellMap @=? fromRows (toRows testCellMap)
+    , testCase "fromRight . parseStyleSheet . renderStyleSheet == id" $
+         testStyleSheet @=? fromRight (parseStyleSheet (renderStyleSheet  testStyleSheet))
     , testCase "correct shared strings parsing" $
          testSharedStrings @=? testParseSharedStrings
     ]
@@ -71,6 +73,12 @@ testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
 
 testTime :: POSIXTime
 testTime = 123
+
+fromRight :: Either a b -> b
+fromRight (Right b) = b
+
+testStyleSheet :: StyleSheet
+testStyleSheet = minimalStyleSheet
 
 testSharedStrings = IM.fromAscList $ zip [0..] ["plain text", "Just example"]
 

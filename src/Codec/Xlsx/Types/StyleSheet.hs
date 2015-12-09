@@ -107,10 +107,12 @@ module Codec.Xlsx.Types.StyleSheet (
   , protectionLocked
   ) where
 
-import Control.Lens hiding ((.=))
+import Control.Lens hiding ((.=), element)
 import Data.Default
 import Data.Maybe (catMaybes)
+import Data.Text (Text)
 import Text.XML
+import Text.XML.Cursor
 import qualified Data.Map as Map
 
 #if !MIN_VERSION_base(4,8,0)
@@ -118,6 +120,7 @@ import Control.Applicative
 #endif
 
 import Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
 
 {-------------------------------------------------------------------------------
   The main types
@@ -152,6 +155,7 @@ import Codec.Xlsx.Writer.Internal
 --
 -- * 'Codec.Xlsx.Types.renderStyleSheet' to translate a 'StyleSheet' to 'Styles'
 -- * 'Codec.Xlsx.Formatted.formatted' for a higher level interface.
+-- * 'Codec.Xlsx.Types.parseStyleSheet' to translate a raw 'StyleSheet' into 'Styles'
 data StyleSheet = StyleSheet {
     -- | This element contains borders formatting information, specifying all
     -- border definitions for all cells in the workbook.
@@ -403,7 +407,7 @@ data Color = Color {
     -- This simple type's contents have a length of exactly 8 hexadecimal
     -- digit(s); see "18.18.86 ST_UnsignedIntHex (Hex Unsigned Integer)" (p.
     -- 2511).
-  , _colorARGB :: Maybe String
+  , _colorARGB :: Maybe Text
 
     -- | A zero-based index into the <clrScheme> collection (20.1.6.2),
     -- referencing a particular <sysClr> or <srgbClr> value expressed in the
@@ -508,7 +512,7 @@ data Font = Font {
     -- by that font, then another font should be substituted.
     --
     -- The string length for this attribute shall be 0 to 31 characters.
-  , _fontName :: Maybe String
+  , _fontName :: Maybe Text
 
     -- | This element displays only the inner and outer borders of each
     -- character. This is very similar to Bold in behavior.
@@ -1120,3 +1124,214 @@ instance ToAttrVal ReadingOrder where
   toAttrVal ReadingOrderContextDependent = "0"
   toAttrVal ReadingOrderLeftToRight      = "1"
   toAttrVal ReadingOrderRightToLeft      = "2"
+
+{-------------------------------------------------------------------------------
+  Parsing
+-------------------------------------------------------------------------------}
+-- | See @CT_Stylesheet@, p. 4482
+instance FromCursor StyleSheet where
+  fromCursor cur = do
+    let
+      -- TODO: numFmts
+      _styleSheetFonts = cur $/ element (n"fonts") &/ element (n"font") >=> fromCursor
+      _styleSheetFills = cur $/ element (n"fills") &/ element (n"fill") >=> fromCursor
+      _styleSheetBorders = cur $/ element (n"borders") &/ element (n"border") >=> fromCursor
+         -- TODO: cellStyleXfs
+      _styleSheetCellXfs = cur $/ element (n"cellXfs") &/ element (n"xf") >=> fromCursor
+         -- TODO: cellStyles
+         -- TODO: dxfs
+         -- TODO: tableStyles
+         -- TODO: colors
+         -- TODO: extLst
+    return StyleSheet{..}
+
+-- | See @CT_Font@, p. 4489
+instance FromCursor Font where
+  fromCursor cur = do
+    _fontName         <- maybeElementValue (n"name") cur
+    _fontCharset      <- maybeElementValue (n"charset") cur
+    _fontFamily       <- maybeElementValue (n"family") cur
+    _fontBold         <- maybeElementValue (n"b") cur
+    _fontItalic       <- maybeElementValue (n"i") cur
+    _fontStrikeThrough<- maybeElementValue (n"strike") cur
+    _fontOutline      <- maybeElementValue (n"outline") cur
+    _fontShadow       <- maybeElementValue (n"shadow") cur
+    _fontCondense     <- maybeElementValue (n"condense") cur
+    _fontExtend       <- maybeElementValue (n"extend") cur
+    _fontColor        <- maybeFromElement  (n"color") cur
+    _fontSize         <- maybeElementValue (n"sz") cur
+    _fontUnderline    <- maybeElementValue (n"u") cur
+    _fontVertAlign    <- maybeElementValue (n"vertAlign") cur
+    _fontScheme       <- maybeElementValue (n"scheme") cur
+    return Font{..}
+
+instance FromAttrVal FontFamily where
+  fromAttrVal "1" = readSuccess FontFamilyRoman
+  fromAttrVal "2" = readSuccess FontFamilySwiss
+  fromAttrVal "3" = readSuccess FontFamilyModern
+  fromAttrVal "4" = readSuccess FontFamilyScript
+  fromAttrVal "5" = readSuccess FontFamilyDecorative
+  fromAttrVal t   = invalidText "FontFamily" t
+
+-- | See @CT_Color@, p. 4484
+instance FromCursor Color where
+  fromCursor cur = do
+    _colorAutomatic <- maybeAttribute "auto" cur
+    _colorARGB      <- maybeAttribute "rgb" cur
+    _colorTheme     <- maybeAttribute "theme" cur
+    _colorTint      <- maybeAttribute "tint" cur
+    return Color{..}
+
+instance FromAttrVal FontVerticalAlignment where
+  fromAttrVal "baseline"    = readSuccess FontVerticalAlignmentBaseline
+  fromAttrVal "subscript"   = readSuccess FontVerticalAlignmentSubscript
+  fromAttrVal "superscript" = readSuccess FontVerticalAlignmentSuperscript
+  fromAttrVal t             = invalidText "FontVerticalAlignment" t
+
+instance FromAttrVal FontScheme where
+  fromAttrVal "major" = readSuccess FontSchemeMajor
+  fromAttrVal "minor" = readSuccess FontSchemeMinor
+  fromAttrVal "none"  = readSuccess FontSchemeNone
+  fromAttrVal t       = invalidText "FontScheme" t
+
+-- | See @CT_Fill@, p. 4484
+instance FromCursor Fill where
+  fromCursor cur = do
+    _fillPattern <- maybeFromElement (n"patternFill") cur
+    return Fill{..}
+
+-- | See @CT_PatternFill@, p. 4484
+instance FromCursor FillPattern where
+  fromCursor cur = do
+    _fillPatternType <- maybeAttribute "patternType" cur
+    _fillPatternFgColor <- maybeFromElement (n"fgColor") cur
+    _fillPatternBgColor <- maybeFromElement (n"bgColor") cur
+    return FillPattern{..}
+
+instance FromAttrVal PatternType where
+  fromAttrVal "darkDown"        = readSuccess PatternTypeDarkDown
+  fromAttrVal "darkGray"        = readSuccess PatternTypeDarkGray
+  fromAttrVal "darkGrid"        = readSuccess PatternTypeDarkGrid
+  fromAttrVal "darkHorizontal"  = readSuccess PatternTypeDarkHorizontal
+  fromAttrVal "darkTrellis"     = readSuccess PatternTypeDarkTrellis
+  fromAttrVal "darkUp"          = readSuccess PatternTypeDarkUp
+  fromAttrVal "darkVertical"    = readSuccess PatternTypeDarkVertical
+  fromAttrVal "gray0625"        = readSuccess PatternTypeGray0625
+  fromAttrVal "gray125"         = readSuccess PatternTypeGray125
+  fromAttrVal "lightDown"       = readSuccess PatternTypeLightDown
+  fromAttrVal "lightGray"       = readSuccess PatternTypeLightGray
+  fromAttrVal "lightGrid"       = readSuccess PatternTypeLightGrid
+  fromAttrVal "lightHorizontal" = readSuccess PatternTypeLightHorizontal
+  fromAttrVal "lightTrellis"    = readSuccess PatternTypeLightTrellis
+  fromAttrVal "lightUp"         = readSuccess PatternTypeLightUp
+  fromAttrVal "lightVertical"   = readSuccess PatternTypeLightVertical
+  fromAttrVal "mediumGray"      = readSuccess PatternTypeMediumGray
+  fromAttrVal "none"            = readSuccess PatternTypeNone
+  fromAttrVal "solid"           = readSuccess PatternTypeSolid
+  fromAttrVal t                 = invalidText "PatternType" t
+
+-- | See @CT_Border@, p. 4483
+instance FromCursor Border where
+  fromCursor cur = do
+    _borderDiagonalUp   <- maybeAttribute "diagonalUp" cur
+    _borderDiagonalDown <- maybeAttribute "diagonalDown" cur
+    _borderOutline      <- maybeAttribute "outline" cur
+    _borderStart      <- maybeFromElement (n"start") cur
+    _borderEnd        <- maybeFromElement (n"end") cur
+    _borderLeft       <- maybeFromElement (n"left") cur
+    _borderRight      <- maybeFromElement (n"right") cur
+    _borderTop        <- maybeFromElement (n"top") cur
+    _borderBottom     <- maybeFromElement (n"bottom") cur
+    _borderDiagonal   <- maybeFromElement (n"diagonal") cur
+    _borderVertical   <- maybeFromElement (n"vertical") cur
+    _borderHorizontal <- maybeFromElement (n"horizontal") cur
+    return Border{..}
+
+instance FromCursor BorderStyle where
+  fromCursor cur = do
+    _borderStyleLine  <- maybeAttribute "style" cur
+    _borderStyleColor <- maybeFromElement (n"color") cur
+    return BorderStyle{..}
+
+instance FromAttrVal LineStyle where
+  fromAttrVal "dashDot"          = readSuccess LineStyleDashDot
+  fromAttrVal "dashDotDot"       = readSuccess LineStyleDashDotDot
+  fromAttrVal "dashed"           = readSuccess LineStyleDashed
+  fromAttrVal "dotted"           = readSuccess LineStyleDotted
+  fromAttrVal "double"           = readSuccess LineStyleDouble
+  fromAttrVal "hair"             = readSuccess LineStyleHair
+  fromAttrVal "medium"           = readSuccess LineStyleMedium
+  fromAttrVal "mediumDashDot"    = readSuccess LineStyleMediumDashDot
+  fromAttrVal "mediumDashDotDot" = readSuccess LineStyleMediumDashDotDot
+  fromAttrVal "mediumDashed"     = readSuccess LineStyleMediumDashed
+  fromAttrVal "none"             = readSuccess LineStyleNone
+  fromAttrVal "slantDashDot"     = readSuccess LineStyleSlantDashDot
+  fromAttrVal "thick"            = readSuccess LineStyleThick
+  fromAttrVal "thin"             = readSuccess LineStyleThin
+  fromAttrVal t                  = invalidText "LineStyle" t
+
+-- | See @CT_Xf@, p. 4486
+instance FromCursor CellXf where
+  fromCursor cur = do
+    _cellXfAlignment  <- maybeFromElement (n"alignment") cur
+    _cellXfProtection <- maybeFromElement (n"protection") cur
+    _cellXfNumFmtId          <- maybeAttribute "numFmtId" cur
+    _cellXfFontId            <- maybeAttribute "fontId" cur
+    _cellXfFillId            <- maybeAttribute "fillId" cur
+    _cellXfBorderId          <- maybeAttribute "borderId" cur
+    _cellXfId                <- maybeAttribute "xfId" cur
+    _cellXfQuotePrefix       <- maybeAttribute "quotePrefix" cur
+    _cellXfPivotButton       <- maybeAttribute "pivotButton" cur
+    _cellXfApplyNumberFormat <- maybeAttribute "applyNumberFormat" cur
+    _cellXfApplyFont         <- maybeAttribute "applyFont" cur
+    _cellXfApplyFill         <- maybeAttribute "applyFill" cur
+    _cellXfApplyBorder       <- maybeAttribute "applyBorder" cur
+    _cellXfApplyAlignment    <- maybeAttribute "applyAlignment" cur
+    _cellXfApplyProtection   <- maybeAttribute "applyProtection" cur
+    return CellXf{..}
+
+-- | See @CT_CellAlignment@, p. 4482
+instance FromCursor Alignment where
+  fromCursor cur = do
+    _alignmentHorizontal      <- maybeAttribute "horizontal" cur
+    _alignmentVertical        <- maybeAttribute "vertical" cur
+    _alignmentTextRotation    <- maybeAttribute "textRotation" cur
+    _alignmentWrapText        <- maybeAttribute "wrapText" cur
+    _alignmentRelativeIndent  <- maybeAttribute "relativeIndent" cur
+    _alignmentIndent          <- maybeAttribute "indent" cur
+    _alignmentJustifyLastLine <- maybeAttribute "justifyLastLine" cur
+    _alignmentShrinkToFit     <- maybeAttribute "shrinkToFit" cur
+    _alignmentReadingOrder    <- maybeAttribute "readingOrder" cur
+    return Alignment{..}
+
+instance FromAttrVal CellHorizontalAlignment where
+  fromAttrVal "center"           = readSuccess CellHorizontalAlignmentCenter
+  fromAttrVal "centerContinuous" = readSuccess CellHorizontalAlignmentCenterContinuous
+  fromAttrVal "distributed"      = readSuccess CellHorizontalAlignmentDistributed
+  fromAttrVal "fill"             = readSuccess CellHorizontalAlignmentFill
+  fromAttrVal "general"          = readSuccess CellHorizontalAlignmentGeneral
+  fromAttrVal "justify"          = readSuccess CellHorizontalAlignmentJustify
+  fromAttrVal "left"             = readSuccess CellHorizontalAlignmentLeft
+  fromAttrVal "right"            = readSuccess CellHorizontalAlignmentRight
+  fromAttrVal t                  = invalidText "CellHorizontalAlignment" t
+
+instance FromAttrVal CellVerticalAlignment where
+  fromAttrVal "bottom"      = readSuccess CellVerticalAlignmentBottom
+  fromAttrVal "center"      = readSuccess CellVerticalAlignmentCenter
+  fromAttrVal "distributed" = readSuccess CellVerticalAlignmentDistributed
+  fromAttrVal "justify"     = readSuccess CellVerticalAlignmentJustify
+  fromAttrVal "top"         = readSuccess CellVerticalAlignmentTop
+  fromAttrVal t             = invalidText "CellVerticalAlignment" t
+
+instance FromAttrVal ReadingOrder where
+  fromAttrVal "0" = readSuccess ReadingOrderContextDependent
+  fromAttrVal "1" = readSuccess ReadingOrderLeftToRight
+  fromAttrVal "2" = readSuccess ReadingOrderRightToLeft
+  fromAttrVal t   = invalidText "ReadingOrder" t
+
+-- | See @CT_CellProtection@, p. 4484
+instance FromCursor Protection where
+  fromCursor cur = do
+    _protectionLocked <- maybeAttribute "locked" cur
+    _protectionHidden <- maybeAttribute "hidden" cur
+    return Protection{..}
