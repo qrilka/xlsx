@@ -160,7 +160,7 @@ data RunProperties = RunProperties {
     -- | This element represents the underline formatting style.
     --
     -- Section 18.4.13, "u (Underline)" (p. 1728)
-  , _runPropertiesUnderline :: Maybe Bool
+  , _runPropertiesUnderline :: Maybe FontUnderline
 
     -- | This element adjusts the vertical position of the text relative to the
     -- text's default appearance for this run. It is used to get 'superscript'

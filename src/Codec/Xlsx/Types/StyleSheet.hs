@@ -23,6 +23,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , CellVerticalAlignment(..)
   , FontFamily(..)
   , FontScheme(..)
+  , FontUnderline(..)
   , FontVerticalAlignment(..)
   , LineStyle(..)
   , PatternType(..)
@@ -542,7 +543,7 @@ data Font = Font {
   , _fontSize :: Maybe Double
 
     -- | This element represents the underline formatting style.
-  , _fontUnderline :: Maybe Bool
+  , _fontUnderline :: Maybe FontUnderline
 
     -- | This element adjusts the vertical position of the text relative to the
     -- text's default appearance for this run. It is used to get 'superscript'
@@ -627,6 +628,17 @@ data FontScheme =
 
     -- | This font is not a theme font.
   | FontSchemeNone
+  deriving (Show, Eq, Ord)
+
+-- | Font underline property
+--
+-- See 18.4.13 "u (Underline)", p 1728
+data FontUnderline =
+    FontUnderlineSingle
+  | FontUnderlineDouble
+  | FontUnderlineSingleAccounting
+  | FontUnderlineDoubleAccounting
+  | FontUnderlineNone
   deriving (Show, Eq, Ord)
 
 -- | Vertical alignment
@@ -1078,6 +1090,14 @@ instance ToAttrVal FontScheme where
   toAttrVal FontSchemeMinor = "minor"
   toAttrVal FontSchemeNone  = "none"
 
+-- See @ST_UnderlineValues@, p. 3940
+instance ToAttrVal FontUnderline where
+  toAttrVal FontUnderlineSingle           = "single"
+  toAttrVal FontUnderlineDouble           = "double"
+  toAttrVal FontUnderlineSingleAccounting = "singleAccounting"
+  toAttrVal FontUnderlineDoubleAccounting = "doubleAccounting"
+  toAttrVal FontUnderlineNone             = "none"
+
 instance ToAttrVal FontVerticalAlignment where
   toAttrVal FontVerticalAlignmentBaseline    = "baseline"
   toAttrVal FontVerticalAlignmentSubscript   = "subscript"
@@ -1181,6 +1201,15 @@ instance FromCursor Color where
     _colorTheme     <- maybeAttribute "theme" cur
     _colorTint      <- maybeAttribute "tint" cur
     return Color{..}
+
+-- See @ST_UnderlineValues@, p. 3940
+instance FromAttrVal FontUnderline where
+  fromAttrVal "single"           = readSuccess FontUnderlineSingle
+  fromAttrVal "double"           = readSuccess FontUnderlineDouble
+  fromAttrVal "singleAccounting" = readSuccess FontUnderlineSingleAccounting
+  fromAttrVal "doubleAccounting" = readSuccess FontUnderlineDoubleAccounting
+  fromAttrVal "none"             = readSuccess FontUnderlineNone
+  fromAttrVal t                  = invalidText "FontUnderline" t
 
 instance FromAttrVal FontVerticalAlignment where
   fromAttrVal "baseline"    = readSuccess FontVerticalAlignmentBaseline
