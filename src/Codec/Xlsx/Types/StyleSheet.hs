@@ -600,8 +600,11 @@ data CellVerticalAlignment =
 -- See 18.8.18 "family (Font Family)" (p. 1766)
 -- and 17.18.30 "ST_FontFamily (Font Family Value)" (p. 1388)
 data FontFamily =
+    -- | Family is not applicable
+    FontFamilyNotApplicable
+
     -- | Proportional font with serifs
-    FontFamilyRoman
+  | FontFamilyRoman
 
     -- | Proportional font without serifs
   | FontFamilySwiss
@@ -1079,11 +1082,12 @@ instance ToAttrVal CellVerticalAlignment where
   toAttrVal CellVerticalAlignmentTop         = "top"
 
 instance ToAttrVal FontFamily where
-  toAttrVal FontFamilyRoman      = "1"
-  toAttrVal FontFamilySwiss      = "2"
-  toAttrVal FontFamilyModern     = "3"
-  toAttrVal FontFamilyScript     = "4"
-  toAttrVal FontFamilyDecorative = "5"
+  toAttrVal FontFamilyNotApplicable = "0"
+  toAttrVal FontFamilyRoman         = "1"
+  toAttrVal FontFamilySwiss         = "2"
+  toAttrVal FontFamilyModern        = "3"
+  toAttrVal FontFamilyScript        = "4"
+  toAttrVal FontFamilyDecorative    = "5"
 
 instance ToAttrVal FontScheme where
   toAttrVal FontSchemeMajor = "major"
