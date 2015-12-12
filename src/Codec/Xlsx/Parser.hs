@@ -12,8 +12,6 @@ import           Control.Arrow ((&&&))
 import           Control.Monad.IO.Class()
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Lazy.Char8()
-import           Data.IntMap (IntMap)
-import qualified Data.IntMap as IM
 import           Data.List
 import qualified Data.Map as M
 import           Data.Maybe
@@ -28,6 +26,7 @@ import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types
+import           Codec.Xlsx.Types.SharedStringTable
 
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)
@@ -35,10 +34,10 @@ toXlsx :: L.ByteString -> Xlsx
 toXlsx bs = Xlsx sheets styles names
   where
     ar = Zip.toArchive bs
-    ss = getSharedStrings ar
+    sst = getSharedStrings ar
     styles = getStyles ar
     (wfs, names) = readWorkbook ar
-    sheets = M.fromList $ map (wfName &&& extractSheet ar ss) wfs
+    sheets = M.fromList $ map (wfName &&& extractSheet ar sst) wfs
 
 data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
@@ -46,10 +45,10 @@ data WorksheetFile = WorksheetFile { wfName :: Text
                    deriving Show
 
 extractSheet :: Zip.Archive
-             -> IM.IntMap Text
+             -> SharedStringTable
              -> WorksheetFile
              -> Worksheet
-extractSheet ar ss wf = Worksheet cws rowProps cells merges sheetViews pageSetup
+extractSheet ar sst wf = Worksheet cws rowProps cells merges sheetViews pageSetup
   where
     file = fromJust $ Zip.fromEntry <$> Zip.findEntryByPath (wfPath wf) ar
     cur = case parseLBS def file of
@@ -86,7 +85,7 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges sheetViews pageSetup
       let
         s = listToMaybe $ cell $| attribute "s" >=> decimal
         t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
-        d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractCellValue ss t
+        d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractCellValue sst t
       (c, r) <- T.span (>'9') <$> (cell $| attribute "r")
       return (int r, col2int c, Cell s d)
     collect = foldr collectRow (M.empty, M.empty)
@@ -101,11 +100,15 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges sheetViews pageSetup
     parseMerges = element (n"mergeCells") &/ element (n"mergeCell") >=> parseMerge
     parseMerge c = c $| attribute "ref"
 
-extractCellValue :: IntMap Text -> Text -> Text -> [CellValue]
-extractCellValue ss "s" v =
+extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
+extractCellValue sst "s" v =
     case T.decimal v of
-      Right (d, _) -> maybeToList $ fmap CellText $ IM.lookup d ss
-      _ -> []
+      Right (d, _) ->
+        case sstItem sst d of
+          StringItemText txt  -> [CellText txt]
+          StringItemRich rich -> [CellRich rich]
+      _ ->
+        []
 extractCellValue _ "str" str = [CellText str]
 extractCellValue _ "n" v =
     case T.rational v of
@@ -139,11 +142,13 @@ xmlCursor ar fname = parse <$> Zip.findEntryByPath fname ar
         Left _  -> error "could not read file"
         Right d -> fromDocument d
 
--- | Get shared strings (if there are some) into IntMap.
-getSharedStrings  :: Zip.Archive -> IM.IntMap Text
+-- | Get shared string table
+getSharedStrings  :: Zip.Archive -> SharedStringTable
 getSharedStrings x = case xmlCursor x "xl/sharedStrings.xml" of
-    Nothing  -> IM.empty
-    Just c -> parseSharedStrings c
+    Nothing ->
+      error "invalid shared strings"
+    Just c ->
+      let [sst] = fromCursor c in sst
 
 getStyles :: Zip.Archive -> Styles
 getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of

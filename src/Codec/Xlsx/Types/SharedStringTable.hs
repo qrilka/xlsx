@@ -6,25 +6,24 @@ module Codec.Xlsx.Types.SharedStringTable (
     -- * Main types
     SharedStringTable(..)
   , StringItem(..)
-  , sstParse
   , sstConstruct
   , sstLookupText
   , sstLookupRich
+  , sstItem
     -- * Lenses
     -- ** SharedStringTable
   , sharedStringTable
   ) where
 
-import           Control.Lens
+import           Control.Lens hiding (element)
 import           Control.Monad
-import           Data.IntMap (IntMap)
+
 import           Data.Maybe (mapMaybe)
 import           Data.Text (Text)
 import           Data.Vector (Vector)
 import           Numeric.Search.Range (searchFromTo)
 import           Text.XML
-import           Text.XML.Cursor (Cursor)
-import qualified Data.IntMap as IM
+import           Text.XML.Cursor
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Vector as V
@@ -93,6 +92,8 @@ instance ToDocument SharedStringTable where
              . toElement "sst"
 
 -- | See @CT_Sst@, p. 3902.
+--
+-- TODO: The @count@ and @uniqCount@ attributes are currently unsupported.
 instance ToElement SharedStringTable where
   toElement nm SharedStringTable{..} = Element {
       elementName       = nm
@@ -116,18 +117,28 @@ instance ToElement StringItem where
   Parsing
 -------------------------------------------------------------------------------}
 
--- | Parse shared string table
+-- | See @CT_Sst@, p. 3902
 --
--- TODO: This is currently a VERY limited implementation, reusing the old
--- parser for shared string tables. We lose all rich text information. Also,
--- the translation from a list to an IntMap, then back to a list and finally
--- to a vector is also unnecessary. We should just generate a list then and
--- translate directly to a vector.
-sstParse :: Cursor -> SharedStringTable
-sstParse = aux . parseSharedStrings
-  where
-    aux :: IntMap Text -> SharedStringTable
-    aux = SharedStringTable . V.fromList . map StringItemText . IM.elems
+-- The optional attributes @count@ and @uniqCount@ are being ignored at least currently
+instance FromCursor SharedStringTable where
+  fromCursor cur = do
+    let
+      items = cur $/ element (n"si") >=> fromCursor
+    return (SharedStringTable (V.fromList items))
+
+-- | See @CT_Rst@, p. 3903
+instance FromCursor StringItem where
+  fromCursor cur = do
+    let
+      ts = cur $/ element (n"t") &/ content
+      rs = cur $/ element (n"r") >=> fromCursor
+    case (ts,rs) of
+      ([t], []) ->
+        return $ StringItemText t
+      ([], _:_) ->
+        return $ StringItemRich rs
+      _ ->
+        fail "invalid item"
 
 {-------------------------------------------------------------------------------
   Extract shared strings
@@ -161,3 +172,6 @@ sstLookup SharedStringTable{_sharedStringTable = shared} si =
     case searchFromTo (\p -> shared V.! p >= si) 0 (V.length shared - 1) of
       Just i  -> i
       Nothing -> error $ "SST entry for " ++ show si ++ " not found"
+
+sstItem :: SharedStringTable -> Int -> StringItem
+sstItem SharedStringTable{_sharedStringTable = shared} = (V.!) shared

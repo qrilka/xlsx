@@ -30,14 +30,16 @@ module Codec.Xlsx.Types.RichText (
   , runPropertiesVertAlign
   ) where
 
-import Control.Lens
+import Control.Lens hiding (element)
 import Control.Monad
 import Data.Default
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import Text.XML
+import Text.XML.Cursor
 import qualified Data.Map as Map
 
+import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.StyleSheet
 import Codec.Xlsx.Writer.Internal
 
@@ -125,7 +127,7 @@ data RunProperties = RunProperties {
     -- display this run.
     --
     -- Section 18.4.5, "rFont (Font)" (p. 1724)
-  , _runPropertiesFont :: Maybe String
+  , _runPropertiesFont :: Maybe Text
 
     -- | Defines the font scheme, if any, to which this font belongs. When a
     -- font definition is part of a theme definition, then the font is
@@ -246,6 +248,37 @@ instance ToElement RunProperties where
         , elementValue "scheme"    <$> _runPropertiesScheme
         ]
     }
+
+{-------------------------------------------------------------------------------
+  Parsing
+-------------------------------------------------------------------------------}
+
+-- | See @CT_RElt@, p. 3903
+instance FromCursor RichTextRun where
+  fromCursor cur = do
+    _richTextRunText <- cur $/ element (n"t") &/ content
+    _richTextRunProperties <- maybeFromElement (n"rPr") cur
+    return RichTextRun{..}
+
+-- | See @CT_RPrElt@, p. 3903
+instance FromCursor RunProperties where
+  fromCursor cur = do
+    _runPropertiesFont          <- maybeElementValue (n"rFont") cur
+    _runPropertiesCharset       <- maybeElementValue (n"charset") cur
+    _runPropertiesFontFamily    <- maybeElementValue (n"family") cur
+    _runPropertiesBold          <- maybeElementValue (n"b") cur
+    _runPropertiesItalic        <- maybeElementValue (n"i") cur
+    _runPropertiesStrikeThrough <- maybeElementValue (n"strike") cur
+    _runPropertiesOutline       <- maybeElementValue (n"outline") cur
+    _runPropertiesShadow        <- maybeElementValue (n"shadow") cur
+    _runPropertiesCondense      <- maybeElementValue (n"condense") cur
+    _runPropertiesExtend        <- maybeElementValue (n"extend") cur
+    _runPropertiesColor         <- maybeFromElement  (n"color") cur
+    _runPropertiesSize          <- maybeElementValue (n"sz") cur
+    _runPropertiesUnderline     <- maybeElementValue (n"u") cur
+    _runPropertiesVertAlign     <- maybeElementValue (n"vertAlign") cur
+    _runPropertiesScheme        <- maybeElementValue (n"scheme") cur
+    return RunProperties{..}
 
 {-------------------------------------------------------------------------------
   Applying formatting

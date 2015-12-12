@@ -2,10 +2,11 @@
 module Main (main) where
 
 import           Control.Lens
-import qualified Data.IntMap as IM
+import           Data.ByteString.Lazy (ByteString)
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Time.Clock.POSIX (POSIXTime)
+import qualified Data.Vector as V
 import           Text.XML
 import           Text.XML.Cursor
 
@@ -17,6 +18,7 @@ import           Test.HUnit ((@=?))
 import           Test.SmallCheck.Series (Positive(..))
 
 import           Codec.Xlsx
+import           Codec.Xlsx.Types.SharedStringTable
 import           Codec.Xlsx.Parser.Internal
 
 
@@ -31,7 +33,7 @@ main = defaultMain $
     , testCase "fromRight . parseStyleSheet . renderStyleSheet == id" $
          testStyleSheet @=? fromRight (parseStyleSheet (renderStyleSheet  testStyleSheet))
     , testCase "correct shared strings parsing" $
-         testSharedStrings @=? testParseSharedStrings
+         [testSharedStringTable] @=? testParsedSharedStringTables
     ]
 
 testXlsx :: Xlsx
@@ -80,13 +82,26 @@ fromRight (Right b) = b
 testStyleSheet :: StyleSheet
 testStyleSheet = minimalStyleSheet
 
-testSharedStrings = IM.fromAscList $ zip [0..] ["plain text", "Just example"]
+testSharedStringTable :: SharedStringTable
+testSharedStringTable = SharedStringTable $ V.fromList items
+  where
+    items = [text, rich]
+    text = StringItemText "plain text"
+    rich = StringItemRich [ RichTextRun Nothing "Just "
+                          , RichTextRun (Just props) "example" ]
+    props = def & runPropertiesBold .~ Just True
+                & runPropertiesUnderline .~ Just FontUnderlineSingle
+                & runPropertiesSize .~ Just 10
+                & runPropertiesFont .~ Just "Arial"
+                & runPropertiesFontFamily .~ Just FontFamilySwiss
 
-testParseSharedStrings = parseSharedStrings $ fromDocument $ parseLBS_ def strings
-    where
-      strings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-                \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
-                \<si><t>plain text</t></si>\
-                \<si><r><t>Just </t></r><r><rPr><b val=\"true\"/><u val=\"single\"/>\
-                \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
-                \</sst>"
+testParsedSharedStringTables ::[SharedStringTable]
+testParsedSharedStringTables = fromCursor . fromDocument $ parseLBS_ def testStrings
+
+testStrings :: ByteString
+testStrings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
+  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
+  \<si><t>plain text</t></si>\
+  \<si><r><t>Just </t></r><r><rPr><b val=\"true\"/><u val=\"single\"/>\
+  \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
+  \</sst>"

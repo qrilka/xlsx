@@ -118,7 +118,9 @@ test-suite data-test
                  tasty,
                  tasty-smallcheck,
                  tasty-hunit,
-                 lens
+                 lens,
+                 bytestring,
+                 vector
   Default-Language:     Haskell2010
 
 source-repository head

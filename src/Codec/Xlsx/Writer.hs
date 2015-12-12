@@ -5,7 +5,6 @@ module Codec.Xlsx.Writer
     ( fromXlsx
     ) where
 
-import           Control.Applicative
 import qualified Codec.Archive.Zip as Zip
 import           Control.Arrow (second)
 import           Control.Lens hiding (transform)
@@ -30,6 +29,10 @@ import           Data.Time.Format (defaultTimeLocale)
 import           System.Locale (defaultTimeLocale)
 #endif
 import           Text.XML
+
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative
+#endif
 
 import           Codec.Xlsx.Types
 import           Codec.Xlsx.Types.SharedStringTable
