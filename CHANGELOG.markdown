@@ -1,3 +1,13 @@
+0.2.0
+-----
+* added style sheet support (thanks to Edsko de Vries <edsko@well-typed.com>)
+* added high level interface for styling (thanks to Edsko de Vries <edsko@well-typed.com>)
+* added sheet views support (thanks to Edsko de Vries <edsko@well-typed.com>)
+* added page setup support (thanks to Edsko de Vries <edsko@well-typed.com>)
+* switched from `System.Time` to `Data.Time`
+* added rich text support (thanks to Edsko de Vries <edsko@well-typed.com>) including shared strings
+* added a bit better internals for rendering (thanks to Edsko de Vries <edsko@well-typed.com>) and parsing
+
 0.1.2
 -----
 * added lenses to access cells both using RC and XY style coordinates, RC is used by default
