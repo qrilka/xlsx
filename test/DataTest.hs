@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
-import qualified Data.IntMap as IM
+import           Control.Lens
+import           Data.ByteString.Lazy (ByteString)
 import           Data.Map (Map)
 import qualified Data.Map as M
-import           Data.Time.Calendar
-import           Data.Time.LocalTime
-import           System.Time
+import           Data.Time.Clock.POSIX (POSIXTime)
+import qualified Data.Vector as V
 import           Text.XML
 import           Text.XML.Cursor
 
@@ -18,6 +18,7 @@ import           Test.HUnit ((@=?))
 import           Test.SmallCheck.Series (Positive(..))
 
 import           Codec.Xlsx
+import           Codec.Xlsx.Types.SharedStringTable
 import           Codec.Xlsx.Parser.Internal
 
 
@@ -29,17 +30,36 @@ main = defaultMain $
          testXlsx @=? toXlsx (fromXlsx testTime testXlsx)
     , testCase "fromRows . toRows == id" $
          testCellMap @=? fromRows (toRows testCellMap)
+    , testCase "fromRight . parseStyleSheet . renderStyleSheet == id" $
+         testStyleSheet @=? fromRight (parseStyleSheet (renderStyleSheet  testStyleSheet))
     , testCase "correct shared strings parsing" $
-         testSharedStrings @=? testParseSharedStrings
+         [testSharedStringTable] @=? testParsedSharedStringTables
     ]
 
 testXlsx :: Xlsx
-testXlsx = Xlsx sheets emptyStyles
+testXlsx = Xlsx sheets minimalStyles definedNames
   where
     sheets = M.fromList [( "List1", sheet )]
-    sheet = Worksheet cols rowProps testCellMap []
+    sheet = Worksheet cols rowProps testCellMap ranges sheetViews pageSetup
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
+    ranges = [mkRange (1,1) (1,2), mkRange (2,2) (10, 5)]
+    minimalStyles = renderStyleSheet minimalStyleSheet
+    definedNames = DefinedNames [("SampleName", Nothing, "A10:A20")]
+    sheetViews = Just [sheetView1, sheetView2]
+    sheetView1 = def & sheetViewRightToLeft .~ Just True
+                     & sheetViewTopLeftCell .~ Just "B5"
+    sheetView2 = def & sheetViewType .~ Just SheetViewTypePageBreakPreview
+                     & sheetViewWorkbookViewId .~ 5
+                     & sheetViewSelection .~ [ def & selectionActiveCell .~ Just "C2"
+                                                   & selectionPane .~ Just PaneTypeBottomRight
+                                             , def & selectionActiveCellId .~ Just 1
+                                                   & selectionSqref .~ Just ["A3:A10","B1:G3"]
+                                             ]
+    pageSetup = Just $ def & pageSetupBlackAndWhite .~ Just True
+                           & pageSetupCopies .~ Just 2
+                           & pageSetupErrors .~ Just PrintErrorsDash
+                           & pageSetupPaperSize .~ Just PaperA4
 
 testCellMap :: CellMap
 testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
@@ -53,16 +73,35 @@ testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
     cd4 = Cell{_cellValue=Nothing, _cellStyle=Nothing} -- shouldn't it be skipped?
     cd5 = cd $(CellBool True)
 
-testTime :: ClockTime
-testTime = TOD 123 567
+testTime :: POSIXTime
+testTime = 123
 
-testSharedStrings = IM.fromAscList $ zip [0..] ["plain text", "Just example"]
+fromRight :: Either a b -> b
+fromRight (Right b) = b
 
-testParseSharedStrings = parseSharedStrings $ fromDocument $ parseLBS_ def strings
-    where
-      strings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-                \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
-                \<si><t>plain text</t></si>\
-                \<si><r><t>Just </t></r><r><rPr><b val=\"true\"/><u val=\"single\"/>\
-                \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
-                \</sst>"
+testStyleSheet :: StyleSheet
+testStyleSheet = minimalStyleSheet
+
+testSharedStringTable :: SharedStringTable
+testSharedStringTable = SharedStringTable $ V.fromList items
+  where
+    items = [text, rich]
+    text = StringItemText "plain text"
+    rich = StringItemRich [ RichTextRun Nothing "Just "
+                          , RichTextRun (Just props) "example" ]
+    props = def & runPropertiesBold .~ Just True
+                & runPropertiesUnderline .~ Just FontUnderlineSingle
+                & runPropertiesSize .~ Just 10
+                & runPropertiesFont .~ Just "Arial"
+                & runPropertiesFontFamily .~ Just FontFamilySwiss
+
+testParsedSharedStringTables ::[SharedStringTable]
+testParsedSharedStringTables = fromCursor . fromDocument $ parseLBS_ def testStrings
+
+testStrings :: ByteString
+testStrings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
+  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
+  \<si><t>plain text</t></si>\
+  \<si><r><t>Just </t></r><r><rPr><b val=\"true\"/><u val=\"single\"/>\
+  \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
+  \</sst>"

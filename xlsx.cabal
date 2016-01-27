@@ -1,6 +1,6 @@
 Name:                xlsx
 
-Version:             0.1.1
+Version:             0.2.0
 
 Synopsis:            Simple and incomplete Excel file parser/writer
 Description:
@@ -11,8 +11,10 @@ Description:
     .
     Format is covered by ECMA-376 standard:
     <http://www.ecma-international.org/publications/standards/Ecma-376.htm>
+    .
+    4th edition of the standard with the transitional schema is used for this library.
 Extra-source-files:
-                     changelog
+                     CHANGELOG.markdown
 
 
 Homepage:            https://github.com/qrilka/xlsx
@@ -24,18 +26,26 @@ Maintainer:          qrilka@gmail.com
 
 Category:            Codec
 Build-type:          Simple
-
+Tested-with:         GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.2
 Cabal-version:       >=1.10
 
 
 Library
   Hs-source-dirs:    src
   Exposed-modules:   Codec.Xlsx
-                     , Codec.Xlsx.Parser
                      , Codec.Xlsx.Types
-                     , Codec.Xlsx.Writer
+                     , Codec.Xlsx.Types.Common
+                     , Codec.Xlsx.Types.SharedStringTable
+                     , Codec.Xlsx.Types.RichText
+                     , Codec.Xlsx.Types.SheetViews
+                     , Codec.Xlsx.Types.PageSetup
+                     , Codec.Xlsx.Types.StyleSheet
                      , Codec.Xlsx.Lens
+                     , Codec.Xlsx.Parser
                      , Codec.Xlsx.Parser.Internal
+                     , Codec.Xlsx.Formatted
+                     , Codec.Xlsx.Writer
+                     , Codec.Xlsx.Writer.Internal
 
   Build-depends:     base         == 4.*
                      , containers   >= 0.5.0.0
@@ -51,12 +61,22 @@ Library
                      , zlib         >= 0.5.4.0
                      , utf8-string  >= 0.3.7
                      , time         >= 1.4.0.1
-                     , old-time     >= 1.1.0.1
                      , old-locale   >= 1.0.0.5
                      , data-default == 0.5.*
                      , vector       >= 0.10
+                     , mtl          >= 2.1
                      , binary-search
   Default-Language:     Haskell2010
+  Other-Extensions:  CPP
+                     DeriveDataTypeable
+                     FlexibleInstances
+                     NoMonomorphismRestriction
+                     OverloadedStrings
+                     RankNTypes
+                     RecordWildCards
+                     TemplateHaskell
+                     TupleSections
+
 
 
 Executable           test
@@ -78,7 +98,6 @@ Executable           test
                      , zlib
                      , utf8-string
                      , time
-                     , old-time
                      , old-locale
                      , data-default == 0.5.*
                      , vector       >= 0.10
@@ -92,14 +111,16 @@ test-suite data-test
   Build-Depends: base,
                  containers,
                  time,
-                 old-time,
                  xlsx,
                  xml-conduit >= 1.1.0,
                  smallcheck,
                  HUnit,
                  tasty,
                  tasty-smallcheck,
-                 tasty-hunit
+                 tasty-hunit,
+                 lens,
+                 bytestring,
+                 vector
   Default-Language:     Haskell2010
 
 source-repository head

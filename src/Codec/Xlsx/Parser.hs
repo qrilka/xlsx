@@ -9,12 +9,9 @@ module Codec.Xlsx.Parser
 import qualified Codec.Archive.Zip as Zip
 import           Control.Applicative
 import           Control.Arrow ((&&&))
-import           Control.Monad (liftM4)
 import           Control.Monad.IO.Class()
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Lazy.Char8()
-import           Data.IntMap (IntMap)
-import qualified Data.IntMap as IM
 import           Data.List
 import qualified Data.Map as M
 import           Data.Maybe
@@ -29,50 +26,46 @@ import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types
+import           Codec.Xlsx.Types.SharedStringTable
 
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)
 toXlsx :: L.ByteString -> Xlsx
-toXlsx bs = Xlsx sheets styles
+toXlsx bs = Xlsx sheets styles names
   where
     ar = Zip.toArchive bs
-    ss = getSharedStrings ar
+    sst = getSharedStrings ar
     styles = getStyles ar
-    wfs = getWorksheetFiles ar
-    sheets = M.fromList $ map (wfName &&& extractSheet ar ss) wfs
+    (wfs, names) = readWorkbook ar
+    sheets = M.fromList $ map (wfName &&& extractSheet ar sst) wfs
 
 data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
                                    }
                    deriving Show
 
-decimal :: Monad m => Text -> m Int
-decimal t = case T.decimal t of
-  Right (d, _) -> return d
-  _ -> fail "invalid decimal"
-
-rational :: Monad m => Text -> m Double
-rational t = case T.rational t of
-  Right (r, _) -> return r
-  _ -> fail "invalid rational"
-
 extractSheet :: Zip.Archive
-             -> IM.IntMap Text
+             -> SharedStringTable
              -> WorksheetFile
              -> Worksheet
-extractSheet ar ss wf = Worksheet cws rowProps cells merges
+extractSheet ar sst wf = Worksheet cws rowProps cells merges sheetViews pageSetup
   where
     file = fromJust $ Zip.fromEntry <$> Zip.findEntryByPath (wfPath wf) ar
     cur = case parseLBS def file of
       Left _  -> error "could not read file"
       Right d -> fromDocument d
 
-    cws = cur $/ element (n"cols") &/ element (n"col") >=>
-                 liftM4 ColumnsWidth <$>
-                 (attribute "min"   >=> decimal)  <*>
-                 (attribute "max"   >=> decimal)  <*>
-                 (attribute "width" >=> rational) <*>
-                 (attribute "style" >=> decimal)
+    -- The specification says the file should contain either 0 or 1 @sheetViews@
+    -- (4th edition, section 18.3.1.88, p. 1704 and definition CT_Worksheet, p. 3910)
+    sheetViewList = cur $/ element (n"sheetViews") &/ element (n"sheetView") >=> fromCursor
+    sheetViews = case sheetViewList of
+      [] -> Nothing
+      views -> Just views
+
+    -- Likewise, @pageSetup@ also occurs either 0 or 1 times
+    pageSetup = listToMaybe $ cur $/ element (n"pageSetup") >=> fromCursor
+
+    cws = cur $/ element (n"cols") &/ element (n"col") >=> fromCursor
 
     (rowProps, cells) = collect $ cur $/ element (n"sheetData") &/ element (n"row") >=> parseRow
     parseRow c = do
@@ -92,7 +85,7 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges
       let
         s = listToMaybe $ cell $| attribute "s" >=> decimal
         t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
-        d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractCellValue ss t
+        d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractCellValue sst t
       (c, r) <- T.span (>'9') <$> (cell $| attribute "r")
       return (int r, col2int c, Cell s d)
     collect = foldr collectRow (M.empty, M.empty)
@@ -107,11 +100,15 @@ extractSheet ar ss wf = Worksheet cws rowProps cells merges
     parseMerges = element (n"mergeCells") &/ element (n"mergeCell") >=> parseMerge
     parseMerge c = c $| attribute "ref"
 
-extractCellValue :: IntMap Text -> Text -> Text -> [CellValue]
-extractCellValue ss "s" v =
+extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
+extractCellValue sst "s" v =
     case T.decimal v of
-      Right (d, _) -> maybeToList $ fmap CellText $ IM.lookup d ss
-      _ -> []
+      Right (d, _) ->
+        case sstItem sst d of
+          StringItemText txt  -> [CellText txt]
+          StringItemRich rich -> [CellRich rich]
+      _ ->
+        []
 extractCellValue _ "str" str = [CellText str]
 extractCellValue _ "n" v =
     case T.rational v of
@@ -145,20 +142,22 @@ xmlCursor ar fname = parse <$> Zip.findEntryByPath fname ar
         Left _  -> error "could not read file"
         Right d -> fromDocument d
 
--- | Get shared strings (if there are some) into IntMap.
-getSharedStrings  :: Zip.Archive -> IM.IntMap Text
+-- | Get shared string table
+getSharedStrings  :: Zip.Archive -> SharedStringTable
 getSharedStrings x = case xmlCursor x "xl/sharedStrings.xml" of
-    Nothing  -> IM.empty
-    Just c -> parseSharedStrings c
+    Nothing ->
+      error "invalid shared strings"
+    Just c ->
+      let [sst] = fromCursor c in sst
 
 getStyles :: Zip.Archive -> Styles
 getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Nothing  -> Styles L.empty
   Just xml -> Styles xml
 
--- | getWorksheetFiles pulls the names of the sheets
-getWorksheetFiles :: Zip.Archive -> [WorksheetFile]
-getWorksheetFiles ar = case xmlCursor ar "xl/workbook.xml" of
+-- | readWorkbook pulls the names of the sheets and the defined names
+readWorkbook :: Zip.Archive -> ([WorksheetFile], DefinedNames)
+readWorkbook ar = case xmlCursor ar "xl/workbook.xml" of
   Nothing ->
     error "invalid workbook"
   Just c ->
@@ -166,7 +165,16 @@ getWorksheetFiles ar = case xmlCursor ar "xl/workbook.xml" of
         sheetData = c $/ element (n"sheets") &/ element (n"sheet") >=>
                     liftA2 (,) <$> attribute "name" <*> attribute (odr"id")
         wbRels = getWbRels ar
-    in [WorksheetFile name ("xl/" ++ T.unpack (fromJust $ lookup rId wbRels)) | (name, rId) <- sheetData]
+        names = c $/ element (n"definedNames") &/ element (n"definedName") >=> mkDefinedName
+    in ([WorksheetFile name ("xl/" ++ T.unpack (fromJust $ lookup rId wbRels)) | (name, rId) <- sheetData]
+       ,DefinedNames names)
+ where
+  -- Specification says the 'name' is required.
+  mkDefinedName :: Cursor -> [(Text, Maybe Text, Text)]
+  mkDefinedName c = return ( head $ attribute "name" c
+                           , listToMaybe $ attribute "localSheetId" c
+                           , T.concat $ c $/ content
+                           )
 
 getWbRels :: Zip.Archive -> [(Text, Text)]
 getWbRels ar = case xmlCursor ar "xl/_rels/workbook.xml.rels" of

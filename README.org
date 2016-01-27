@@ -1,2 +1,0 @@
-* About
-Simple xlsx parser/writer, only basic functionality at the moment

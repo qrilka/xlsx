@@ -1,6 +1,0 @@
-* OPC
-  extract functionality for Open Packaging Conventions to use for other type of files (docx etc.)
-* XLSB
-  support for XLSB file format (?)
-* Styling
-  proper styling support
