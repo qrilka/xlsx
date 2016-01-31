@@ -17,6 +17,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , Fill(..)
   , FillPattern(..)
   , Font(..)
+  , NumberFormat(..), numberFormatId
   , Protection(..)
     -- * Supporting enumerations
   , CellHorizontalAlignment(..)
@@ -552,6 +553,70 @@ data Font = Font {
   , _fontVertAlign :: Maybe FontVerticalAlignment
   }
   deriving (Show, Eq, Ord)
+
+-- Section 18.2.30 "font (Font)" (p. 1777)
+-- Note: This only implements the predefined values for 18.2.30 "All Languages",
+--       not the extended languages or custom ones from 18.2.31
+data NumberFormat =
+    NfGeneral                         -- ^> 0 General
+  | NfZero                            -- ^> 1 0
+  | Nf2Decimal                        -- ^> 2 0.00
+  | NfMax3Decimal                     -- ^> 3 #,##0
+  | NfThousandSeparator2Decimal       -- ^> 4 #,##0.00
+  | NfPercent                         -- ^> 9 0%
+  | NfPercent2Decimal                 -- ^> 10 0.00%
+  | NfExponent2Decimal                -- ^> 11 0.00E+00
+  | NfSingleSpacedFraction            -- ^> 12 # ?/?
+  | NfDoubleSpacedFraction            -- ^> 13 # ??/??
+  | NfMmDdYy                          -- ^> 14 mm-dd-yy
+  | NfDMmmYy                          -- ^> 15 d-mmm-yy
+  | NfDMmm                            -- ^> 16 d-mmm
+  | NfMmmYy                           -- ^> 17 mmm-yy
+  | NfHMm12Hr                         -- ^> 18 h:mm AM/PM
+  | NfHMmSs12Hr                       -- ^> 19 h:mm:ss AM/PM
+  | NfHMm                             -- ^> 20 h:mm
+  | NfHMmSs                           -- ^> 21 h:mm:ss
+  | NfMdyHMm                          -- ^> 22 m/d/yy h:mm
+  | NfThousandsNegativeParens         -- ^> 37 #,##0 ;(#,##0)
+  | NfThousandsNegativeRed            -- ^> 38 #,##0 ;[Red](#,##0)
+  | NfThousands2DecimalNegativeParens -- ^> 39 #,##0.00;(#,##0.00)
+  | NfTousands2DecimalNEgativeRed     -- ^> 40 #,##0.00;[Red](#,##0.00)
+  | NfMmSs                            -- ^> 45 mm:ss
+  | NfOptHMmSs                        -- ^> 46 [h]:mm:ss
+  | NfMmSs1Decimal                    -- ^> 47 mmss.0
+  | NfExponent1Decimal                -- ^> 48 ##0.0E+0
+  | NfTextPlaceHolder                 -- ^> 49 @
+  deriving (Show, Eq, Ord)
+
+numberFormatId :: NumberFormat -> Int
+numberFormatId NfGeneral                         = 0 -- General
+numberFormatId NfZero                            = 1 -- 0
+numberFormatId Nf2Decimal                        = 2 -- 0.00
+numberFormatId NfMax3Decimal                     = 3 -- #,##0
+numberFormatId NfThousandSeparator2Decimal       = 4 -- #,##0.00
+numberFormatId NfPercent                         = 9 -- 0%
+numberFormatId NfPercent2Decimal                 = 10 -- 0.00%
+numberFormatId NfExponent2Decimal                = 11 -- 0.00E+00
+numberFormatId NfSingleSpacedFraction            = 12 -- # ?/?
+numberFormatId NfDoubleSpacedFraction            = 13 -- # ??/??
+numberFormatId NfMmDdYy                          = 14 -- mm-dd-yy
+numberFormatId NfDMmmYy                          = 15 -- d-mmm-yy
+numberFormatId NfDMmm                            = 16 -- d-mmm
+numberFormatId NfMmmYy                           = 17 -- mmm-yy
+numberFormatId NfHMm12Hr                         = 18 -- h:mm AM/PM
+numberFormatId NfHMmSs12Hr                       = 19 -- h:mm:ss AM/PM
+numberFormatId NfHMm                             = 20 -- h:mm
+numberFormatId NfHMmSs                           = 21 -- h:mm:ss
+numberFormatId NfMdyHMm                          = 22 -- m/d/yy h:mm
+numberFormatId NfThousandsNegativeParens         = 37 -- #,##0 ;(#,##0)
+numberFormatId NfThousandsNegativeRed            = 38 -- #,##0 ;[Red](#,##0)
+numberFormatId NfThousands2DecimalNegativeParens = 39 -- #,##0.00;(#,##0.00)
+numberFormatId NfTousands2DecimalNEgativeRed     = 40 -- #,##0.00;[Red](#,##0.00)
+numberFormatId NfMmSs                            = 45 -- mm:ss
+numberFormatId NfOptHMmSs                        = 46 -- [h]:mm:ss
+numberFormatId NfMmSs1Decimal                    = 47 -- mmss.0
+numberFormatId NfExponent1Decimal                = 48 -- ##0.0E+0
+numberFormatId NfTextPlaceHolder                 = 49 -- @
 
 -- | Protection properties
 --
