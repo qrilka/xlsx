@@ -1,3 +1,8 @@
+0.2.1
+-------
+* added number formats (thanks to Alan Zimmerman <alan.zimm@gmail.com>)
+* loosened dependency on zip-archive package
+
 0.2.0
 -----
 * added style sheet support (thanks to Edsko de Vries <edsko@well-typed.com>)
