@@ -56,7 +56,7 @@ Library
                      , conduit      >= 1.0.0
                      , xml-types    == 0.3.*
                      , xml-conduit  >= 1.1.0
-                     , zip-archive  == 0.2.*
+                     , zip-archive  >= 0.2
                      , digest       == 0.0.*
                      , zlib         >= 0.5.4.0
                      , utf8-string  >= 0.3.7
