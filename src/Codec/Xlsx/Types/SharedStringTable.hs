@@ -130,7 +130,8 @@ instance FromCursor SharedStringTable where
 instance FromCursor StringItem where
   fromCursor cur = do
     let
-      ts = cur $/ element (n"t") &/ content
+      tcs = cur $/ element (n"t")
+      ts = map getFirstText tcs
       rs = cur $/ element (n"r") >=> fromCursor
     case (ts,rs) of
       ([t], []) ->
@@ -139,6 +140,13 @@ instance FromCursor StringItem where
         return $ StringItemRich rs
       _ ->
         fail "invalid item"
+    where
+      getFirstText :: Cursor -> Text
+      getFirstText c =
+          case c $/ content of
+               [t] -> t
+               []  -> ""
+               _   -> error "invalid item: more than one text nodes under <t>!"
 
 {-------------------------------------------------------------------------------
   Extract shared strings
