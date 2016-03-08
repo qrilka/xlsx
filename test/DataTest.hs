@@ -34,6 +34,8 @@ main = defaultMain $
          testStyleSheet @=? fromRight (parseStyleSheet (renderStyleSheet  testStyleSheet))
     , testCase "correct shared strings parsing" $
          [testSharedStringTable] @=? testParsedSharedStringTables
+    , testCase "correct shared strings parsing even when one of the shared strings entry is just <t/>" $
+         [testSharedStringTableWithEmpty] @=? testParsedSharedStringTablesWithEmpty
     ]
 
 testXlsx :: Xlsx
@@ -87,6 +89,7 @@ testSharedStringTable = SharedStringTable $ V.fromList items
   where
     items = [text, rich]
     text = StringItemText "plain text"
+    empty = StringItemText ""
     rich = StringItemRich [ RichTextRun Nothing "Just "
                           , RichTextRun (Just props) "example" ]
     props = def & runPropertiesBold .~ Just True
@@ -95,8 +98,15 @@ testSharedStringTable = SharedStringTable $ V.fromList items
                 & runPropertiesFont .~ Just "Arial"
                 & runPropertiesFontFamily .~ Just FontFamilySwiss
 
+testSharedStringTableWithEmpty :: SharedStringTable
+testSharedStringTableWithEmpty =
+  SharedStringTable $ V.fromList [StringItemText ""]
+
 testParsedSharedStringTables ::[SharedStringTable]
 testParsedSharedStringTables = fromCursor . fromDocument $ parseLBS_ def testStrings
+
+testParsedSharedStringTablesWithEmpty :: [SharedStringTable]
+testParsedSharedStringTablesWithEmpty = fromCursor . fromDocument $ parseLBS_ def testStringsWithEmpty
 
 testStrings :: ByteString
 testStrings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
@@ -104,4 +114,10 @@ testStrings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
   \<si><t>plain text</t></si>\
   \<si><r><t>Just </t></r><r><rPr><b val=\"true\"/><u val=\"single\"/>\
   \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
+  \</sst>"
+
+testStringsWithEmpty :: ByteString
+testStringsWithEmpty = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
+  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
+  \<si><t/></si>\
   \</sst>"

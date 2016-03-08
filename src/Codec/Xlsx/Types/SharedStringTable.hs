@@ -130,7 +130,11 @@ instance FromCursor SharedStringTable where
 instance FromCursor StringItem where
   fromCursor cur = do
     let
-      ts = cur $/ element (n"t") &/ content
+      ts = cur $/ element (n"t") >=> contentOrEmpty
+      contentOrEmpty c = case c $/ content of
+        [t] -> [t]
+        []  -> [""]
+        _   -> error "invalid item: more than one text nodes under <t>!"
       rs = cur $/ element (n"r") >=> fromCursor
     case (ts,rs) of
       ([t], []) ->
