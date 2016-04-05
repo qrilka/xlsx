@@ -1,3 +1,7 @@
+0.2.1.1
+-------
+* fixed parsing shared string table entries with no content (thanks to Yuji Yamamoto <whosekiteneverfly@gmail.com>)
+
 0.2.1
 -------
 * added number formats (thanks to Alan Zimmerman <alan.zimm@gmail.com>)
