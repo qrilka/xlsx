@@ -1,3 +1,7 @@
+0.2.1.2
+-------
+* loosened dependency on data-default package
+
 0.2.1.1
 -------
 * fixed parsing shared string table entries with no content (thanks to Yuji Yamamoto <whosekiteneverfly@gmail.com>)
