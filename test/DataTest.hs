@@ -88,10 +88,10 @@ testSharedStringTable :: SharedStringTable
 testSharedStringTable = SharedStringTable $ V.fromList items
   where
     items = [text, rich]
-    text = StringItemText "plain text"
-    empty = StringItemText ""
-    rich = StringItemRich [ RichTextRun Nothing "Just "
-                          , RichTextRun (Just props) "example" ]
+    text = XlsxText "plain text"
+    empty = XlsxText ""
+    rich = XlsxRichText [ RichTextRun Nothing "Just "
+                        , RichTextRun (Just props) "example" ]
     props = def & runPropertiesBold .~ Just True
                 & runPropertiesUnderline .~ Just FontUnderlineSingle
                 & runPropertiesSize .~ Just 10
@@ -100,7 +100,7 @@ testSharedStringTable = SharedStringTable $ V.fromList items
 
 testSharedStringTableWithEmpty :: SharedStringTable
 testSharedStringTableWithEmpty =
-  SharedStringTable $ V.fromList [StringItemText ""]
+  SharedStringTable $ V.fromList [XlsxText ""]
 
 testParsedSharedStringTables ::[SharedStringTable]
 testParsedSharedStringTables = fromCursor . fromDocument $ parseLBS_ def testStrings

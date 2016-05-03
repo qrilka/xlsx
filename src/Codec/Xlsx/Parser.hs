@@ -105,8 +105,8 @@ extractCellValue sst "s" v =
     case T.decimal v of
       Right (d, _) ->
         case sstItem sst d of
-          StringItemText txt  -> [CellText txt]
-          StringItemRich rich -> [CellRich rich]
+          XlsxText     txt  -> [CellText txt]
+          XlsxRichText rich -> [CellRich rich]
       _ ->
         []
 extractCellValue _ "str" str = [CellText str]
