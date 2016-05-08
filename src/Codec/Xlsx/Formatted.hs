@@ -191,7 +191,7 @@ formatCell (row, col) cell = do
     go :: ((Int, Int), FormattedCell) -> State FormattingState ((Int, Int), Cell)
     go (pos, c) = do
       styleId <- cellStyleId c
-      return (pos, Cell styleId (_formattedValue c))
+      return (pos, Cell styleId (_formattedValue c) Nothing)
 
 -- | Cell block corresponding to a single 'FormattedCell'
 --

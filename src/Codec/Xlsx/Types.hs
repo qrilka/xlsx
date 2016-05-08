@@ -15,7 +15,7 @@ module Codec.Xlsx.Types
     , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges, wsSheetViews, wsPageSetup
     , CellMap
     , CellValue(..)
-    , Cell(..), cellValue, cellStyle
+    , Cell(..), cellValue, cellStyle, cellComment
     , RowProperties (..)
     , Range
     , int2col
@@ -47,6 +47,7 @@ import           Codec.Xlsx.Types.PageSetup as X
 import           Codec.Xlsx.Types.RichText as X
 import           Codec.Xlsx.Types.SheetViews as X
 import           Codec.Xlsx.Types.StyleSheet as X
+import           Codec.Xlsx.Types.Comments as X
 import           Codec.Xlsx.Writer.Internal
 
 -- | Cell values include text, numbers and booleans,
@@ -63,14 +64,15 @@ data CellValue = CellText   Text
 -- (e.g. formulas from @\<f\>@ and inline strings from @\<is\>@
 -- subelements are ignored)
 data Cell = Cell
-    { _cellStyle  :: Maybe Int
-    , _cellValue  :: Maybe CellValue
+    { _cellStyle   :: Maybe Int
+    , _cellValue   :: Maybe CellValue
+    , _cellComment :: Maybe  Comment
     } deriving (Eq, Show)
 
 makeLenses ''Cell
 
 instance Default Cell where
-    def = Cell Nothing Nothing
+    def = Cell Nothing Nothing Nothing
 
 -- | Map containing cell values which are indexed by row and column
 -- if you need to use more traditional (x,y) indexing please you could
