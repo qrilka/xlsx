@@ -53,15 +53,15 @@ makeLenses ''FormattingState
 
 stateFromStyleSheet :: StyleSheet -> FormattingState
 stateFromStyleSheet StyleSheet{..} = FormattingState{
-      _formattingBorders = fromList _styleSheetBorders
-    , _formattingCellXfs = fromList _styleSheetCellXfs
-    , _formattingFills   = fromList _styleSheetFills
-    , _formattingFonts   = fromList _styleSheetFonts
+      _formattingBorders = fromValueList _styleSheetBorders
+    , _formattingCellXfs = fromValueList _styleSheetCellXfs
+    , _formattingFills   = fromValueList _styleSheetFills
+    , _formattingFonts   = fromValueList _styleSheetFonts
     , _formattingMerges  = []
     }
   where
-    fromList :: Ord a => [a] -> Map a Int
-    fromList = Map.fromList . (`zip` [0..])
+    fromValueList :: Ord a => [a] -> Map a Int
+    fromValueList = Map.fromList . (`zip` [0..])
 
 stateToStyleSheet :: FormattingState -> StyleSheet
 stateToStyleSheet FormattingState{..} = StyleSheet{
@@ -191,7 +191,7 @@ formatCell (row, col) cell = do
     go :: ((Int, Int), FormattedCell) -> State FormattingState ((Int, Int), Cell)
     go (pos, c) = do
       styleId <- cellStyleId c
-      return (pos, Cell styleId (_formattedValue c))
+      return (pos, Cell styleId (_formattedValue c) Nothing)
 
 -- | Cell block corresponding to a single 'FormattedCell'
 --

@@ -9,8 +9,10 @@ module Codec.Xlsx.Writer.Internal (
   , documentFromElement
     -- * Rendering elements
   , ToElement(..)
-  , elementList
+  , countedElementList
+  , elementListSimple
   , elementContent
+  , elementContentPreserved
   , elementValue
     -- * Rendering attributes
   , ToAttrVal(..)
@@ -51,19 +53,31 @@ documentFromElement comment e = Document {
 class ToElement a where
   toElement :: Name -> a -> Element
 
-elementList :: Name -> [Element] -> Element
-elementList nm as = Element {
+countedElementList :: Name -> [Element] -> Element
+countedElementList nm as = elementList0 nm as [ "count" .= length as ]
+
+elementList0 :: Name -> [Element] -> [(Name, Text)] -> Element
+elementList0 nm els attrs = Element {
       elementName       = nm
-    , elementNodes      = map NodeElement as
-    , elementAttributes = Map.fromList [ "count" .= length as ]
+    , elementNodes      = map NodeElement els
+    , elementAttributes = Map.fromList attrs
+    }
+
+elementListSimple :: Name -> [Element] -> Element
+elementListSimple nm els = elementList0 nm els []
+
+elementContent0 :: Name -> [(Name, Text)] -> Text -> Element
+elementContent0 nm attrs txt = Element {
+      elementName       = nm
+    , elementAttributes = Map.fromList attrs
+    , elementNodes      = [NodeContent txt]
     }
 
 elementContent :: Name -> Text -> Element
-elementContent nm txt = Element {
-      elementName       = nm
-    , elementAttributes = Map.fromList [ preserveSpace ]
-    , elementNodes      = [NodeContent txt]
-    }
+elementContent nm txt = elementContent0 nm [] txt
+
+elementContentPreserved :: Name -> Text -> Element
+elementContentPreserved nm txt = elementContent0 nm [ preserveSpace ] txt
   where
     preserveSpace = (
         Name { nameLocalName = "space"

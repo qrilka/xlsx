@@ -963,11 +963,11 @@ instance ToElement StyleSheet where
     , elementAttributes = Map.empty
     , elementNodes      = map NodeElement $ [
          -- TODO: numFmts
-         elementList "fonts"   $ map (toElement "font")   _styleSheetFonts
-       , elementList "fills"   $ map (toElement "fill")   _styleSheetFills
-       , elementList "borders" $ map (toElement "border") _styleSheetBorders
+         countedElementList "fonts"   $ map (toElement "font")   _styleSheetFonts
+       , countedElementList "fills"   $ map (toElement "fill")   _styleSheetFills
+       , countedElementList "borders" $ map (toElement "border") _styleSheetBorders
          -- TODO: cellStyleXfs
-       , elementList "cellXfs" $ map (toElement "xf")     _styleSheetCellXfs
+       , countedElementList "cellXfs" $ map (toElement "xf")     _styleSheetCellXfs
          -- TODO: cellStyles
          -- TODO: dxfs
          -- TODO: tableStyles

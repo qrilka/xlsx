@@ -33,39 +33,45 @@ Cabal-version:       >=1.10
 Library
   Hs-source-dirs:    src
   Exposed-modules:   Codec.Xlsx
-                     , Codec.Xlsx.Types
-                     , Codec.Xlsx.Types.Common
-                     , Codec.Xlsx.Types.SharedStringTable
-                     , Codec.Xlsx.Types.RichText
-                     , Codec.Xlsx.Types.SheetViews
-                     , Codec.Xlsx.Types.PageSetup
-                     , Codec.Xlsx.Types.StyleSheet
-                     , Codec.Xlsx.Lens
-                     , Codec.Xlsx.Parser
-                     , Codec.Xlsx.Parser.Internal
-                     , Codec.Xlsx.Formatted
-                     , Codec.Xlsx.Writer
-                     , Codec.Xlsx.Writer.Internal
+                   , Codec.Xlsx.Types
+                   , Codec.Xlsx.Types.Comments
+                   , Codec.Xlsx.Types.Common
+                   , Codec.Xlsx.Types.SharedStringTable
+                   , Codec.Xlsx.Types.RichText
+                   , Codec.Xlsx.Types.SheetViews
+                   , Codec.Xlsx.Types.PageSetup
+                   , Codec.Xlsx.Types.StyleSheet
+                   , Codec.Xlsx.Lens
+                   , Codec.Xlsx.Parser
+                   , Codec.Xlsx.Parser.Internal
+                   , Codec.Xlsx.Formatted
+                   , Codec.Xlsx.Writer
+                   , Codec.Xlsx.Writer.Internal
 
   Build-depends:     base         == 4.*
-                     , containers   >= 0.5.0.0
-                     , transformers >= 0.3.0.0
-                     , bytestring   >= 0.10.0.2
-                     , text         >= 0.11.3.1
-                     , lens         >= 3.8 && < 5
-                     , conduit      >= 1.0.0
-                     , xml-types    == 0.3.*
-                     , xml-conduit  >= 1.1.0
-                     , zip-archive  >= 0.2
-                     , digest       == 0.0.*
-                     , zlib         >= 0.5.4.0
-                     , utf8-string  >= 0.3.7
-                     , time         >= 1.4.0.1
-                     , old-locale   >= 1.0.0.5
-                     , data-default
-                     , vector       >= 0.10
-                     , mtl          >= 2.1
-                     , binary-search
+                   , binary-search
+                   , bytestring   >= 0.10.0.2
+                   , conduit      >= 1.0.0
+                   , containers   >= 0.5.0.0
+                   , data-default
+                   , digest       == 0.0.*
+                   , extra
+                   , filepath
+                   , lens         >= 3.8 && < 5
+                   , mtl          >= 2.1
+                   , network-uri
+                   , old-locale   >= 1.0.0.5
+                   , safe         >= 0.3
+                   , text         >= 0.11.3.1
+                   , time         >= 1.4.0.1
+                   , transformers >= 0.3.0.0
+                   , unordered-containers
+                   , utf8-string  >= 0.3.7
+                   , vector       >= 0.10
+                   , xml-conduit  >= 1.1.0
+                   , xml-types    == 0.3.*
+                   , zip-archive  >= 0.2
+                   , zlib         >= 0.5.4.0
   Default-Language:     Haskell2010
   Other-Extensions:  CPP
                      DeriveDataTypeable
@@ -88,39 +94,50 @@ Executable           test
 
   main-is:           Test.hs
 
-  Build-depends:     base, containers, transformers, bytestring, text
-                     , conduit     >= 1.0.0
-                     , xml-types   == 0.3.*
-                     , xml-conduit >= 1.1.0
-                     , zip-archive >= 0.2
-                     , lens        >= 3.8 && < 5
-                     , digest      >  0.0.0.1
-                     , zlib
-                     , utf8-string
-                     , time
-                     , old-locale
-                     , data-default
-                     , vector       >= 0.10
-                     , binary-search
+  Build-depends:     base
+                   , binary-search
+                   , bytestring
+                   , conduit     >= 1.0.0
+                   , containers
+                   , data-default
+                   , digest      >  0.0.0.1
+                   , extra
+                   , filepath
+                   , lens        >= 3.8 && < 5
+                   , network-uri
+                   , old-locale
+                   , safe
+                   , text
+                   , time
+                   , transformers
+                   , unordered-containers
+                   , utf8-string
+                   , vector       >= 0.10
+                   , xml-conduit >= 1.1.0
+                   , xml-types   == 0.3.*
+                   , zip-archive >= 0.2
+                   , zlib
   Default-Language:     Haskell2010
 
 test-suite data-test
   type: exitcode-stdio-1.0
   main-is:  DataTest.hs
   hs-source-dirs: test/
-  Build-Depends: base,
-                 containers,
-                 time,
-                 xlsx,
-                 xml-conduit >= 1.1.0,
-                 smallcheck,
-                 HUnit,
-                 tasty,
-                 tasty-smallcheck,
-                 tasty-hunit,
-                 lens,
-                 bytestring,
-                 vector
+  Build-Depends: base
+               , containers
+               , time
+               , xlsx
+               , xml-conduit >= 1.1.0
+               , smallcheck
+               , HUnit
+               , tasty
+               , tasty-smallcheck
+               , tasty-hunit
+               , lens
+               , bytestring
+               , vector
+               , raw-strings-qq
+               , unordered-containers
   Default-Language:     Haskell2010
 
 source-repository head
