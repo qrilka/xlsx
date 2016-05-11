@@ -1,9 +1,16 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Codec.Xlsx.Types.Comments where
 
+import Data.List.Extra (nubOrd)
+import qualified Data.Map                   as Map
 import qualified Data.HashMap.Strict        as HM
 import           Data.Text                  (Text)
+import           Data.Text.Lazy (toStrict)
+import qualified Data.Text.Lazy.Builder  as B
+import qualified Data.Text.Lazy.Builder.Int as B
 import           Safe
+import           Text.XML
 import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
@@ -21,9 +28,12 @@ data Comment = Comment {
     , _commentAuthor :: Text }
     deriving (Show, Eq)
 
-data CommentsTable = CommentsTable
+newtype CommentsTable = CommentsTable
     { _commentsTable :: HM.HashMap CellRef Comment }
     deriving (Show, Eq)
+
+fromList :: [(CellRef, Comment)] -> CommentsTable
+fromList = CommentsTable . HM.fromList
 
 lookupComment :: CellRef -> CommentsTable -> Maybe Comment
 lookupComment ref = HM.lookup ref . _commentsTable
@@ -33,7 +43,25 @@ instance ToDocument CommentsTable where
              . toElement "comments"
 
 instance ToElement CommentsTable where
-  toElement = undefined
+  toElement nm (CommentsTable m) = Element
+      { elementName       = nm
+      , elementAttributes = Map.empty
+      , elementNodes      = [ NodeElement $ elementListSimple "authors" authorNodes
+                            , NodeElement . elementListSimple "commentList" $ map commentToEl (HM.toList m) ]
+      }
+    where
+      commentToEl (ref, Comment{..}) = Element
+          { elementName = "comment"
+          , elementAttributes = Map.fromList [ ("ref", ref)
+                                             , ("authorId", lookupAuthor _commentAuthor)]
+          , elementNodes      = [NodeElement $ toElement "text" _commentText]
+          }
+      lookupAuthor a = fromJustNote "author lookup" $ HM.lookup a authorIds
+      authorNames = nubOrd . map _commentAuthor $ HM.elems m
+      decimalToText :: Integer -> Text
+      decimalToText = toStrict . B.toLazyText . B.decimal
+      authorIds = HM.fromList $ zip authorNames (map decimalToText [0..])
+      authorNodes = map (elementContent "author") authorNames
 
 instance FromCursor CommentsTable where
   fromCursor cur = do

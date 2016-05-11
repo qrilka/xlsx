@@ -55,10 +55,13 @@ Library
                    , containers   >= 0.5.0.0
                    , data-default
                    , digest       == 0.0.*
+                   , extra
                    , filepath
                    , lens         >= 3.8 && < 5
                    , mtl          >= 2.1
+                   , network-uri
                    , old-locale   >= 1.0.0.5
+                   , safe         >= 0.3
                    , text         >= 0.11.3.1
                    , time         >= 1.4.0.1
                    , transformers >= 0.3.0.0
@@ -69,9 +72,6 @@ Library
                    , xml-types    == 0.3.*
                    , zip-archive  >= 0.2
                    , zlib         >= 0.5.4.0
-                   , safe         >= 0.3
-                   , filepath
-                   , network-uri
   Default-Language:     Haskell2010
   Other-Extensions:  CPP
                      DeriveDataTypeable
@@ -94,24 +94,29 @@ Executable           test
 
   main-is:           Test.hs
 
-  Build-depends:     base, containers, transformers, bytestring, text
-                   , conduit     >= 1.0.0
-                   , xml-types   == 0.3.*
-                   , xml-conduit >= 1.1.0
-                   , zip-archive >= 0.2
-                   , lens        >= 3.8 && < 5
-                   , digest      >  0.0.0.1
-                   , zlib
-                   , utf8-string
-                   , time
-                   , old-locale
-                   , data-default
-                   , vector       >= 0.10
+  Build-depends:     base
                    , binary-search
-                   , safe
-                   , unordered-containers
+                   , bytestring
+                   , conduit     >= 1.0.0
+                   , containers
+                   , data-default
+                   , digest      >  0.0.0.1
+                   , extra
                    , filepath
+                   , lens        >= 3.8 && < 5
                    , network-uri
+                   , old-locale
+                   , safe
+                   , text
+                   , time
+                   , transformers
+                   , unordered-containers
+                   , utf8-string
+                   , vector       >= 0.10
+                   , xml-conduit >= 1.1.0
+                   , xml-types   == 0.3.*
+                   , zip-archive >= 0.2
+                   , zlib
   Default-Language:     Haskell2010
 
 test-suite data-test

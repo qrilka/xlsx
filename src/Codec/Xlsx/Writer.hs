@@ -35,6 +35,7 @@ import           Control.Applicative
 #endif
 
 import           Codec.Xlsx.Types
+import qualified Codec.Xlsx.Types.Comments as Comments
 import           Codec.Xlsx.Types.SharedStringTable
 import           Codec.Xlsx.Writer.Internal
 
@@ -62,19 +63,46 @@ fromXlsx pt xlsx =
         "application/vnd.openxmlformats-package.relationships+xml" $ bookRelXml sheetCount
       , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml" rootRelXml
       ]
-    sheetFiles =
-      [ FileData ("xl/worksheets/sheet" <> txti n <> ".xml")
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
-        sheetXml (w ^. wsColumns) (w ^. wsRowPropertiesMap) cells (w ^. wsMerges) (w ^. wsSheetViews) (w ^. wsPageSetup) |
-        (n, cells, w) <- zip3 [1..] sheetCells sheets]
+    sheetFiles = concat $ zipWith3 singleSheelFiles [1..] sheetCells sheets
     sheets = xlsx ^. xlSheets . to M.elems
     sheetCount = length sheets
     shared = sstConstruct sheets
     sheetCells = map (transformSheetData shared) sheets
 
+singleSheelFiles :: Int -> Cells -> Worksheet -> [FileData]
+singleSheelFiles n cells ws = sheetFile:filesForComments
+  where
+    sheetFile = FileData ("xl/worksheets/sheet" <> txti n <> ".xml")
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
+        sheetXml ws cells
+    filesForComments = if null comments then [] else [commentsFile, sheetRels]
+    comments = concatMap (\(row, rowCells) -> mapMaybe (maybeCellComment row) rowCells) cells
+    maybeCellComment row (col, cell) = do
+        comment <- xlsxComment cell
+        return (mkCellRef (row, col), comment)
+    commentsFile = FileData commentsPath
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"
+        commentsBS
+    commentsPath = "xl/comments" <> txti n <> ".xml"
+    commentsBS = renderLBS def . toDocument $ Comments.fromList comments
+    sheetRels = FileData ("xl/worksheets/_rels/sheet" <> txti n <> ".xml.rels")
+        "application/vnd.openxmlformats-package.relationships+xml" $
+        relationshipsXml [(1, commentsType, "../comments" <> txti n <> ".xml")]
+    commentsType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+
+relationshipsXml :: [(Int, Text, Text)] -> L.ByteString
+relationshipsXml rels = renderLBS def $ Document (Prologue [] Nothing []) root []
+  where
+    root = addNS "http://schemas.openxmlformats.org/package/2006/relationships" $
+           Element "Relationships" M.empty (map relEl rels)
+    relEl (i, typ, target) =
+        nEl "Relationship" (M.fromList [("Id", "rId" <> txti i), ("Target", target), ("Type", typ)]) []
+
 data FileData = FileData { fdName :: Text
                          , fdContentType :: Text
                          , fdContents :: L.ByteString}
+
+type Cells = [(Int, [(Int, XlsxCell)])]
 
 coreXml :: UTCTime -> Text -> L.ByteString
 coreXml created creator =
@@ -125,6 +153,7 @@ data XlsxCellData = XlsxSS Int
 data XlsxCell = XlsxCell
     { xlsxCellStyle  :: Maybe Int
     , xlsxCellValue  :: Maybe XlsxCellData
+    , xlsxComment    :: Maybe Comment
     } deriving (Show, Eq)
 
 xlsxCellType :: XlsxCell -> Text
@@ -139,20 +168,25 @@ value XlsxCell{xlsxCellValue=Just(XlsxBool True)} = "1"
 value XlsxCell{xlsxCellValue=Just(XlsxBool False)} = "0"
 value _ = error "value undefined"
 
-transformSheetData :: SharedStringTable -> Worksheet -> [(Int, [(Int, XlsxCell)])]
+transformSheetData :: SharedStringTable -> Worksheet -> Cells
 transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
   where
     transformRow = second (map transformCell)
-    transformCell (c, Cell{_cellValue=v, _cellStyle=s}) =
-        (c, XlsxCell s (fmap transformValue v))
+    transformCell (c, Cell{_cellValue=v, _cellStyle=s, _cellComment=comment}) =
+        (c, XlsxCell s (fmap transformValue v) comment)
     transformValue (CellText t) = XlsxSS (sstLookupText shared t)
     transformValue (CellDouble dbl) =  XlsxDouble dbl
     transformValue (CellBool b) = XlsxBool b
     transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
 
-sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> Maybe [SheetView] -> Maybe PageSetup -> L.ByteString
-sheetXml cws rh rows merges sheetViews pageSetup = renderLBS def $ Document (Prologue [] Nothing []) root []
+sheetXml :: Worksheet -> Cells -> L.ByteString
+sheetXml ws rows = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
+    cws = ws ^. wsColumns
+    rh = ws ^. wsRowPropertiesMap
+    merges = ws ^. wsMerges
+    sheetViews = ws ^. wsSheetViews
+    pageSetup = ws ^. wsPageSetup
     cType = xlsxCellType
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
            Element "worksheet" M.empty $ catMaybes

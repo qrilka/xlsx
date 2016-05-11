@@ -32,7 +32,7 @@ main = defaultMain $
     , testCase "write . read == id" $
         testXlsx @=? toXlsx (fromXlsx testTime testXlsx)
     , testCase "fromRows . toRows == id" $
-        testCellMap @=? fromRows (toRows testCellMap)
+        testCellMap1 @=? fromRows (toRows testCellMap1)
     , testCase "fromRight . parseStyleSheet . renderStyleSheet == id" $
         testStyleSheet @=? fromRight (parseStyleSheet (renderStyleSheet  testStyleSheet))
     , testCase "correct shared strings parsing" $
@@ -46,8 +46,9 @@ main = defaultMain $
 testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames
   where
-    sheets = M.fromList [( "List1", sheet )]
-    sheet = Worksheet cols rowProps testCellMap ranges sheetViews pageSetup
+    sheets = M.fromList [("List1", sheet1), ("Another sheet", sheet2)]
+    sheet1 = Worksheet cols rowProps testCellMap1 ranges sheetViews pageSetup
+    sheet2 = def & wsCells .~ testCellMap2
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
     ranges = [mkRange (1,1) (1,2), mkRange (2,2) (10, 5)]
@@ -68,8 +69,8 @@ testXlsx = Xlsx sheets minimalStyles definedNames
                            & pageSetupErrors .~ Just PrintErrorsDash
                            & pageSetupPaperSize .~ Just PaperA4
 
-testCellMap :: CellMap
-testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
+testCellMap1 :: CellMap
+testCellMap1 = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
                          , ((3, 1), cd3), ((3, 2), cd4), ((3, 7), cd5)
                          ]
   where
@@ -78,7 +79,31 @@ testCellMap = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
     cd2 = cd (CellDouble 42.4567)
     cd3 = cd (CellText "another text")
     cd4 = def -- shouldn't it be skipped?
-    cd5 = cd $(CellBool True)
+    cd5 = cd (CellBool True)
+
+testCellMap2 :: CellMap
+testCellMap2 = M.fromList [ ((1, 2), def & cellValue ?~ CellText "something here")
+                          , ((3, 5), def & cellValue ?~ CellDouble 123.456)
+                          , ((2, 4),
+                             def & cellValue ?~ CellText "value"
+                                 & cellComment ?~ comment1
+                            )
+                          , ((10, 7),
+                             def & cellValue ?~ CellText "value"
+                                 & cellComment ?~ comment2
+                            )
+                          ]
+  where
+    comment1 = Comment (XlsxText "simple comment") "bob"
+    comment2 = Comment (XlsxRichText [rich1, rich2]) "alice"
+    rich1 = def & richTextRunText.~ "Look ma!"
+                & richTextRunProperties ?~ (
+                   def & runPropertiesBold ?~ True
+                       & runPropertiesFont ?~ "Tahoma")
+    rich2 = def & richTextRunText .~ "It's blue!"
+                & richTextRunProperties ?~ (
+                   def & runPropertiesItalic ?~ True
+                       & runPropertiesColor ?~ (def & colorARGB ?~ "FF000080"))
 
 testTime :: POSIXTime
 testTime = 123
