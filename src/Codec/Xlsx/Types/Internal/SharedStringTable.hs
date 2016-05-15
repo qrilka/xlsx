@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
 {-# OPTIONS_GHC -Wall #-}
-module Codec.Xlsx.Types.SharedStringTable (
+module Codec.Xlsx.Types.Internal.SharedStringTable (
     -- * Main types
     SharedStringTable(..)
   , sstConstruct

@@ -36,7 +36,7 @@ import           Control.Applicative
 
 import           Codec.Xlsx.Types
 import qualified Codec.Xlsx.Types.Comments as Comments
-import           Codec.Xlsx.Types.SharedStringTable
+import           Codec.Xlsx.Types.Internal.SharedStringTable
 import           Codec.Xlsx.Writer.Internal
 
 -- | Writes `Xlsx' to raw data (lazy bytestring)

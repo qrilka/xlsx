@@ -29,7 +29,7 @@ import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types
-import           Codec.Xlsx.Types.SharedStringTable
+import           Codec.Xlsx.Types.Internal.SharedStringTable
 
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)

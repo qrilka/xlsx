@@ -21,7 +21,7 @@ import           Test.SmallCheck.Series             (Positive (..))
 
 import           Codec.Xlsx
 import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.SharedStringTable
+import           Codec.Xlsx.Types.Internal.SharedStringTable
 
 
 main :: IO ()
