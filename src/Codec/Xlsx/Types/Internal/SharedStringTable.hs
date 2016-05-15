@@ -9,12 +9,8 @@ module Codec.Xlsx.Types.Internal.SharedStringTable (
   , sstLookupText
   , sstLookupRich
   , sstItem
-    -- * Lenses
-    -- ** SharedStringTable
-  , sharedStringTable
   ) where
 
-import           Control.Lens hiding (element)
 import           Control.Monad
 
 import           Data.Maybe (mapMaybe)
@@ -48,16 +44,10 @@ import           Codec.Xlsx.Writer.Internal
 --   in particular subsection 18.4.9, "sst (Shared String Table)" (p. 1726)
 --
 -- TODO: The @extLst@ child element is currently unsupported.
-data SharedStringTable = SharedStringTable {
-    _sharedStringTable :: Vector XlsxText
+newtype SharedStringTable = SharedStringTable {
+    sstTable :: Vector XlsxText
   }
   deriving (Show, Eq, Ord)
-
-{-------------------------------------------------------------------------------
-  Lenses
--------------------------------------------------------------------------------}
-
-makeLenses ''SharedStringTable
 
 {-------------------------------------------------------------------------------
   Rendering
@@ -75,7 +65,7 @@ instance ToElement SharedStringTable where
       elementName       = nm
     , elementAttributes = Map.empty
     , elementNodes      = map (NodeElement . toElement "si")
-                        $ V.toList _sharedStringTable
+                        $ V.toList sstTable
     }
 
 {-------------------------------------------------------------------------------
@@ -119,10 +109,10 @@ sstLookupRich sst = sstLookup sst . XlsxRichText
 
 -- | Internal generalization used by 'sstLookupText' and 'sstLookupRich'
 sstLookup :: SharedStringTable -> XlsxText -> Int
-sstLookup SharedStringTable{_sharedStringTable = shared} si =
+sstLookup SharedStringTable{sstTable = shared} si =
     case searchFromTo (\p -> shared V.! p >= si) 0 (V.length shared - 1) of
       Just i  -> i
       Nothing -> error $ "SST entry for " ++ show si ++ " not found"
 
 sstItem :: SharedStringTable -> Int -> XlsxText
-sstItem SharedStringTable{_sharedStringTable = shared} = (V.!) shared
+sstItem (SharedStringTable shared) = (V.!) shared
