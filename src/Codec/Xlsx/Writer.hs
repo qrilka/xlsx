@@ -1,33 +1,33 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 -- | This module provides a function for serializing structured `Xlsx` into lazy bytestring
 module Codec.Xlsx.Writer
     ( fromXlsx
     ) where
 
-import qualified Codec.Archive.Zip as Zip
-import           Control.Arrow (second)
-import           Control.Lens hiding (transform)
-import qualified Data.ByteString.Lazy as L
-import           Data.ByteString.Lazy.Char8 ()
-import           Data.Map (Map)
-import qualified Data.Map as M
+import qualified Codec.Archive.Zip                           as Zip
+import           Control.Arrow                               (second)
+import           Control.Lens                                hiding (transform)
+import qualified Data.ByteString.Lazy                        as L
+import           Data.ByteString.Lazy.Char8                  ()
+import           Data.Map                                    (Map)
+import qualified Data.Map                                    as M
 import           Data.Maybe
-import           Data.Monoid ((<>))
-import           Data.Text (Text, )
-import qualified Data.Text as T
-import           Data.Text.Lazy (toStrict)
-import           Data.Text.Lazy.Builder (toLazyText)
-import           Data.Text.Lazy.Builder.Int
+import           Data.Monoid                                 ((<>))
+import           Data.Text                                   (Text)
+import qualified Data.Text                                   as T
+import           Data.Text.Lazy                              (toStrict)
+import           Data.Text.Lazy.Builder                      (toLazyText)
 import           Data.Text.Lazy.Builder.RealFloat
-import           Data.Time (UTCTime)
-import           Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime)
-import           Data.Time.Format (formatTime)
+import           Data.Time                                   (UTCTime)
+import           Data.Time.Clock.POSIX                       (POSIXTime, posixSecondsToUTCTime)
+import           Data.Time.Format                            (formatTime)
 #if MIN_VERSION_time(1,5,0)
-import           Data.Time.Format (defaultTimeLocale)
+import           Data.Time.Format                            (defaultTimeLocale)
 #else
-import           System.Locale (defaultTimeLocale)
+import           System.Locale                               (defaultTimeLocale)
 #endif
+import           Safe
 import           Text.XML
 
 #if !MIN_VERSION_base(4,8,0)
@@ -35,7 +35,9 @@ import           Control.Applicative
 #endif
 
 import           Codec.Xlsx.Types
-import qualified Codec.Xlsx.Types.Comments as Comments
+import qualified Codec.Xlsx.Types.Comments                   as Comments
+
+import           Codec.Xlsx.Types.Internal.Relationships     as Relationships hiding (lookup)
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 import           Codec.Xlsx.Writer.Internal
 
@@ -60,9 +62,10 @@ fromXlsx pt xlsx =
       , FileData "xl/sharedStrings.xml"
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" $ ssXml shared
       , FileData "xl/_rels/workbook.xml.rels"
-        "application/vnd.openxmlformats-package.relationships+xml" $ bookRelXml sheetCount
+        "application/vnd.openxmlformats-package.relationships+xml" bookRelsXml
       , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml" rootRelXml
       ]
+    bookRelsXml = renderLBS def . toDocument $ bookRels sheetCount
     sheetFiles = concat $ zipWith3 singleSheelFiles [1..] sheetCells sheets
     sheets = xlsx ^. xlSheets . to M.elems
     sheetCount = length sheets
@@ -86,21 +89,13 @@ singleSheelFiles n cells ws = sheetFile:filesForComments
     commentsPath = "xl/comments" <> txti n <> ".xml"
     commentsBS = renderLBS def . toDocument $ Comments.fromList comments
     sheetRels = FileData ("xl/worksheets/_rels/sheet" <> txti n <> ".xml.rels")
-        "application/vnd.openxmlformats-package.relationships+xml" $
-        relationshipsXml [(1, commentsType, "../comments" <> txti n <> ".xml")]
-    commentsType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+        "application/vnd.openxmlformats-package.relationships+xml" sheetRelsXml
+    sheetRelsXml = renderLBS def . toDocument $ Relationships.fromList
+        [relEntry 1 "comments" ("../comments" <> show n <> ".xml")]
 
-relationshipsXml :: [(Int, Text, Text)] -> L.ByteString
-relationshipsXml rels = renderLBS def $ Document (Prologue [] Nothing []) root []
-  where
-    root = addNS "http://schemas.openxmlformats.org/package/2006/relationships" $
-           Element "Relationships" M.empty (map relEl rels)
-    relEl (i, typ, target) =
-        nEl "Relationship" (M.fromList [("Id", "rId" <> txti i), ("Target", target), ("Type", typ)]) []
-
-data FileData = FileData { fdName :: Text
+data FileData = FileData { fdName        :: Text
                          , fdContentType :: Text
-                         , fdContents :: L.ByteString}
+                         , fdContents    :: L.ByteString}
 
 type Cells = [(Int, [(Int, XlsxCell)])]
 
@@ -151,9 +146,9 @@ data XlsxCellData = XlsxSS Int
                   | XlsxBool Bool
                     deriving (Show, Eq)
 data XlsxCell = XlsxCell
-    { xlsxCellStyle  :: Maybe Int
-    , xlsxCellValue  :: Maybe XlsxCellData
-    , xlsxComment    :: Maybe Comment
+    { xlsxCellStyle :: Maybe Int
+    , xlsxCellValue :: Maybe XlsxCellData
+    , xlsxComment   :: Maybe Comment
     } deriving (Show, Eq)
 
 xlsxCellType :: XlsxCell -> Text
@@ -245,18 +240,15 @@ bookXml wss (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing
 ssXml :: SharedStringTable -> L.ByteString
 ssXml = renderLBS def . toDocument
 
-bookRelXml :: Int -> L.ByteString
-bookRelXml n = renderLBS def $ Document (Prologue [] Nothing []) root []
+--bookRelXml :: Int -> L.ByteString
+--bookRelXml n = renderLBS def $ toDocument rels --  $ Document (Prologue [] Nothing []) root []
+
+bookRels :: Int -> Relationships
+bookRels n =  Relationships.fromList (sheetRels ++ [stylesRel, ssRel])
   where
-    root = addNS "http://schemas.openxmlformats.org/package/2006/relationships" $
-           Element "Relationships" M.empty $
-           map (\sn -> relEl sn (T.concat ["worksheets/sheet", txti sn, ".xml"]) "worksheet") [1..n]
-           ++
-           [relEl (n + 1) "styles.xml" "styles", relEl (n + 2) "sharedStrings.xml" "sharedStrings"]
-    relEl i target typ =
-      nEl "Relationship"
-      (M.fromList [("Id", T.concat ["rId", txti i]), ("Target", target),
-       ("Type", T.concat ["http://schemas.openxmlformats.org/officeDocument/2006/relationships/", typ])]) []
+    sheetRels = [relEntry i "worksheet" ("worksheets/sheet" <> show i <> ".xml") | i <- [1..n]]
+    stylesRel = relEntry (n + 1) "styles" "styles.xml"
+    ssRel = relEntry (n + 2) "sharedStrings" "sharedStrings.xml"
 
 rootRelXml :: L.ByteString
 rootRelXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/><Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties\" Target=\"docProps/app.xml\"/></Relationships>"
@@ -282,7 +274,7 @@ qName n ns p =
 nsName :: [(Text, Text)] -> Text -> Text -> Name
 nsName nss p n = qName n ns p
     where
-      ns = fromJust $ lookup p nss
+      ns = fromJustNote "ns name lookup" $ lookup p nss
 
 nm :: Text -> Text -> Name
 nm ns n = Name
@@ -303,9 +295,6 @@ justNmEl name attrs nodes = Just $ nEl name attrs nodes
 
 nEl :: Name -> Map Name Text -> [Node] -> Node
 nEl name attrs nodes = NodeElement $ Element name attrs nodes
-
-txti :: Int -> Text
-txti = toStrict . toLazyText . decimal
 
 txtd :: Double -> Text
 txtd = toStrict . toLazyText . realFloat

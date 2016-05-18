@@ -6,29 +6,29 @@ module Codec.Xlsx.Parser
     ( toXlsx
     ) where
 
-import qualified Codec.Archive.Zip                  as Zip
+import qualified Codec.Archive.Zip                           as Zip
 import           Control.Applicative
-import           Control.Arrow                      ((&&&))
-import           Control.Monad.IO.Class             ()
-import qualified Data.ByteString.Lazy               as L
-import           Data.ByteString.Lazy.Char8         ()
+import           Control.Arrow                               ((&&&))
+import           Control.Monad.IO.Class                      ()
+import qualified Data.ByteString.Lazy                        as L
+import           Data.ByteString.Lazy.Char8                  ()
 import           Data.List
-import qualified Data.Map                           as M
+import qualified Data.Map                                    as M
 import           Data.Maybe
 import           Data.Ord
-import           Data.Text                          (Text)
-import qualified Data.Text                          as T
-import qualified Data.Text.Read                     as T
-import           Data.XML.Types
-import           Network.URI                        hiding (path)
-import           Prelude                            hiding (sequence)
+import           Data.Text                                   (Text)
+import qualified Data.Text                                   as T
+import qualified Data.Text.Read                              as T
+import           Prelude                                     hiding (sequence)
 import           Safe
 import           System.FilePath.Posix
-import           Text.XML                           as X
+import           Text.XML                                    as X
 import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types
+import           Codec.Xlsx.Types.Internal
+import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 
 
@@ -128,22 +128,6 @@ extractCellValue _ "b" "1" = [CellBool True]
 extractCellValue _ "b" "0" = [CellBool False]
 extractCellValue _ _ _ = []
 
--- | Add office document relationship namespace to name
-odr :: Text -> Name
-odr x = Name
-  { nameLocalName = x
-  , nameNamespace = Just "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-  , namePrefix = Nothing
-  }
-
--- | Add package relationship namespace to name
-pr :: Text -> Name
-pr x = Name
-  { nameLocalName = x
-  , nameNamespace = Just "http://schemas.openxmlformats.org/package/2006/relationships"
-  , namePrefix = Nothing
-  }
-
 -- | Get xml cursor from the specified file inside the zip archive.
 xmlCursor :: Zip.Archive -> FilePath -> Maybe Cursor
 xmlCursor ar fname = parse <$> Zip.findEntryByPath fname ar
@@ -176,7 +160,7 @@ readWorkbook ar = case xmlCursor ar wbPath of
   Just c ->
     let
         sheets = c $/ element (n"sheets") &/ element (n"sheet") >=>
-                    liftA2 (worksheetFile wbRels) <$> attribute "name" <*> attribute (odr"id")
+                    liftA2 (worksheetFile wbRels) <$> attribute "name" <*> (attribute (odr"id") &| RefId)
         wbRels = getRels ar wbPath
         names = c $/ element (n"definedNames") &/ element (n"definedName") >=> mkDefinedName
     in (sheets, DefinedNames names)
@@ -189,36 +173,20 @@ readWorkbook ar = case xmlCursor ar wbPath of
                              , T.concat $ c $/ content
                              )
 
-worksheetFile :: [(Text, Relationship)] -> Text -> Text -> WorksheetFile
+worksheetFile :: Relationships -> Text -> RefId -> WorksheetFile
 worksheetFile wbRels name rId = WorksheetFile name path
   where
-    path = relTarget . fromJustNote "sheet path" $ lookup rId wbRels
+    path = relTarget . fromJustNote "sheet path" $ Relationships.lookup rId wbRels
 
-data Relationship = Relationship
-    { relType   :: Text
-    , relTarget :: FilePath }
-    deriving (Show, Eq)
-
-getRels :: Zip.Archive -> FilePath -> [(Text, Relationship)]
-getRels ar fp = case xmlCursor ar relsPath of
-    Nothing -> []
-    Just c  -> c $/ element (pr"Relationship") >=>
-                 liftA3 packRel <$> attribute "Id" <*> attribute "Type" <*> attribute "Target"
-  where
-    packRel i ty trg = (i, Relationship ty (fromRoot trg))
-    relsPath = dir </> "_rels" </> file <.> "rels"
-    (dir, file) = splitFileName fp
-    fromRoot p = fp `joinRel` T.unpack p
-
--- | joins relative URI (actually a file path as an internal relation target)
-joinRel :: FilePath -> FilePath -> FilePath
-joinRel b r = uriToString id (relPath `nonStrictRelativeTo` base) ""
-  where
-    base = fromJustNote "joinRel base path" $ parseURIReference b
-    relPath = fromJustNote "joinRel relative path" $ parseURIReference r
-
-findRelByType :: Text -> [(Text, Relationship)] -> Maybe Relationship
-findRelByType t m = snd <$> find (\(_, r) -> relType r == t) m
+getRels :: Zip.Archive -> FilePath -> Relationships
+getRels ar fp =
+    let (dir, file) = splitFileName fp
+        relsPath = dir </> "_rels" </> file <.> "rels"
+    in case xmlCursor ar relsPath of
+        Nothing ->
+            Relationships.empty
+        Just c  ->
+            let [rels] = fromCursor c in setTargetsFrom fp rels
 
 int :: Text -> Int
 int = either error fst . T.decimal

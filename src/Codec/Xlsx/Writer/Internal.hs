@@ -7,6 +7,7 @@ module Codec.Xlsx.Writer.Internal (
     -- * Rendering documents
     ToDocument(..)
   , documentFromElement
+  , documentFromNsElement
     -- * Rendering elements
   , ToElement(..)
   , countedElementList
@@ -18,15 +19,22 @@ module Codec.Xlsx.Writer.Internal (
   , ToAttrVal(..)
   , (.=)
   , (.=?)
+  , setAttr
     -- * Dealing with namespaces
   , addNS
   , mainNamespace
+    -- * Misc
+  , txti
   ) where
 
-import Data.Text (Text)
-import Data.String (fromString)
-import Text.XML
-import qualified Data.Map as Map
+import           Data.Text                  (Text)
+import           Data.Text.Lazy             (toStrict)
+import           Data.Text.Lazy.Builder     (toLazyText)
+import           Data.Text.Lazy.Builder.Int
+
+import qualified Data.Map                   as Map
+import           Data.String                (fromString)
+import           Text.XML
 
 {-------------------------------------------------------------------------------
   Rendering documents
@@ -36,8 +44,11 @@ class ToDocument a where
   toDocument :: a -> Document
 
 documentFromElement :: Text -> Element -> Document
-documentFromElement comment e = Document {
-      documentRoot     = addNS mainNamespace e
+documentFromElement comment e = documentFromNsElement comment mainNamespace e
+
+documentFromNsElement :: Text -> Text -> Element -> Document
+documentFromNsElement comment ns e = Document {
+      documentRoot     = addNS ns e
     , documentEpilogue = []
     , documentPrologue = Prologue {
           prologueBefore  = [MiscComment comment]
@@ -117,6 +128,11 @@ nm .= a = (nm, toAttrVal a)
 _  .=? Nothing  = Nothing
 nm .=? (Just a) = Just (nm .= a)
 
+setAttr :: ToAttrVal a => Name -> a -> Element -> Element
+setAttr nm a el@Element{..} = el{ elementAttributes = attrs' }
+  where
+    attrs' = Map.insert nm (toAttrVal a) elementAttributes
+
 {-------------------------------------------------------------------------------
   Dealing with namespaces
 -------------------------------------------------------------------------------}
@@ -148,3 +164,6 @@ addNS ns Element{..} = Element{
 -- | The main namespace for Excel
 mainNamespace :: Text
 mainNamespace = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+
+txti :: Int -> Text
+txti = toStrict . toLazyText . decimal

@@ -36,6 +36,8 @@ Library
                    , Codec.Xlsx.Types
                    , Codec.Xlsx.Types.Comments
                    , Codec.Xlsx.Types.Common
+                   , Codec.Xlsx.Types.Internal
+                   , Codec.Xlsx.Types.Internal.Relationships
                    , Codec.Xlsx.Types.Internal.SharedStringTable
                    , Codec.Xlsx.Types.RichText
                    , Codec.Xlsx.Types.SheetViews
