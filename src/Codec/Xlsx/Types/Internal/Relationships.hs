@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 module Codec.Xlsx.Types.Internal.Relationships where
@@ -13,6 +14,10 @@ import           Prelude                    hiding (abs, lookup)
 import           Safe
 import           Text.XML
 import           Text.XML.Cursor
+
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative
+#endif
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Internal
