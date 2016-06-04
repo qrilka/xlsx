@@ -65,6 +65,11 @@ fromXlsx pt xlsx =
         "application/vnd.openxmlformats-package.relationships+xml" bookRelsXml
       , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml" rootRelXml
       ]
+    rootRelXml = renderLBS def . toDocument $ Relationships.fromList rootRels
+    rootRels = [ relEntry i typ trg
+               | (i, (typ, trg)) <- zip [1..] [ ("officeDocument", "xl/workbook.xml")
+                                              , ("metadata/core-properties", "docProps/core.xml")
+                                              , ("extended-properties", "docProps/app.xml") ] ]
     bookRelsXml = renderLBS def . toDocument $ bookRels sheetCount
     sheetFiles = concat $ zipWith3 singleSheelFiles [1..] sheetCells sheets
     sheets = xlsx ^. xlSheets . to M.elems
@@ -249,9 +254,6 @@ bookRels n =  Relationships.fromList (sheetRels ++ [stylesRel, ssRel])
     sheetRels = [relEntry i "worksheet" ("worksheets/sheet" <> show i <> ".xml") | i <- [1..n]]
     stylesRel = relEntry (n + 1) "styles" "styles.xml"
     ssRel = relEntry (n + 2) "sharedStrings" "sharedStrings.xml"
-
-rootRelXml :: L.ByteString
-rootRelXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/><Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties\" Target=\"docProps/app.xml\"/></Relationships>"
 
 contentTypesXml :: [FileData] -> L.ByteString
 contentTypesXml fds = renderLBS def $ Document (Prologue [] Nothing []) root []
