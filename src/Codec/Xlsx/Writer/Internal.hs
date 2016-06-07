@@ -25,15 +25,19 @@ module Codec.Xlsx.Writer.Internal (
   , mainNamespace
     -- * Misc
   , txti
+  , txtb
+  , txtd
   ) where
 
-import           Data.Text                  (Text)
-import           Data.Text.Lazy             (toStrict)
-import           Data.Text.Lazy.Builder     (toLazyText)
+import           Data.Text                        (Text)
+import qualified Data.Text                        as T
+import           Data.Text.Lazy                   (toStrict)
+import           Data.Text.Lazy.Builder           (toLazyText)
 import           Data.Text.Lazy.Builder.Int
+import           Data.Text.Lazy.Builder.RealFloat
 
-import qualified Data.Map                   as Map
-import           Data.String                (fromString)
+import qualified Data.Map                         as Map
+import           Data.String                      (fromString)
 import           Text.XML
 
 {-------------------------------------------------------------------------------
@@ -164,6 +168,13 @@ addNS ns Element{..} = Element{
 -- | The main namespace for Excel
 mainNamespace :: Text
 mainNamespace = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+
+
+txtd :: Double -> Text
+txtd = toStrict . toLazyText . realFloat
+
+txtb :: Bool -> Text
+txtb = T.toLower . T.pack . show
 
 txti :: Int -> Text
 txti = toStrict . toLazyText . decimal

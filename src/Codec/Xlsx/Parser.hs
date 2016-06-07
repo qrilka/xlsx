@@ -30,17 +30,20 @@ import           Codec.Xlsx.Types
 import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
 import           Codec.Xlsx.Types.Internal.SharedStringTable
+import           Codec.Xlsx.Types.Internal.CustomProperties
+import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)
 toXlsx :: L.ByteString -> Xlsx
-toXlsx bs = Xlsx sheets styles names
+toXlsx bs = Xlsx sheets styles names customPropMap
   where
     ar = Zip.toArchive bs
     sst = getSharedStrings ar
     styles = getStyles ar
     (wfs, names) = readWorkbook ar
     sheets = M.fromList $ map (wfName &&& extractSheet ar sst) wfs
+    CustomProperties customPropMap = getCustomProperties ar
 
 data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
@@ -151,6 +154,11 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
 
 getComments :: Zip.Archive -> FilePath -> Maybe CommentsTable
 getComments ar fp = listToMaybe =<< fromCursor <$> xmlCursor ar fp
+
+getCustomProperties :: Zip.Archive -> CustomProperties
+getCustomProperties ar = case fromCursor <$> xmlCursor ar "docProps/custom.xml" of
+    Just [cp] -> cp
+    _   -> CustomProperties.empty
 
 -- | readWorkbook pulls the names of the sheets and the defined names
 readWorkbook :: Zip.Archive -> ([WorksheetFile], DefinedNames)

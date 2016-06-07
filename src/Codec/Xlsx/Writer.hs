@@ -16,9 +16,6 @@ import           Data.Maybe
 import           Data.Monoid                                 ((<>))
 import           Data.Text                                   (Text)
 import qualified Data.Text                                   as T
-import           Data.Text.Lazy                              (toStrict)
-import           Data.Text.Lazy.Builder                      (toLazyText)
-import           Data.Text.Lazy.Builder.RealFloat
 import           Data.Time                                   (UTCTime)
 import           Data.Time.Clock.POSIX                       (POSIXTime, posixSecondsToUTCTime)
 import           Data.Time.Format                            (formatTime)
@@ -39,6 +36,7 @@ import qualified Codec.Xlsx.Types.Comments                   as Comments
 
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships hiding (lookup)
 import           Codec.Xlsx.Types.Internal.SharedStringTable
+import           Codec.Xlsx.Types.Internal.CustomProperties
 import           Codec.Xlsx.Writer.Internal
 
 -- | Writes `Xlsx' to raw data (lazy bytestring)
@@ -50,7 +48,7 @@ fromXlsx pt xlsx =
     utcTime = posixSecondsToUTCTime pt
     entries = Zip.toEntry "[Content_Types].xml" t (contentTypesXml files) :
               map (\fd -> Zip.toEntry (T.unpack $ fdName fd) t (fdContents fd)) files
-    files = sheetFiles ++
+    files = sheetFiles ++ customPropFiles ++
       [ FileData "docProps/core.xml"
         "application/vnd.openxmlformats-package.core-properties+xml" $ coreXml utcTime "xlsxwriter"
       , FileData "docProps/app.xml"
@@ -66,10 +64,19 @@ fromXlsx pt xlsx =
       , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml" rootRelXml
       ]
     rootRelXml = renderLBS def . toDocument $ Relationships.fromList rootRels
+    rootFiles =  customPropFileRels ++
+        [ ("officeDocument", "xl/workbook.xml")
+        , ("metadata/core-properties", "docProps/core.xml")
+        , ("extended-properties", "docProps/app.xml") ]
     rootRels = [ relEntry i typ trg
-               | (i, (typ, trg)) <- zip [1..] [ ("officeDocument", "xl/workbook.xml")
-                                              , ("metadata/core-properties", "docProps/core.xml")
-                                              , ("extended-properties", "docProps/app.xml") ] ]
+               | (i, (typ, trg)) <- zip [1..] rootFiles ]
+    customProps = xlsx ^. xlCustomProperties
+    (customPropFiles, customPropFileRels) = case M.null customProps of
+        True  -> ([], [])
+        False -> ([ FileData "docProps/custom.xml"
+                    "application/vnd.openxmlformats-officedocument.custom-properties+xml"
+                    (customPropsXml (CustomProperties customProps)) ],
+                  [ ("custom-properties", "docProps/custom.xml") ])
     bookRelsXml = renderLBS def . toDocument $ bookRels sheetCount
     sheetFiles = concat $ zipWith3 singleSheelFiles [1..] sheetCells sheets
     sheets = xlsx ^. xlSheets . to M.elems
@@ -245,8 +252,8 @@ bookXml wss (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing
 ssXml :: SharedStringTable -> L.ByteString
 ssXml = renderLBS def . toDocument
 
---bookRelXml :: Int -> L.ByteString
---bookRelXml n = renderLBS def $ toDocument rels --  $ Document (Prologue [] Nothing []) root []
+customPropsXml :: CustomProperties -> L.ByteString
+customPropsXml = renderLBS def . toDocument
 
 bookRels :: Int -> Relationships
 bookRels n =  Relationships.fromList (sheetRels ++ [stylesRel, ssRel])
@@ -297,9 +304,3 @@ justNmEl name attrs nodes = Just $ nEl name attrs nodes
 
 nEl :: Name -> Map Name Text -> [Node] -> Node
 nEl name attrs nodes = NodeElement $ Element name attrs nodes
-
-txtd :: Double -> Text
-txtd = toStrict . toLazyText . realFloat
-
-txtb :: Bool -> Text
-txtb = T.toLower . T.pack . show

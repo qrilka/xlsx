@@ -21,6 +21,7 @@ import           Test.SmallCheck.Series             (Positive (..))
 
 import           Codec.Xlsx
 import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Types.Internal.CustomProperties as CustomProperties
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 
 
@@ -41,10 +42,12 @@ main = defaultMain $
         [testSharedStringTableWithEmpty] @=? testParsedSharedStringTablesWithEmpty
     , testCase "correct comments parsing" $
         [testCommentsTable] @=? testParsedComments
+    , testCase "correct custom properties parsing" $
+        [testCustomProperties] @=? testParsedCustomProperties
     ]
 
 testXlsx :: Xlsx
-testXlsx = Xlsx sheets minimalStyles definedNames
+testXlsx = Xlsx sheets minimalStyles definedNames customProperties
   where
     sheets = M.fromList [("List1", sheet1), ("Another sheet", sheet2)]
     sheet1 = Worksheet cols rowProps testCellMap1 ranges sheetViews pageSetup
@@ -68,6 +71,7 @@ testXlsx = Xlsx sheets minimalStyles definedNames
                            & pageSetupCopies .~ Just 2
                            & pageSetupErrors .~ Just PrintErrorsDash
                            & pageSetupPaperSize .~ Just PaperA4
+    customProperties = M.fromList [("some_prop", VtInt 42)]
 
 testCellMap1 :: CellMap
 testCellMap1 = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
@@ -207,4 +211,45 @@ testComments = [r|
     </comment>
   </commentList>
 </comments>
+|]
+
+testCustomProperties :: CustomProperties
+testCustomProperties = CustomProperties.fromList
+    [ ("testTextProp", VtLpwstr "test text property value")
+    , ("prop2", VtLpwstr "222")
+    , ("bool", VtBool False)
+    , ("prop333", VtInt 1)
+    , ("decimal", VtDecimal 1.234) ]
+
+testParsedCustomProperties ::[CustomProperties]
+testParsedCustomProperties = fromCursor . fromDocument $ parseLBS_ def testCustomPropertiesXml
+
+testCustomPropertiesXml :: ByteString
+testCustomPropertiesXml = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="prop2">
+    <vt:lpwstr>222</vt:lpwstr>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="3" name="prop333">
+    <vt:int>1</vt:int>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="4" name="testTextProp">
+    <vt:lpwstr>test text property value</vt:lpwstr>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="5" name="decimal">
+    <vt:decimal>1.234</vt:decimal>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="6" name="bool">
+    <vt:bool>false</vt:bool>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="7" name="blob">
+    <vt:blob>
+    ZXhhbXBs
+    ZSBibG9i
+    IGNvbnRl
+    bnRz
+    </vt:blob>
+  </property>
+</Properties>
 |]
