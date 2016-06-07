@@ -24,7 +24,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Read as T
 import           Data.Typeable (Typeable)
-import           Data.XML.Types
+import           Text.XML
 import           Text.XML.Cursor
 
 #if !MIN_VERSION_base(4,8,0)
