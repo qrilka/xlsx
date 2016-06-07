@@ -1,3 +1,8 @@
+0.2.2
+-----
+* added cell comments support
+* added custom file properties
+
 0.2.1.2
 -------
 * loosened dependency on data-default package
