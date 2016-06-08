@@ -1,3 +1,7 @@
+0.2.2.1
+-----
+* fixed comments data type names and modules/imports
+
 0.2.2
 -----
 * added cell comments support
