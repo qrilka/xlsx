@@ -22,6 +22,7 @@ import           Test.SmallCheck.Series             (Positive (..))
 import           Codec.Xlsx
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Internal.CustomProperties as CustomProperties
+import           Codec.Xlsx.Types.Internal.CommentTable
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 
 
@@ -41,7 +42,7 @@ main = defaultMain $
     , testCase "correct shared strings parsing even when one of the shared strings entry is just <t/>" $
         [testSharedStringTableWithEmpty] @=? testParsedSharedStringTablesWithEmpty
     , testCase "correct comments parsing" $
-        [testCommentsTable] @=? testParsedComments
+        [testCommentTable] @=? testParsedComments
     , testCase "correct custom properties parsing" $
         [testCustomProperties] @=? testParsedCustomProperties
     ]
@@ -141,7 +142,7 @@ testParsedSharedStringTables = fromCursor . fromDocument $ parseLBS_ def testStr
 testParsedSharedStringTablesWithEmpty :: [SharedStringTable]
 testParsedSharedStringTablesWithEmpty = fromCursor . fromDocument $ parseLBS_ def testStringsWithEmpty
 
-testCommentsTable = CommentsTable $ HM.fromList
+testCommentTable = CommentTable $ HM.fromList
     [ ("D4", Comment (XlsxRichText rich) "Bob")
     , ("A2", Comment (XlsxText "Some comment here") "CBR") ]
   where
@@ -162,7 +163,7 @@ testCommentsTable = CommentsTable $ HM.fromList
                           & runPropertiesSize ?~ 8.0
              , _richTextRunText = "Why such high expense?"}]
 
-testParsedComments ::[CommentsTable]
+testParsedComments ::[CommentTable]
 testParsedComments = fromCursor . fromDocument $ parseLBS_ def testComments
 
 testStrings :: ByteString

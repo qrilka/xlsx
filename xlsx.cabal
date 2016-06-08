@@ -34,9 +34,10 @@ Library
   Hs-source-dirs:    src
   Exposed-modules:   Codec.Xlsx
                    , Codec.Xlsx.Types
-                   , Codec.Xlsx.Types.Comments
+                   , Codec.Xlsx.Types.Comment
                    , Codec.Xlsx.Types.Common
                    , Codec.Xlsx.Types.Internal
+                   , Codec.Xlsx.Types.Internal.CommentTable
                    , Codec.Xlsx.Types.Internal.CustomProperties
                    , Codec.Xlsx.Types.Internal.Relationships
                    , Codec.Xlsx.Types.Internal.SharedStringTable

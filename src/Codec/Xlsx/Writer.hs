@@ -32,11 +32,10 @@ import           Control.Applicative
 #endif
 
 import           Codec.Xlsx.Types
-import qualified Codec.Xlsx.Types.Comments                   as Comments
-
+import qualified Codec.Xlsx.Types.Internal.CommentTable      as CommentTable
+import           Codec.Xlsx.Types.Internal.CustomProperties
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships hiding (lookup)
 import           Codec.Xlsx.Types.Internal.SharedStringTable
-import           Codec.Xlsx.Types.Internal.CustomProperties
 import           Codec.Xlsx.Writer.Internal
 
 -- | Writes `Xlsx' to raw data (lazy bytestring)
@@ -99,7 +98,7 @@ singleSheelFiles n cells ws = sheetFile:filesForComments
         "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"
         commentsBS
     commentsPath = "xl/comments" <> txti n <> ".xml"
-    commentsBS = renderLBS def . toDocument $ Comments.fromList comments
+    commentsBS = renderLBS def . toDocument $ CommentTable.fromList comments
     sheetRels = FileData ("xl/worksheets/_rels/sheet" <> txti n <> ".xml.rels")
         "application/vnd.openxmlformats-package.relationships+xml" sheetRelsXml
     sheetRelsXml = renderLBS def . toDocument $ Relationships.fromList

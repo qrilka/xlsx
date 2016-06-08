@@ -31,6 +31,7 @@ import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 import           Codec.Xlsx.Types.Internal.CustomProperties
+import           Codec.Xlsx.Types.Internal.CommentTable
 import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 
 
@@ -152,7 +153,7 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Nothing  -> Styles L.empty
   Just xml -> Styles xml
 
-getComments :: Zip.Archive -> FilePath -> Maybe CommentsTable
+getComments :: Zip.Archive -> FilePath -> Maybe CommentTable
 getComments ar fp = listToMaybe =<< fromCursor <$> xmlCursor ar fp
 
 getCustomProperties :: Zip.Archive -> CustomProperties

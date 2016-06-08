@@ -42,7 +42,7 @@ import           Text.XML (renderLBS, parseLBS)
 import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Comments as X
+import           Codec.Xlsx.Types.Comment as X
 import           Codec.Xlsx.Types.Common as X
 import           Codec.Xlsx.Types.PageSetup as X
 import           Codec.Xlsx.Types.RichText as X
