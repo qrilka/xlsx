@@ -1,11 +1,13 @@
 {-# LANGUAGE OverloadedStrings  #-}
 module Codec.Xlsx.Types.Common
        ( CellRef
+       , SqRef (..)
        , XlsxText (..)
        ) where
 
 import qualified Data.Map                   as Map
 import           Data.Text                  (Text)
+import qualified Data.Text                  as T
 import           Text.XML
 import           Text.XML.Cursor
 
@@ -17,6 +19,9 @@ import           Codec.Xlsx.Writer.Internal
 -- | Excel cell reference (e.g. @E3@)
 -- see 18.18.62 @ST_Ref@ (p. 2482)
 type CellRef = Text
+
+newtype SqRef = SqRef [CellRef]
+    deriving (Eq, Ord, Show)
 
 -- | Common type containing either simple string or rich formatted text.
 -- Used in @si@, @comment@ and @is@ elements
@@ -55,6 +60,11 @@ instance ToElement XlsxText where
           XlsxRichText rich -> map (toElement "r") rich
     }
 
+-- | A sequence of cell references, space delimited.
+-- See 18.18.76, "ST_Sqref (Reference Sequence)", p. 2488.
+instance ToAttrVal SqRef where
+    toAttrVal (SqRef refs) = T.intercalate " " refs
+
 {-------------------------------------------------------------------------------
   Parsing
 -------------------------------------------------------------------------------}
@@ -76,3 +86,6 @@ instance FromCursor XlsxText where
         return $ XlsxRichText rs
       _ ->
         fail "invalid item"
+
+instance FromAttrVal SqRef where
+    fromAttrVal t = readSuccess (SqRef $ T.split (== ' ') t)

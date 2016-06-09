@@ -66,7 +66,7 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
                      & sheetViewSelection .~ [ def & selectionActiveCell .~ Just "C2"
                                                    & selectionPane .~ Just PaneTypeBottomRight
                                              , def & selectionActiveCellId .~ Just 1
-                                                   & selectionSqref .~ Just ["A3:A10","B1:G3"]
+                                                   & selectionSqref ?~ SqRef ["A3:A10","B1:G3"]
                                              ]
     pageSetup = Just $ def & pageSetupBlackAndWhite .~ Just True
                            & pageSetupCopies .~ Just 2

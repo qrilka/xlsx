@@ -51,12 +51,9 @@ module Codec.Xlsx.Types.SheetViews (
 import Control.Lens (makeLenses)
 import Data.Default
 import Data.Maybe (catMaybes, maybeToList, listToMaybe)
-import Data.Text (Text)
-import qualified Data.Text as T
 import Text.XML
 import Text.XML.Cursor
 import qualified Data.Map  as Map
-import qualified Data.Text as Text
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
@@ -202,7 +199,7 @@ data Selection = Selection {
   , _selectionPane :: Maybe PaneType
 
     -- | Range of the selection. Can be non-contiguous set of ranges.
-  , _selectionSqref :: Maybe [CellRef]
+  , _selectionSqref :: Maybe SqRef
   }
   deriving (Show, Eq, Ord)
 
@@ -419,14 +416,9 @@ instance ToElement Selection where
           "pane"         .=? _selectionPane
         , "activeCell"   .=? _selectionActiveCell
         , "activeCellId" .=? _selectionActiveCellId
-        , "sqref"        .=? (spaceDelim <$> _selectionSqref)
+        , "sqref"        .=? _selectionSqref
         ]
     }
-    where
-      -- The @sqref@ is a space delimited list
-      -- See 18.18.76, "ST_Sqref (Reference Sequence)", p. 2488.
-      spaceDelim :: [Text] -> Text
-      spaceDelim = Text.intercalate " "
 
 -- | See @CT_Pane@, p. 3913
 instance ToElement Pane where
@@ -506,7 +498,7 @@ instance FromCursor Selection where
     _selectionPane         <- maybeAttribute "pane" cur
     _selectionActiveCell   <- maybeAttribute "activeCell" cur
     _selectionActiveCellId <- maybeAttribute "activeCellId" cur
-    _selectionSqref        <- fmap (T.split (== ' ')) <$> maybeAttribute "sqref" cur
+    _selectionSqref        <- maybeAttribute "sqref" cur
     return Selection{..}
 
 -- | See @ST_SheetViewType@, p. 3913
