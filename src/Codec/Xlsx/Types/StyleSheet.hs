@@ -1254,7 +1254,9 @@ instance FromCursor Font where
     _fontScheme       <- maybeElementValue (n"scheme") cur
     return Font{..}
 
+-- | See 18.18.94 "ST_FontFamily (Font Family)" (p. 2517)
 instance FromAttrVal FontFamily where
+  fromAttrVal "0" = readSuccess FontFamilyNotApplicable
   fromAttrVal "1" = readSuccess FontFamilyRoman
   fromAttrVal "2" = readSuccess FontFamilySwiss
   fromAttrVal "3" = readSuccess FontFamilyModern
