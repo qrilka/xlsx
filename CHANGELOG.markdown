@@ -1,3 +1,8 @@
+0.2.2.2
+-----
+* fixed missing from parsing code font family value 0 (Not applicable) (thanks Steve Bigham <steve.bigham@gmail.com>)
+* fixed time type used in haddock example (thanks Manoj <manoj.p.gudi@gmail.com>)
+
 0.2.2.1
 -----
 * fixed comments data type names and modules/imports
