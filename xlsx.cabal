@@ -32,11 +32,14 @@ Cabal-version:       >=1.10
 
 Library
   Hs-source-dirs:    src
+  ghc-options:       -Werror -Wall
   Exposed-modules:   Codec.Xlsx
                    , Codec.Xlsx.Types
                    , Codec.Xlsx.Types.Comment
                    , Codec.Xlsx.Types.Common
+                   , Codec.Xlsx.Types.ConditionalFormatting
                    , Codec.Xlsx.Types.Internal
+                   , Codec.Xlsx.Types.Internal.CfPair
                    , Codec.Xlsx.Types.Internal.CommentTable
                    , Codec.Xlsx.Types.Internal.CustomProperties
                    , Codec.Xlsx.Types.Internal.Relationships

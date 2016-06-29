@@ -51,7 +51,7 @@ testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties
   where
     sheets = M.fromList [("List1", sheet1), ("Another sheet", sheet2)]
-    sheet1 = Worksheet cols rowProps testCellMap1 ranges sheetViews pageSetup
+    sheet1 = Worksheet cols rowProps testCellMap1 ranges sheetViews pageSetup cFormatting
     sheet2 = def & wsCells .~ testCellMap2
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
@@ -73,6 +73,17 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
                            & pageSetupErrors .~ Just PrintErrorsDash
                            & pageSetupPaperSize .~ Just PaperA4
     customProperties = M.fromList [("some_prop", VtInt 42)]
+    cFormatting = M.fromList [(SqRef ["A1:B3"], rules1), (SqRef ["C1:C10"], rules2)]
+    cfRule c d = CfRule { _cfrCondition  = c
+                        , _cfrDxfId      = Just d
+                        , _cfrPriority   = topCfPriority
+                        , _cfrStopIfTrue = Nothing
+                        }
+    rules1 = [ cfRule ContainsBlanks 1
+             , cfRule (ContainsText "foo") 2
+             , cfRule (CellIs (OpBetween (Formula "A1") (Formula "B10"))) 3
+             ]
+    rules2 = [ cfRule ContainsErrors 3 ]
 
 testCellMap1 :: CellMap
 testCellMap1 = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
@@ -117,7 +128,12 @@ fromRight :: Either a b -> b
 fromRight (Right b) = b
 
 testStyleSheet :: StyleSheet
-testStyleSheet = minimalStyleSheet
+testStyleSheet = minimalStyleSheet & styleSheetDxfs .~ [dxf1, dxf2]
+  where
+    dxf1 = def & dxfFont ?~ (def & fontBold ?~ True
+                                 & fontSize ?~ 12)
+    dxf2 = def & dxfFill ?~ (def & fillPattern ?~ (def & fillPatternBgColor ?~ red))
+    red = def & colorARGB ?~ "FFFF0000"
 
 testSharedStringTable :: SharedStringTable
 testSharedStringTable = SharedStringTable $ V.fromList items

@@ -11,6 +11,7 @@ module Codec.Xlsx.Writer.Internal (
     -- * Rendering elements
   , ToElement(..)
   , countedElementList
+  , elementList
   , elementListSimple
   , elementContent
   , elementContentPreserved
@@ -69,17 +70,17 @@ class ToElement a where
   toElement :: Name -> a -> Element
 
 countedElementList :: Name -> [Element] -> Element
-countedElementList nm as = elementList0 nm as [ "count" .= length as ]
+countedElementList nm as = elementList nm [ "count" .= length as ] as
 
-elementList0 :: Name -> [Element] -> [(Name, Text)] -> Element
-elementList0 nm els attrs = Element {
+elementList :: Name -> [(Name, Text)] -> [Element] -> Element
+elementList nm attrs els = Element {
       elementName       = nm
     , elementNodes      = map NodeElement els
     , elementAttributes = Map.fromList attrs
     }
 
 elementListSimple :: Name -> [Element] -> Element
-elementListSimple nm els = elementList0 nm els []
+elementListSimple nm els = elementList nm [] els
 
 elementContent0 :: Name -> [(Name, Text)] -> Text -> Element
 elementContent0 nm attrs txt = Element {

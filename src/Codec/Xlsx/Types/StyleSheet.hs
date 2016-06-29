@@ -35,6 +35,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , styleSheetFonts
   , styleSheetFills
   , styleSheetCellXfs
+  , styleSheetDxfs
     -- ** CellXf
   , cellXfApplyAlignment
   , cellXfApplyBorder
@@ -51,6 +52,12 @@ module Codec.Xlsx.Types.StyleSheet (
   , cellXfId
   , cellXfAlignment
   , cellXfProtection
+    -- ** Dxf
+  , dxfAlignment
+  , dxfBorder
+  , dxfFill
+  , dxfFont
+  , dxfProtection
     -- ** Alignment
   , alignmentHorizontal
   , alignmentIndent
@@ -147,7 +154,6 @@ import Codec.Xlsx.Parser.Internal
 -- * cellStyles
 -- * cellStyleXfs
 -- * colors
--- * dxfs
 -- * extLst
 -- * numFmts
 -- * tableStyles
@@ -167,7 +173,7 @@ data StyleSheet = StyleSheet {
 
     -- | Cell formats
     --
-     -- This element contains the master formatting records (xf) which define the
+    -- This element contains the master formatting records (xf) which define the
     -- formatting applied to cells in this workbook. These records are the
     -- starting point for determining the formatting for a cell. Cells in the
     -- Sheet Part reference the xf records by zero-based index.
@@ -187,6 +193,20 @@ data StyleSheet = StyleSheet {
     --
     -- Section 18.8.23 "fonts (Fonts)" (p. 1769)
   , _styleSheetFonts :: [Font]
+
+    -- | Differential formatting
+    --
+    -- This element contains the master differential formatting records (dxf's)
+    -- which define formatting for all non-cell formatting in this workbook.
+    -- Whereas xf records fully specify a particular aspect of formatting (e.g.,
+    -- cell borders) by referencing those formatting definitions elsewhere in
+    -- the Styles part, dxf records specify incremental (or differential) aspects
+    -- of formatting directly inline within the dxf element. The dxf formatting
+    -- is to be applied on top of or in addition to any formatting already
+    -- present on the object using the dxf record.
+    --
+    -- Section 18.8.15, "dxfs (Formats)" (p. 1765)
+  , _styleSheetDxfs :: [Dxf]
   }
   deriving (Show, Eq, Ord)
 
@@ -554,6 +574,19 @@ data Font = Font {
   }
   deriving (Show, Eq, Ord)
 
+-- | A single dxf record, expressing incremental formatting to be applied.
+--
+-- Section 18.8.14, "dxf (Formatting)" (p. 1765)
+data Dxf = Dxf
+    { _dxfFont         :: Maybe Font
+    -- TODO: numFmt
+    , _dxfFill         :: Maybe Fill
+    , _dxfAlignment    :: Maybe Alignment
+    , _dxfBorder       :: Maybe Border
+    , _dxfProtection   :: Maybe Protection
+    -- TODO: extList
+    } deriving (Eq, Ord, Show)
+
 -- Section 18.2.30 "font (Font)" (p. 1777)
 -- Note: This only implements the predefined values for 18.2.30 "All Languages",
 --       not the extended languages or custom ones from 18.2.31
@@ -775,6 +808,7 @@ data ReadingOrder =
 
 makeLenses ''StyleSheet
 makeLenses ''CellXf
+makeLenses ''Dxf
 
 makeLenses ''Alignment
 makeLenses ''Border
@@ -841,6 +875,7 @@ instance Default StyleSheet where
     , _styleSheetFonts   = []
     , _styleSheetFills   = []
     , _styleSheetCellXfs = []
+    , _styleSheetDxfs    = []
     }
 
 instance Default CellXf where
@@ -861,6 +896,15 @@ instance Default CellXf where
     , _cellXfAlignment         = Nothing
     , _cellXfProtection        = Nothing
     }
+
+instance Default Dxf where
+    def = Dxf
+          { _dxfFont       = Nothing
+          , _dxfFill       = Nothing
+          , _dxfAlignment  = Nothing
+          , _dxfBorder     = Nothing
+          , _dxfProtection = Nothing
+          }
 
 instance Default Alignment where
   def = Alignment {
@@ -969,7 +1013,7 @@ instance ToElement StyleSheet where
          -- TODO: cellStyleXfs
        , countedElementList "cellXfs" $ map (toElement "xf")     _styleSheetCellXfs
          -- TODO: cellStyles
-         -- TODO: dxfs
+       , countedElementList "dxfs"    $ map (toElement "dxf")    _styleSheetDxfs
          -- TODO: tableStyles
          -- TODO: colors
          -- TODO: extLst
@@ -1001,6 +1045,20 @@ instance ToElement CellXf where
         , "applyProtection"   .=? _cellXfApplyProtection
         ]
     }
+
+-- | See @CT_Dxf@, p. 3937
+instance ToElement Dxf where
+    toElement nm Dxf{..} = Element
+        { elementName       = nm
+        , elementNodes      = map NodeElement $
+                              catMaybes [ toElement "font"       <$> _dxfFont
+                                        , toElement "fill"       <$> _dxfFill
+                                        , toElement "alignment"  <$> _dxfAlignment
+                                        , toElement "border"     <$> _dxfBorder
+                                        , toElement "protection" <$> _dxfProtection
+                                        ]
+        , elementAttributes = Map.empty
+        }
 
 -- | See @CT_CellAlignment@, p. 4482
 instance ToElement Alignment where
@@ -1228,7 +1286,7 @@ instance FromCursor StyleSheet where
          -- TODO: cellStyleXfs
       _styleSheetCellXfs = cur $/ element (n"cellXfs") &/ element (n"xf") >=> fromCursor
          -- TODO: cellStyles
-         -- TODO: dxfs
+      _styleSheetDxfs = cur $/ element (n"dxfs") &/ element (n"dxf") >=> fromCursor
          -- TODO: tableStyles
          -- TODO: colors
          -- TODO: extLst
@@ -1389,6 +1447,16 @@ instance FromCursor CellXf where
     _cellXfApplyAlignment    <- maybeAttribute "applyAlignment" cur
     _cellXfApplyProtection   <- maybeAttribute "applyProtection" cur
     return CellXf{..}
+
+-- | See @CT_Dxf@, p. 3937
+instance FromCursor Dxf where
+    fromCursor cur = do
+      _dxfFont         <- maybeFromElement (n"font") cur
+      _dxfFill         <- maybeFromElement (n"fill") cur
+      _dxfAlignment    <- maybeFromElement (n"alignment") cur
+      _dxfBorder       <- maybeFromElement (n"border") cur
+      _dxfProtection   <- maybeFromElement (n"protection") cur
+      return Dxf{..}
 
 -- | See @CT_CellAlignment@, p. 4482
 instance FromCursor Alignment where

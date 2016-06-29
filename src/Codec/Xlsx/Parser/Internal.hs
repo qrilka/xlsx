@@ -1,6 +1,6 @@
+{-# LANGUAGE CPP                #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings  #-}
 module Codec.Xlsx.Parser.Internal
     ( ParseException(..)
     , n
@@ -19,11 +19,11 @@ module Codec.Xlsx.Parser.Internal
     , rational
     ) where
 
-import           Control.Exception (Exception)
-import           Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Read as T
-import           Data.Typeable (Typeable)
+import           Control.Exception       (Exception)
+import           Data.Text               (Text)
+import qualified Data.Text               as T
+import qualified Data.Text.Read          as T
+import           Data.Typeable           (Typeable)
 import           Text.XML
 import           Text.XML.Cursor
 

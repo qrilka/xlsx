@@ -1,8 +1,9 @@
-{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Codec.Xlsx.Types.Common
        ( CellRef
        , SqRef (..)
        , XlsxText (..)
+       , Formula (..)
        ) where
 
 import qualified Data.Map                   as Map
@@ -17,7 +18,7 @@ import           Codec.Xlsx.Writer.Internal
 
 
 -- | Excel cell reference (e.g. @E3@)
--- see 18.18.62 @ST_Ref@ (p. 2482)
+-- See 18.18.62 @ST_Ref@ (p. 2482)
 type CellRef = Text
 
 newtype SqRef = SqRef [CellRef]
@@ -45,25 +46,12 @@ data XlsxText = XlsxText Text
               | XlsxRichText [RichTextRun]
               deriving (Show, Eq, Ord)
 
-{-------------------------------------------------------------------------------
-  Rendering
--------------------------------------------------------------------------------}
 
--- | See @CT_Rst@, p. 3903
-instance ToElement XlsxText where
-  toElement nm si = Element {
-      elementName       = nm
-    , elementAttributes = Map.empty
-    , elementNodes      = map NodeElement $
-        case si of
-          XlsxText text     -> [elementContent "t" text]
-          XlsxRichText rich -> map (toElement "r") rich
-    }
-
--- | A sequence of cell references, space delimited.
--- See 18.18.76, "ST_Sqref (Reference Sequence)", p. 2488.
-instance ToAttrVal SqRef where
-    toAttrVal (SqRef refs) = T.intercalate " " refs
+-- | A formula
+--
+-- See 18.18.35 "ST_Formula (Formula)" (p. 2457)
+newtype Formula = Formula {unFormula :: Text}
+    deriving (Eq, Show)
 
 {-------------------------------------------------------------------------------
   Parsing
@@ -89,3 +77,31 @@ instance FromCursor XlsxText where
 
 instance FromAttrVal SqRef where
     fromAttrVal t = readSuccess (SqRef $ T.split (== ' ') t)
+
+-- | See @ST_Formula@, p. 3873
+instance FromCursor Formula where
+    fromCursor cur = [Formula . T.concat $ cur $/ content]
+
+{-------------------------------------------------------------------------------
+  Rendering
+-------------------------------------------------------------------------------}
+
+-- | See @CT_Rst@, p. 3903
+instance ToElement XlsxText where
+  toElement nm si = Element {
+      elementName       = nm
+    , elementAttributes = Map.empty
+    , elementNodes      = map NodeElement $
+        case si of
+          XlsxText text     -> [elementContent "t" text]
+          XlsxRichText rich -> map (toElement "r") rich
+    }
+
+-- | A sequence of cell references, space delimited.
+-- See 18.18.76, "ST_Sqref (Reference Sequence)", p. 2488.
+instance ToAttrVal SqRef where
+    toAttrVal (SqRef refs) = T.intercalate " " refs
+
+-- | See @ST_Formula@, p. 3873
+instance ToElement Formula where
+    toElement nm (Formula txt) = elementContent nm txt

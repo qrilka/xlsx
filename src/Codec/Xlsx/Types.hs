@@ -2,22 +2,43 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Codec.Xlsx.Types
-    ( Xlsx(..), xlSheets, xlStyles, xlDefinedNames, xlCustomProperties
-    , def
+module Codec.Xlsx.Types (
+    -- * The main types
+    Xlsx(..)
     , Styles(..)
-    , emptyStyles
-    , renderStyleSheet
-    , parseStyleSheet
     , DefinedNames(..)
     , ColumnsWidth(..)
     , PageSetup(..)
-    , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges, wsSheetViews, wsPageSetup
+    , Worksheet(..)
     , CellMap
     , CellValue(..)
-    , Cell(..), cellValue, cellStyle, cellComment
+    , Cell(..)
     , RowProperties (..)
     , Range
+    -- * Lenses
+    -- ** Workbook
+    , xlSheets
+    , xlStyles
+    , xlDefinedNames
+    , xlCustomProperties
+    -- ** Worksheet
+    , wsColumns
+    , wsRowPropertiesMap
+    , wsCells
+    , wsMerges
+    , wsSheetViews
+    , wsPageSetup
+    , wsConditionalFormattings
+    -- ** Cells
+    , cellValue
+    , cellStyle
+    , cellComment
+    -- * Style helpers
+    , emptyStyles
+    , renderStyleSheet
+    , parseStyleSheet
+    -- * Misc
+    , def
     , int2col
     , col2int
     , mkCellRef
@@ -44,6 +65,7 @@ import           Text.XML.Cursor
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Comment as X
 import           Codec.Xlsx.Types.Common as X
+import           Codec.Xlsx.Types.ConditionalFormatting as X
 import           Codec.Xlsx.Types.PageSetup as X
 import           Codec.Xlsx.Types.RichText as X
 import           Codec.Xlsx.Types.SheetViews as X
@@ -104,18 +126,19 @@ type Range = Text
 
 -- | Xlsx worksheet
 data Worksheet = Worksheet
-    { _wsColumns          :: [ColumnsWidth]         -- ^ column widths
-    , _wsRowPropertiesMap :: Map Int RowProperties  -- ^ custom row properties (height, style) map
-    , _wsCells            :: CellMap                -- ^ data mapped by (row, column) pairs
-    , _wsMerges           :: [Range]                -- ^ list of cell merges
-    , _wsSheetViews       :: Maybe [SheetView]
-    , _wsPageSetup        :: Maybe PageSetup
+    { _wsColumns                :: [ColumnsWidth]          -- ^ column widths
+    , _wsRowPropertiesMap       :: Map Int RowProperties   -- ^ custom row properties (height, style) map
+    , _wsCells                  :: CellMap                 -- ^ data mapped by (row, column) pairs
+    , _wsMerges                 :: [Range]                 -- ^ list of cell merges
+    , _wsSheetViews             :: Maybe [SheetView]
+    , _wsPageSetup              :: Maybe PageSetup
+    , _wsConditionalFormattings :: Map SqRef [CfRule]
     } deriving (Eq, Show)
 
 makeLenses ''Worksheet
 
 instance Default Worksheet where
-    def = Worksheet [] M.empty M.empty [] Nothing Nothing
+    def = Worksheet [] M.empty M.empty [] Nothing Nothing M.empty
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)
