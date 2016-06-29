@@ -1,33 +1,30 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 -- | This module provides a function for serializing structured `Xlsx` into lazy bytestring
 module Codec.Xlsx.Writer
     ( fromXlsx
     ) where
 
-import qualified Codec.Archive.Zip as Zip
-import           Control.Arrow (second)
-import           Control.Lens hiding (transform)
-import qualified Data.ByteString.Lazy as L
-import           Data.ByteString.Lazy.Char8 ()
-import           Data.Map (Map)
-import qualified Data.Map as M
+import qualified Codec.Archive.Zip                           as Zip
+import           Control.Arrow                               (second)
+import           Control.Lens                                hiding (transform)
+import qualified Data.ByteString.Lazy                        as L
+import           Data.ByteString.Lazy.Char8                  ()
+import           Data.Map                                    (Map)
+import qualified Data.Map                                    as M
 import           Data.Maybe
-import           Data.Monoid ((<>))
-import           Data.Text (Text, )
-import qualified Data.Text as T
-import           Data.Text.Lazy (toStrict)
-import           Data.Text.Lazy.Builder (toLazyText)
-import           Data.Text.Lazy.Builder.Int
-import           Data.Text.Lazy.Builder.RealFloat
-import           Data.Time (UTCTime)
-import           Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime)
-import           Data.Time.Format (formatTime)
+import           Data.Monoid                                 ((<>))
+import           Data.Text                                   (Text)
+import qualified Data.Text                                   as T
+import           Data.Time                                   (UTCTime)
+import           Data.Time.Clock.POSIX                       (POSIXTime, posixSecondsToUTCTime)
+import           Data.Time.Format                            (formatTime)
 #if MIN_VERSION_time(1,5,0)
-import           Data.Time.Format (defaultTimeLocale)
+import           Data.Time.Format                            (defaultTimeLocale)
 #else
-import           System.Locale (defaultTimeLocale)
+import           System.Locale                               (defaultTimeLocale)
 #endif
+import           Safe
 import           Text.XML
 
 #if !MIN_VERSION_base(4,8,0)
@@ -35,7 +32,10 @@ import           Control.Applicative
 #endif
 
 import           Codec.Xlsx.Types
-import           Codec.Xlsx.Types.SharedStringTable
+import qualified Codec.Xlsx.Types.Internal.CommentTable      as CommentTable
+import           Codec.Xlsx.Types.Internal.CustomProperties
+import           Codec.Xlsx.Types.Internal.Relationships     as Relationships hiding (lookup)
+import           Codec.Xlsx.Types.Internal.SharedStringTable
 import           Codec.Xlsx.Writer.Internal
 
 -- | Writes `Xlsx' to raw data (lazy bytestring)
@@ -47,7 +47,7 @@ fromXlsx pt xlsx =
     utcTime = posixSecondsToUTCTime pt
     entries = Zip.toEntry "[Content_Types].xml" t (contentTypesXml files) :
               map (\fd -> Zip.toEntry (T.unpack $ fdName fd) t (fdContents fd)) files
-    files = sheetFiles ++
+    files = sheetFiles ++ customPropFiles ++
       [ FileData "docProps/core.xml"
         "application/vnd.openxmlformats-package.core-properties+xml" $ coreXml utcTime "xlsxwriter"
       , FileData "docProps/app.xml"
@@ -59,22 +59,56 @@ fromXlsx pt xlsx =
       , FileData "xl/sharedStrings.xml"
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" $ ssXml shared
       , FileData "xl/_rels/workbook.xml.rels"
-        "application/vnd.openxmlformats-package.relationships+xml" $ bookRelXml sheetCount
+        "application/vnd.openxmlformats-package.relationships+xml" bookRelsXml
       , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml" rootRelXml
       ]
-    sheetFiles =
-      [ FileData ("xl/worksheets/sheet" <> txti n <> ".xml")
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
-        sheetXml (w ^. wsColumns) (w ^. wsRowPropertiesMap) cells (w ^. wsMerges) (w ^. wsSheetViews) (w ^. wsPageSetup) |
-        (n, cells, w) <- zip3 [1..] sheetCells sheets]
+    rootRelXml = renderLBS def . toDocument $ Relationships.fromList rootRels
+    rootFiles =  customPropFileRels ++
+        [ ("officeDocument", "xl/workbook.xml")
+        , ("metadata/core-properties", "docProps/core.xml")
+        , ("extended-properties", "docProps/app.xml") ]
+    rootRels = [ relEntry i typ trg
+               | (i, (typ, trg)) <- zip [1..] rootFiles ]
+    customProps = xlsx ^. xlCustomProperties
+    (customPropFiles, customPropFileRels) = case M.null customProps of
+        True  -> ([], [])
+        False -> ([ FileData "docProps/custom.xml"
+                    "application/vnd.openxmlformats-officedocument.custom-properties+xml"
+                    (customPropsXml (CustomProperties customProps)) ],
+                  [ ("custom-properties", "docProps/custom.xml") ])
+    bookRelsXml = renderLBS def . toDocument $ bookRels sheetCount
+    sheetFiles = concat $ zipWith3 singleSheelFiles [1..] sheetCells sheets
     sheets = xlsx ^. xlSheets . to M.elems
     sheetCount = length sheets
     shared = sstConstruct sheets
     sheetCells = map (transformSheetData shared) sheets
 
-data FileData = FileData { fdName :: Text
+singleSheelFiles :: Int -> Cells -> Worksheet -> [FileData]
+singleSheelFiles n cells ws = sheetFile:filesForComments
+  where
+    sheetFile = FileData ("xl/worksheets/sheet" <> txti n <> ".xml")
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
+        sheetXml ws cells
+    filesForComments = if null comments then [] else [commentsFile, sheetRels]
+    comments = concatMap (\(row, rowCells) -> mapMaybe (maybeCellComment row) rowCells) cells
+    maybeCellComment row (col, cell) = do
+        comment <- xlsxComment cell
+        return (mkCellRef (row, col), comment)
+    commentsFile = FileData commentsPath
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"
+        commentsBS
+    commentsPath = "xl/comments" <> txti n <> ".xml"
+    commentsBS = renderLBS def . toDocument $ CommentTable.fromList comments
+    sheetRels = FileData ("xl/worksheets/_rels/sheet" <> txti n <> ".xml.rels")
+        "application/vnd.openxmlformats-package.relationships+xml" sheetRelsXml
+    sheetRelsXml = renderLBS def . toDocument $ Relationships.fromList
+        [relEntry 1 "comments" ("../comments" <> show n <> ".xml")]
+
+data FileData = FileData { fdName        :: Text
                          , fdContentType :: Text
-                         , fdContents :: L.ByteString}
+                         , fdContents    :: L.ByteString}
+
+type Cells = [(Int, [(Int, XlsxCell)])]
 
 coreXml :: UTCTime -> Text -> L.ByteString
 coreXml created creator =
@@ -123,8 +157,9 @@ data XlsxCellData = XlsxSS Int
                   | XlsxBool Bool
                     deriving (Show, Eq)
 data XlsxCell = XlsxCell
-    { xlsxCellStyle  :: Maybe Int
-    , xlsxCellValue  :: Maybe XlsxCellData
+    { xlsxCellStyle :: Maybe Int
+    , xlsxCellValue :: Maybe XlsxCellData
+    , xlsxComment   :: Maybe Comment
     } deriving (Show, Eq)
 
 xlsxCellType :: XlsxCell -> Text
@@ -139,20 +174,25 @@ value XlsxCell{xlsxCellValue=Just(XlsxBool True)} = "1"
 value XlsxCell{xlsxCellValue=Just(XlsxBool False)} = "0"
 value _ = error "value undefined"
 
-transformSheetData :: SharedStringTable -> Worksheet -> [(Int, [(Int, XlsxCell)])]
+transformSheetData :: SharedStringTable -> Worksheet -> Cells
 transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
   where
     transformRow = second (map transformCell)
-    transformCell (c, Cell{_cellValue=v, _cellStyle=s}) =
-        (c, XlsxCell s (fmap transformValue v))
+    transformCell (c, Cell{_cellValue=v, _cellStyle=s, _cellComment=comment}) =
+        (c, XlsxCell s (fmap transformValue v) comment)
     transformValue (CellText t) = XlsxSS (sstLookupText shared t)
     transformValue (CellDouble dbl) =  XlsxDouble dbl
     transformValue (CellBool b) = XlsxBool b
     transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
 
-sheetXml :: [ColumnsWidth] -> Map Int RowProperties -> [(Int, [(Int, XlsxCell)])] -> [Text]-> Maybe [SheetView] -> Maybe PageSetup -> L.ByteString
-sheetXml cws rh rows merges sheetViews pageSetup = renderLBS def $ Document (Prologue [] Nothing []) root []
+sheetXml :: Worksheet -> Cells -> L.ByteString
+sheetXml ws rows = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
+    cws = ws ^. wsColumns
+    rh = ws ^. wsRowPropertiesMap
+    merges = ws ^. wsMerges
+    sheetViews = ws ^. wsSheetViews
+    pageSetup = ws ^. wsPageSetup
     cType = xlsxCellType
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
            Element "worksheet" M.empty $ catMaybes
@@ -211,21 +251,15 @@ bookXml wss (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing
 ssXml :: SharedStringTable -> L.ByteString
 ssXml = renderLBS def . toDocument
 
-bookRelXml :: Int -> L.ByteString
-bookRelXml n = renderLBS def $ Document (Prologue [] Nothing []) root []
-  where
-    root = addNS "http://schemas.openxmlformats.org/package/2006/relationships" $
-           Element "Relationships" M.empty $
-           map (\sn -> relEl sn (T.concat ["worksheets/sheet", txti sn, ".xml"]) "worksheet") [1..n]
-           ++
-           [relEl (n + 1) "styles.xml" "styles", relEl (n + 2) "sharedStrings.xml" "sharedStrings"]
-    relEl i target typ =
-      nEl "Relationship"
-      (M.fromList [("Id", T.concat ["rId", txti i]), ("Target", target),
-       ("Type", T.concat ["http://schemas.openxmlformats.org/officeDocument/2006/relationships/", typ])]) []
+customPropsXml :: CustomProperties -> L.ByteString
+customPropsXml = renderLBS def . toDocument
 
-rootRelXml :: L.ByteString
-rootRelXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/><Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties\" Target=\"docProps/app.xml\"/></Relationships>"
+bookRels :: Int -> Relationships
+bookRels n =  Relationships.fromList (sheetRels ++ [stylesRel, ssRel])
+  where
+    sheetRels = [relEntry i "worksheet" ("worksheets/sheet" <> show i <> ".xml") | i <- [1..n]]
+    stylesRel = relEntry (n + 1) "styles" "styles.xml"
+    ssRel = relEntry (n + 2) "sharedStrings" "sharedStrings.xml"
 
 contentTypesXml :: [FileData] -> L.ByteString
 contentTypesXml fds = renderLBS def $ Document (Prologue [] Nothing []) root []
@@ -248,7 +282,7 @@ qName n ns p =
 nsName :: [(Text, Text)] -> Text -> Text -> Name
 nsName nss p n = qName n ns p
     where
-      ns = fromJust $ lookup p nss
+      ns = fromJustNote "ns name lookup" $ lookup p nss
 
 nm :: Text -> Text -> Name
 nm ns n = Name
@@ -269,12 +303,3 @@ justNmEl name attrs nodes = Just $ nEl name attrs nodes
 
 nEl :: Name -> Map Name Text -> [Node] -> Node
 nEl name attrs nodes = NodeElement $ Element name attrs nodes
-
-txti :: Int -> Text
-txti = toStrict . toLazyText . decimal
-
-txtd :: Double -> Text
-txtd = toStrict . toLazyText . realFloat
-
-txtb :: Bool -> Text
-txtb = T.toLower . T.pack . show

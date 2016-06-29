@@ -221,7 +221,7 @@ instance ToElement RichTextRun where
     , elementAttributes = Map.empty
     , elementNodes      = map NodeElement . catMaybes $ [
           toElement "rPr" <$> _richTextRunProperties
-        , Just $ elementContent "t" _richTextRunText
+        , Just $ elementContentPreserved "t" _richTextRunText
         ]
     }
 

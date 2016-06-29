@@ -1,6 +1,6 @@
 Name:                xlsx
 
-Version:             0.2.0
+Version:             0.2.2.2
 
 Synopsis:            Simple and incomplete Excel file parser/writer
 Description:
@@ -33,39 +33,48 @@ Cabal-version:       >=1.10
 Library
   Hs-source-dirs:    src
   Exposed-modules:   Codec.Xlsx
-                     , Codec.Xlsx.Types
-                     , Codec.Xlsx.Types.Common
-                     , Codec.Xlsx.Types.SharedStringTable
-                     , Codec.Xlsx.Types.RichText
-                     , Codec.Xlsx.Types.SheetViews
-                     , Codec.Xlsx.Types.PageSetup
-                     , Codec.Xlsx.Types.StyleSheet
-                     , Codec.Xlsx.Lens
-                     , Codec.Xlsx.Parser
-                     , Codec.Xlsx.Parser.Internal
-                     , Codec.Xlsx.Formatted
-                     , Codec.Xlsx.Writer
-                     , Codec.Xlsx.Writer.Internal
+                   , Codec.Xlsx.Types
+                   , Codec.Xlsx.Types.Comment
+                   , Codec.Xlsx.Types.Common
+                   , Codec.Xlsx.Types.Internal
+                   , Codec.Xlsx.Types.Internal.CommentTable
+                   , Codec.Xlsx.Types.Internal.CustomProperties
+                   , Codec.Xlsx.Types.Internal.Relationships
+                   , Codec.Xlsx.Types.Internal.SharedStringTable
+                   , Codec.Xlsx.Types.RichText
+                   , Codec.Xlsx.Types.SheetViews
+                   , Codec.Xlsx.Types.PageSetup
+                   , Codec.Xlsx.Types.StyleSheet
+                   , Codec.Xlsx.Types.Variant
+                   , Codec.Xlsx.Lens
+                   , Codec.Xlsx.Parser
+                   , Codec.Xlsx.Parser.Internal
+                   , Codec.Xlsx.Formatted
+                   , Codec.Xlsx.Writer
+                   , Codec.Xlsx.Writer.Internal
 
   Build-depends:     base         == 4.*
-                     , containers   >= 0.5.0.0
-                     , transformers >= 0.3.0.0
-                     , bytestring   >= 0.10.0.2
-                     , text         >= 0.11.3.1
-                     , lens         >= 3.8 && < 5
-                     , conduit      >= 1.0.0
-                     , xml-types    == 0.3.*
-                     , xml-conduit  >= 1.1.0
-                     , zip-archive  == 0.2.*
-                     , digest       == 0.0.*
-                     , zlib         >= 0.5.4.0
-                     , utf8-string  >= 0.3.7
-                     , time         >= 1.4.0.1
-                     , old-locale   >= 1.0.0.5
-                     , data-default == 0.5.*
-                     , vector       >= 0.10
-                     , mtl          >= 2.1
-                     , binary-search
+                   , binary-search
+                   , bytestring   >= 0.10.0.2
+                   , conduit      >= 1.0.0
+                   , containers   >= 0.5.0.0
+                   , data-default
+                   , extra
+                   , filepath
+                   , lens         >= 3.8 && < 5
+                   , mtl          >= 2.1
+                   , network-uri
+                   , old-locale   >= 1.0.0.5
+                   , safe         >= 0.3
+                   , text         >= 0.11.3.1
+                   , time         >= 1.4.0.1
+                   , transformers >= 0.3.0.0
+                   , unordered-containers
+                   , vector       >= 0.10
+                   , xml-conduit  >= 1.1.0
+                   , zip-archive  >= 0.2
+                   , zlib         >= 0.5.4.0
+                   , base64-bytestring
   Default-Language:     Haskell2010
   Other-Extensions:  CPP
                      DeriveDataTypeable
@@ -77,50 +86,25 @@ Library
                      TemplateHaskell
                      TupleSections
 
-
-
-Executable           test
-  Hs-source-dirs:    src
-  Other-modules:     Codec.Xlsx
-                     , Codec.Xlsx.Parser
-                     , Codec.Xlsx.Writer
-  ghc-options:       -Wall -threaded
-
-  main-is:           Test.hs
-
-  Build-depends:     base, containers, transformers, bytestring, text
-                     , conduit     >= 1.0.0
-                     , xml-types   == 0.3.*
-                     , xml-conduit >= 1.1.0
-                     , zip-archive == 0.2.*
-                     , lens        >= 3.8 && < 5
-                     , digest      >  0.0.0.1
-                     , zlib
-                     , utf8-string
-                     , time
-                     , old-locale
-                     , data-default == 0.5.*
-                     , vector       >= 0.10
-                     , binary-search
-  Default-Language:     Haskell2010
-
 test-suite data-test
   type: exitcode-stdio-1.0
   main-is:  DataTest.hs
   hs-source-dirs: test/
-  Build-Depends: base,
-                 containers,
-                 time,
-                 xlsx,
-                 xml-conduit >= 1.1.0,
-                 smallcheck,
-                 HUnit,
-                 tasty,
-                 tasty-smallcheck,
-                 tasty-hunit,
-                 lens,
-                 bytestring,
-                 vector
+  Build-Depends: base
+               , containers
+               , time
+               , xlsx
+               , xml-conduit >= 1.1.0
+               , smallcheck
+               , HUnit
+               , tasty
+               , tasty-smallcheck
+               , tasty-hunit
+               , lens
+               , bytestring
+               , vector
+               , raw-strings-qq
+               , unordered-containers
   Default-Language:     Haskell2010
 
 source-repository head

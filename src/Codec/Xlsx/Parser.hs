@@ -1,43 +1,50 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE TupleSections             #-}
 -- | This module provides a function for reading .xlsx files
 module Codec.Xlsx.Parser
     ( toXlsx
     ) where
 
-import qualified Codec.Archive.Zip as Zip
+import qualified Codec.Archive.Zip                           as Zip
 import           Control.Applicative
-import           Control.Arrow ((&&&))
-import           Control.Monad.IO.Class()
-import qualified Data.ByteString.Lazy as L
-import           Data.ByteString.Lazy.Char8()
+import           Control.Arrow                               ((&&&))
+import           Control.Monad.IO.Class                      ()
+import qualified Data.ByteString.Lazy                        as L
+import           Data.ByteString.Lazy.Char8                  ()
 import           Data.List
-import qualified Data.Map as M
+import qualified Data.Map                                    as M
 import           Data.Maybe
 import           Data.Ord
-import           Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Read as T
-import           Data.XML.Types
-import           Prelude hiding (sequence)
-import           Text.XML as X
+import           Data.Text                                   (Text)
+import qualified Data.Text                                   as T
+import qualified Data.Text.Read                              as T
+import           Prelude                                     hiding (sequence)
+import           Safe
+import           System.FilePath.Posix
+import           Text.XML                                    as X
 import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types
-import           Codec.Xlsx.Types.SharedStringTable
+import           Codec.Xlsx.Types.Internal
+import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
+import           Codec.Xlsx.Types.Internal.SharedStringTable
+import           Codec.Xlsx.Types.Internal.CustomProperties
+import           Codec.Xlsx.Types.Internal.CommentTable
+import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)
 toXlsx :: L.ByteString -> Xlsx
-toXlsx bs = Xlsx sheets styles names
+toXlsx bs = Xlsx sheets styles names customPropMap
   where
     ar = Zip.toArchive bs
     sst = getSharedStrings ar
     styles = getStyles ar
     (wfs, names) = readWorkbook ar
     sheets = M.fromList $ map (wfName &&& extractSheet ar sst) wfs
+    CustomProperties customPropMap = getCustomProperties ar
 
 data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
@@ -62,6 +69,11 @@ extractSheet ar sst wf = Worksheet cws rowProps cells merges sheetViews pageSetu
       [] -> Nothing
       views -> Just views
 
+    commentsMap = getComments ar . relTarget =<< findRelByType commentsType sheetRels
+    commentsType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+
+    sheetRels = getRels ar (wfPath wf)
+
     -- Likewise, @pageSetup@ also occurs either 0 or 1 times
     pageSetup = listToMaybe $ cur $/ element (n"pageSetup") >=> fromCursor
 
@@ -82,12 +94,14 @@ extractSheet ar sst wf = Worksheet cws rowProps cells merges sheetViews pageSetu
       return (r, rp, c $/ element (n"c") >=> parseCell)
     parseCell :: Cursor -> [(Int, Int, Cell)]
     parseCell cell = do
+      ref <- cell $| attribute "r"
       let
         s = listToMaybe $ cell $| attribute "s" >=> decimal
         t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
         d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractCellValue sst t
-      (c, r) <- T.span (>'9') <$> (cell $| attribute "r")
-      return (int r, col2int c, Cell s d)
+        (c, r) = T.span (>'9') ref
+        comment = commentsMap >>= lookupComment ref
+      return (int r, col2int c, Cell s d comment)
     collect = foldr collectRow (M.empty, M.empty)
     collectRow (_, Nothing, rowCells) (rowMap, cellMap) =
       (rowMap, foldr collectCell cellMap rowCells)
@@ -105,8 +119,8 @@ extractCellValue sst "s" v =
     case T.decimal v of
       Right (d, _) ->
         case sstItem sst d of
-          StringItemText txt  -> [CellText txt]
-          StringItemRich rich -> [CellRich rich]
+          XlsxText     txt  -> [CellText txt]
+          XlsxRichText rich -> [CellRich rich]
       _ ->
         []
 extractCellValue _ "str" str = [CellText str]
@@ -117,22 +131,6 @@ extractCellValue _ "n" v =
 extractCellValue _ "b" "1" = [CellBool True]
 extractCellValue _ "b" "0" = [CellBool False]
 extractCellValue _ _ _ = []
-
--- | Add office document relationship namespace to name
-odr :: Text -> Name
-odr x = Name
-  { nameLocalName = x
-  , nameNamespace = Just "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-  , namePrefix = Nothing
-  }
-
--- | Add package relationship namespace to name
-pr :: Text -> Name
-pr x = Name
-  { nameLocalName = x
-  , nameNamespace = Just "http://schemas.openxmlformats.org/package/2006/relationships"
-  , namePrefix = Nothing
-  }
 
 -- | Get xml cursor from the specified file inside the zip archive.
 xmlCursor :: Zip.Archive -> FilePath -> Maybe Cursor
@@ -155,32 +153,49 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Nothing  -> Styles L.empty
   Just xml -> Styles xml
 
+getComments :: Zip.Archive -> FilePath -> Maybe CommentTable
+getComments ar fp = listToMaybe =<< fromCursor <$> xmlCursor ar fp
+
+getCustomProperties :: Zip.Archive -> CustomProperties
+getCustomProperties ar = case fromCursor <$> xmlCursor ar "docProps/custom.xml" of
+    Just [cp] -> cp
+    _   -> CustomProperties.empty
+
 -- | readWorkbook pulls the names of the sheets and the defined names
 readWorkbook :: Zip.Archive -> ([WorksheetFile], DefinedNames)
-readWorkbook ar = case xmlCursor ar "xl/workbook.xml" of
+readWorkbook ar = case xmlCursor ar wbPath of
   Nothing ->
     error "invalid workbook"
   Just c ->
     let
-        sheetData = c $/ element (n"sheets") &/ element (n"sheet") >=>
-                    liftA2 (,) <$> attribute "name" <*> attribute (odr"id")
-        wbRels = getWbRels ar
+        sheets = c $/ element (n"sheets") &/ element (n"sheet") >=>
+                    liftA2 (worksheetFile wbRels) <$> attribute "name" <*> (attribute (odr"id") &| RefId)
+        wbRels = getRels ar wbPath
         names = c $/ element (n"definedNames") &/ element (n"definedName") >=> mkDefinedName
-    in ([WorksheetFile name ("xl/" ++ T.unpack (fromJust $ lookup rId wbRels)) | (name, rId) <- sheetData]
-       ,DefinedNames names)
- where
-  -- Specification says the 'name' is required.
-  mkDefinedName :: Cursor -> [(Text, Maybe Text, Text)]
-  mkDefinedName c = return ( head $ attribute "name" c
-                           , listToMaybe $ attribute "localSheetId" c
-                           , T.concat $ c $/ content
-                           )
+    in (sheets, DefinedNames names)
+  where
+    wbPath = "xl/workbook.xml"
+    -- Specification says the 'name' is required.
+    mkDefinedName :: Cursor -> [(Text, Maybe Text, Text)]
+    mkDefinedName c = return ( head $ attribute "name" c
+                             , listToMaybe $ attribute "localSheetId" c
+                             , T.concat $ c $/ content
+                             )
 
-getWbRels :: Zip.Archive -> [(Text, Text)]
-getWbRels ar = case xmlCursor ar "xl/_rels/workbook.xml.rels" of
-  Nothing -> []
-  Just c  -> c $/ element (pr"Relationship") >=>
-             liftA2 (,) <$> attribute "Id" <*> attribute "Target"
+worksheetFile :: Relationships -> Text -> RefId -> WorksheetFile
+worksheetFile wbRels name rId = WorksheetFile name path
+  where
+    path = relTarget . fromJustNote "sheet path" $ Relationships.lookup rId wbRels
+
+getRels :: Zip.Archive -> FilePath -> Relationships
+getRels ar fp =
+    let (dir, file) = splitFileName fp
+        relsPath = dir </> "_rels" </> file <.> "rels"
+    in case xmlCursor ar relsPath of
+        Nothing ->
+            Relationships.empty
+        Just c  ->
+            let [rels] = fromCursor c in setTargetsFrom fp rels
 
 int :: Text -> Int
 int = either error fst . T.decimal

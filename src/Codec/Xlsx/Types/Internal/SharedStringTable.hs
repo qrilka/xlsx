@@ -2,20 +2,15 @@
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
 {-# OPTIONS_GHC -Wall #-}
-module Codec.Xlsx.Types.SharedStringTable (
+module Codec.Xlsx.Types.Internal.SharedStringTable (
     -- * Main types
     SharedStringTable(..)
-  , StringItem(..)
   , sstConstruct
   , sstLookupText
   , sstLookupRich
   , sstItem
-    -- * Lenses
-    -- ** SharedStringTable
-  , sharedStringTable
   ) where
 
-import           Control.Lens hiding (element)
 import           Control.Monad
 
 import           Data.Maybe (mapMaybe)
@@ -49,39 +44,10 @@ import           Codec.Xlsx.Writer.Internal
 --   in particular subsection 18.4.9, "sst (Shared String Table)" (p. 1726)
 --
 -- TODO: The @extLst@ child element is currently unsupported.
-data SharedStringTable = SharedStringTable {
-    _sharedStringTable :: Vector StringItem
+newtype SharedStringTable = SharedStringTable {
+    sstTable :: Vector XlsxText
   }
   deriving (Show, Eq, Ord)
-
--- | String Item
---
--- This element is the representation of an individual string in the Shared
--- String table.
---
--- The spec says: "If the string is just a simple string with formatting applied
--- at the cell level, then the String Item (si) should contain a single text
--- element used to express the string. However, if the string in the cell is
--- more complex - i.e., has formatting applied at the character level - then the
--- string item shall consist of multiple rich text runs which collectively are
--- used to express the string.". So we have either a single "Text" field, or
--- else a list of "RichTextRun"s, each of which is some "Text" with layout
--- properties.
---
--- TODO: Currently we do not support @phoneticPr@ (Phonetic Properties, 18.4.3,
--- p. 1723) or @rPh@ (Phonetic Run, 18.4.6, p. 1725).
---
--- Section 18.4.8, "si (String Item)" (p. 1725)
-data StringItem =
-    StringItemText Text
-  | StringItemRich [RichTextRun]
-  deriving (Show, Eq, Ord)
-
-{-------------------------------------------------------------------------------
-  Lenses
--------------------------------------------------------------------------------}
-
-makeLenses ''SharedStringTable
 
 {-------------------------------------------------------------------------------
   Rendering
@@ -99,18 +65,7 @@ instance ToElement SharedStringTable where
       elementName       = nm
     , elementAttributes = Map.empty
     , elementNodes      = map (NodeElement . toElement "si")
-                        $ V.toList _sharedStringTable
-    }
-
--- | See @CT_Rst@, p. 3903
-instance ToElement StringItem where
-  toElement nm si = Element {
-      elementName       = nm
-    , elementAttributes = Map.empty
-    , elementNodes      = map NodeElement $
-        case si of
-          StringItemText text -> [elementContent "t" text]
-          StringItemRich rich -> map (toElement "r") rich
+                        $ V.toList sstTable
     }
 
 {-------------------------------------------------------------------------------
@@ -126,20 +81,6 @@ instance FromCursor SharedStringTable where
       items = cur $/ element (n"si") >=> fromCursor
     return (SharedStringTable (V.fromList items))
 
--- | See @CT_Rst@, p. 3903
-instance FromCursor StringItem where
-  fromCursor cur = do
-    let
-      ts = cur $/ element (n"t") &/ content
-      rs = cur $/ element (n"r") >=> fromCursor
-    case (ts,rs) of
-      ([t], []) ->
-        return $ StringItemText t
-      ([], _:_) ->
-        return $ StringItemRich rs
-      _ ->
-        fail "invalid item"
-
 {-------------------------------------------------------------------------------
   Extract shared strings
 -------------------------------------------------------------------------------}
@@ -149,29 +90,29 @@ sstConstruct :: [Worksheet] -> SharedStringTable
 sstConstruct =
     SharedStringTable . V.fromList . uniq . concatMap goSheet
   where
-    goSheet :: Worksheet -> [StringItem]
+    goSheet :: Worksheet -> [XlsxText]
     goSheet = mapMaybe (_cellValue >=> sstEntry) . Map.elems . _wsCells
 
-    sstEntry :: CellValue -> Maybe StringItem
-    sstEntry (CellText text) = Just $ StringItemText text
-    sstEntry (CellRich rich) = Just $ StringItemRich rich
+    sstEntry :: CellValue -> Maybe XlsxText
+    sstEntry (CellText text) = Just $ XlsxText text
+    sstEntry (CellRich rich) = Just $ XlsxRichText rich
     sstEntry _               = Nothing
 
     uniq :: Ord a => [a] -> [a]
     uniq = Set.elems . Set.fromList
 
 sstLookupText :: SharedStringTable -> Text -> Int
-sstLookupText sst = sstLookup sst . StringItemText
+sstLookupText sst = sstLookup sst . XlsxText
 
 sstLookupRich :: SharedStringTable -> [RichTextRun] -> Int
-sstLookupRich sst = sstLookup sst . StringItemRich
+sstLookupRich sst = sstLookup sst . XlsxRichText
 
 -- | Internal generalization used by 'sstLookupText' and 'sstLookupRich'
-sstLookup :: SharedStringTable -> StringItem -> Int
-sstLookup SharedStringTable{_sharedStringTable = shared} si =
+sstLookup :: SharedStringTable -> XlsxText -> Int
+sstLookup SharedStringTable{sstTable = shared} si =
     case searchFromTo (\p -> shared V.! p >= si) 0 (V.length shared - 1) of
       Just i  -> i
       Nothing -> error $ "SST entry for " ++ show si ++ " not found"
 
-sstItem :: SharedStringTable -> Int -> StringItem
-sstItem SharedStringTable{_sharedStringTable = shared} = (V.!) shared
+sstItem :: SharedStringTable -> Int -> XlsxText
+sstItem (SharedStringTable shared) = (V.!) shared

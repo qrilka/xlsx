@@ -24,11 +24,11 @@
 -- > import Codec.Xlsx
 -- > import Control.Lens
 -- > import qualified Data.ByteString.Lazy as L
--- > import System.Time
+-- > import Data.Time.Clock.POSIX
 -- >
 -- > main :: IO ()
 -- > main = do
--- >   ct <- getClockTime
+-- >   ct <- getPOSIXTime
 -- >   let
 -- >       sheet = def & cellValueAt (1,2) ?~ CellDouble 42.0
 -- >                   & cellValueAt (3,2) ?~ CellText "foo"

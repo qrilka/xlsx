@@ -1,3 +1,30 @@
+0.2.2.2
+-----
+* fixed missing from parsing code font family value 0 (Not applicable) (thanks Steve Bigham <steve.bigham@gmail.com>)
+* fixed time type used in haddock example (thanks Manoj <manoj.p.gudi@gmail.com>)
+
+0.2.2.1
+-----
+* fixed comments data type names and modules/imports
+
+0.2.2
+-----
+* added cell comments support
+* added custom file properties
+
+0.2.1.2
+-------
+* loosened dependency on data-default package
+
+0.2.1.1
+-------
+* fixed parsing shared string table entries with no content (thanks to Yuji Yamamoto <whosekiteneverfly@gmail.com>)
+
+0.2.1
+-------
+* added number formats (thanks to Alan Zimmerman <alan.zimm@gmail.com>)
+* loosened dependency on zip-archive package
+
 0.2.0
 -----
 * added style sheet support (thanks to Edsko de Vries <edsko@well-typed.com>)

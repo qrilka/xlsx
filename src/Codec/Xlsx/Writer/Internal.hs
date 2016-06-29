@@ -7,24 +7,38 @@ module Codec.Xlsx.Writer.Internal (
     -- * Rendering documents
     ToDocument(..)
   , documentFromElement
+  , documentFromNsElement
     -- * Rendering elements
   , ToElement(..)
-  , elementList
+  , countedElementList
+  , elementListSimple
   , elementContent
+  , elementContentPreserved
   , elementValue
     -- * Rendering attributes
   , ToAttrVal(..)
   , (.=)
   , (.=?)
+  , setAttr
     -- * Dealing with namespaces
   , addNS
   , mainNamespace
+    -- * Misc
+  , txti
+  , txtb
+  , txtd
   ) where
 
-import Data.Text (Text)
-import Data.String (fromString)
-import Text.XML
-import qualified Data.Map as Map
+import           Data.Text                        (Text)
+import qualified Data.Text                        as T
+import           Data.Text.Lazy                   (toStrict)
+import           Data.Text.Lazy.Builder           (toLazyText)
+import           Data.Text.Lazy.Builder.Int
+import           Data.Text.Lazy.Builder.RealFloat
+
+import qualified Data.Map                         as Map
+import           Data.String                      (fromString)
+import           Text.XML
 
 {-------------------------------------------------------------------------------
   Rendering documents
@@ -34,8 +48,11 @@ class ToDocument a where
   toDocument :: a -> Document
 
 documentFromElement :: Text -> Element -> Document
-documentFromElement comment e = Document {
-      documentRoot     = addNS mainNamespace e
+documentFromElement comment e = documentFromNsElement comment mainNamespace e
+
+documentFromNsElement :: Text -> Text -> Element -> Document
+documentFromNsElement comment ns e = Document {
+      documentRoot     = addNS ns e
     , documentEpilogue = []
     , documentPrologue = Prologue {
           prologueBefore  = [MiscComment comment]
@@ -51,19 +68,31 @@ documentFromElement comment e = Document {
 class ToElement a where
   toElement :: Name -> a -> Element
 
-elementList :: Name -> [Element] -> Element
-elementList nm as = Element {
+countedElementList :: Name -> [Element] -> Element
+countedElementList nm as = elementList0 nm as [ "count" .= length as ]
+
+elementList0 :: Name -> [Element] -> [(Name, Text)] -> Element
+elementList0 nm els attrs = Element {
       elementName       = nm
-    , elementNodes      = map NodeElement as
-    , elementAttributes = Map.fromList [ "count" .= length as ]
+    , elementNodes      = map NodeElement els
+    , elementAttributes = Map.fromList attrs
+    }
+
+elementListSimple :: Name -> [Element] -> Element
+elementListSimple nm els = elementList0 nm els []
+
+elementContent0 :: Name -> [(Name, Text)] -> Text -> Element
+elementContent0 nm attrs txt = Element {
+      elementName       = nm
+    , elementAttributes = Map.fromList attrs
+    , elementNodes      = [NodeContent txt]
     }
 
 elementContent :: Name -> Text -> Element
-elementContent nm txt = Element {
-      elementName       = nm
-    , elementAttributes = Map.fromList [ preserveSpace ]
-    , elementNodes      = [NodeContent txt]
-    }
+elementContent nm txt = elementContent0 nm [] txt
+
+elementContentPreserved :: Name -> Text -> Element
+elementContentPreserved nm txt = elementContent0 nm [ preserveSpace ] txt
   where
     preserveSpace = (
         Name { nameLocalName = "space"
@@ -103,6 +132,11 @@ nm .= a = (nm, toAttrVal a)
 _  .=? Nothing  = Nothing
 nm .=? (Just a) = Just (nm .= a)
 
+setAttr :: ToAttrVal a => Name -> a -> Element -> Element
+setAttr nm a el@Element{..} = el{ elementAttributes = attrs' }
+  where
+    attrs' = Map.insert nm (toAttrVal a) elementAttributes
+
 {-------------------------------------------------------------------------------
   Dealing with namespaces
 -------------------------------------------------------------------------------}
@@ -134,3 +168,13 @@ addNS ns Element{..} = Element{
 -- | The main namespace for Excel
 mainNamespace :: Text
 mainNamespace = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+
+
+txtd :: Double -> Text
+txtd = toStrict . toLazyText . realFloat
+
+txtb :: Bool -> Text
+txtb = T.toLower . T.pack . show
+
+txti :: Int -> Text
+txti = toStrict . toLazyText . decimal

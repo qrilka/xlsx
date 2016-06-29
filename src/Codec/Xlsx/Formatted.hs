@@ -14,6 +14,7 @@ module Codec.Xlsx.Formatted (
   , formattedBorder
   , formattedFill
   , formattedFont
+  , formattedNumberFormat
   , formattedProtection
   , formattedPivotButton
   , formattedQuotePrefix
@@ -52,15 +53,15 @@ makeLenses ''FormattingState
 
 stateFromStyleSheet :: StyleSheet -> FormattingState
 stateFromStyleSheet StyleSheet{..} = FormattingState{
-      _formattingBorders = fromList _styleSheetBorders
-    , _formattingCellXfs = fromList _styleSheetCellXfs
-    , _formattingFills   = fromList _styleSheetFills
-    , _formattingFonts   = fromList _styleSheetFonts
+      _formattingBorders = fromValueList _styleSheetBorders
+    , _formattingCellXfs = fromValueList _styleSheetCellXfs
+    , _formattingFills   = fromValueList _styleSheetFills
+    , _formattingFonts   = fromValueList _styleSheetFonts
     , _formattingMerges  = []
     }
   where
-    fromList :: Ord a => [a] -> Map a Int
-    fromList = Map.fromList . (`zip` [0..])
+    fromValueList :: Ord a => [a] -> Map a Int
+    fromValueList = Map.fromList . (`zip` [0..])
 
 stateToStyleSheet :: FormattingState -> StyleSheet
 stateToStyleSheet FormattingState{..} = StyleSheet{
@@ -95,16 +96,17 @@ getId f a = do
 -- * Add a number format ('_cellXfApplyNumberFormat', '_cellXfNumFmtId')
 -- * Add references to the named style sheets ('_cellXfId')
 data FormattedCell = FormattedCell {
-    _formattedAlignment   :: Maybe Alignment
-  , _formattedBorder      :: Maybe Border
-  , _formattedFill        :: Maybe Fill
-  , _formattedFont        :: Maybe Font
-  , _formattedProtection  :: Maybe Protection
-  , _formattedPivotButton :: Maybe Bool
-  , _formattedQuotePrefix :: Maybe Bool
-  , _formattedValue       :: Maybe CellValue
-  , _formattedColSpan     :: Int
-  , _formattedRowSpan     :: Int
+    _formattedAlignment    :: Maybe Alignment
+  , _formattedBorder       :: Maybe Border
+  , _formattedFill         :: Maybe Fill
+  , _formattedFont         :: Maybe Font
+  , _formattedNumberFormat :: Maybe NumberFormat
+  , _formattedProtection   :: Maybe Protection
+  , _formattedPivotButton  :: Maybe Bool
+  , _formattedQuotePrefix  :: Maybe Bool
+  , _formattedValue        :: Maybe CellValue
+  , _formattedColSpan      :: Int
+  , _formattedRowSpan      :: Int
   }
   deriving (Show, Eq)
 
@@ -112,16 +114,17 @@ makeLenses ''FormattedCell
 
 instance Default FormattedCell where
   def = FormattedCell {
-      _formattedAlignment   = Nothing
-    , _formattedBorder      = Nothing
-    , _formattedFill        = Nothing
-    , _formattedFont        = Nothing
-    , _formattedProtection  = Nothing
-    , _formattedPivotButton = Nothing
-    , _formattedQuotePrefix = Nothing
-    , _formattedValue       = Nothing
-    , _formattedColSpan     = 1
-    , _formattedRowSpan     = 1
+      _formattedAlignment    = Nothing
+    , _formattedBorder       = Nothing
+    , _formattedFill         = Nothing
+    , _formattedFont         = Nothing
+    , _formattedNumberFormat = Nothing
+    , _formattedProtection   = Nothing
+    , _formattedPivotButton  = Nothing
+    , _formattedQuotePrefix  = Nothing
+    , _formattedValue        = Nothing
+    , _formattedColSpan      = 1
+    , _formattedRowSpan      = 1
     }
 
 {-------------------------------------------------------------------------------
@@ -188,7 +191,7 @@ formatCell (row, col) cell = do
     go :: ((Int, Int), FormattedCell) -> State FormattingState ((Int, Int), Cell)
     go (pos, c) = do
       styleId <- cellStyleId c
-      return (pos, Cell styleId (_formattedValue c))
+      return (pos, Cell styleId (_formattedValue c) Nothing)
 
 -- | Cell block corresponding to a single 'FormattedCell'
 --
@@ -240,17 +243,18 @@ cellXf FormattedCell{..} = do
     mBorderId <- getId formattingBorders `mapM` _formattedBorder
     mFillId   <- getId formattingFills   `mapM` _formattedFill
     mFontId   <- getId formattingFonts   `mapM` _formattedFont
+    let mNumFmtId = fmap numberFormatId _formattedNumberFormat
     let xf = CellXf {
             _cellXfApplyAlignment    = apply _formattedAlignment
           , _cellXfApplyBorder       = apply mBorderId
           , _cellXfApplyFill         = apply mFillId
           , _cellXfApplyFont         = apply mFontId
-          , _cellXfApplyNumberFormat = Nothing -- TODO
+          , _cellXfApplyNumberFormat = apply _formattedNumberFormat
           , _cellXfApplyProtection   = apply _formattedProtection
           , _cellXfBorderId          = mBorderId
           , _cellXfFillId            = mFillId
           , _cellXfFontId            = mFontId
-          , _cellXfNumFmtId          = Nothing -- TODO
+          , _cellXfNumFmtId          = mNumFmtId
           , _cellXfPivotButton       = _formattedPivotButton
           , _cellXfQuotePrefix       = _formattedQuotePrefix
           , _cellXfId                = Nothing -- TODO

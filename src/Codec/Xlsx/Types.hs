@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types
-    ( Xlsx(..), xlSheets, xlStyles, xlDefinedNames
+    ( Xlsx(..), xlSheets, xlStyles, xlDefinedNames, xlCustomProperties
     , def
     , Styles(..)
     , emptyStyles
@@ -15,7 +15,7 @@ module Codec.Xlsx.Types
     , Worksheet(..), wsColumns, wsRowPropertiesMap, wsCells, wsMerges, wsSheetViews, wsPageSetup
     , CellMap
     , CellValue(..)
-    , Cell(..), cellValue, cellStyle
+    , Cell(..), cellValue, cellStyle, cellComment
     , RowProperties (..)
     , Range
     , int2col
@@ -42,11 +42,13 @@ import           Text.XML (renderLBS, parseLBS)
 import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Types.Comment as X
 import           Codec.Xlsx.Types.Common as X
 import           Codec.Xlsx.Types.PageSetup as X
 import           Codec.Xlsx.Types.RichText as X
 import           Codec.Xlsx.Types.SheetViews as X
 import           Codec.Xlsx.Types.StyleSheet as X
+import           Codec.Xlsx.Types.Variant as X
 import           Codec.Xlsx.Writer.Internal
 
 -- | Cell values include text, numbers and booleans,
@@ -63,14 +65,15 @@ data CellValue = CellText   Text
 -- (e.g. formulas from @\<f\>@ and inline strings from @\<is\>@
 -- subelements are ignored)
 data Cell = Cell
-    { _cellStyle  :: Maybe Int
-    , _cellValue  :: Maybe CellValue
+    { _cellStyle   :: Maybe Int
+    , _cellValue   :: Maybe CellValue
+    , _cellComment :: Maybe  Comment
     } deriving (Eq, Show)
 
 makeLenses ''Cell
 
 instance Default Cell where
-    def = Cell Nothing Nothing
+    def = Cell Nothing Nothing Nothing
 
 -- | Map containing cell values which are indexed by row and column
 -- if you need to use more traditional (x,y) indexing please you could
@@ -119,9 +122,10 @@ newtype Styles = Styles {unStyles :: L.ByteString}
 
 -- | Structured representation of Xlsx file (currently a subset of its contents)
 data Xlsx = Xlsx
-    { _xlSheets       :: Map Text Worksheet
-    , _xlStyles       :: Styles
-    , _xlDefinedNames :: DefinedNames
+    { _xlSheets           :: Map Text Worksheet
+    , _xlStyles           :: Styles
+    , _xlDefinedNames     :: DefinedNames
+    , _xlCustomProperties :: Map Text Variant
     } deriving (Eq, Show)
 
 -- | Defined names
@@ -151,7 +155,7 @@ newtype DefinedNames = DefinedNames [(Text, Maybe Text, Text)]
 makeLenses ''Xlsx
 
 instance Default Xlsx where
-    def = Xlsx M.empty emptyStyles def
+    def = Xlsx M.empty emptyStyles def M.empty
 
 instance Default DefinedNames where
     def = DefinedNames []
