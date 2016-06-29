@@ -3,7 +3,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes      #-}
-{-# OPTIONS_GHC -Wall        #-}
 module Codec.Xlsx.Formatted (
     FormattedCell(..)
   , Formatted(..)
