@@ -32,7 +32,7 @@ Cabal-version:       >=1.10
 
 Library
   Hs-source-dirs:    src
-  ghc-options:       -Werror -Wall
+  ghc-options:       -Wall
   Exposed-modules:   Codec.Xlsx
                    , Codec.Xlsx.Types
                    , Codec.Xlsx.Types.Comment

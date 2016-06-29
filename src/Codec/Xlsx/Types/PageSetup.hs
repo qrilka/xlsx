@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# OPTIONS_GHC -Wall #-}
 module Codec.Xlsx.Types.PageSetup (
     -- * Main types
     PageSetup(..)

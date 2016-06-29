@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
-{-# OPTIONS_GHC -Wall #-}
 module Codec.Xlsx.Types.SheetViews (
     -- * Structured type to construct 'SheetViews'
     SheetView(..)
@@ -56,7 +55,7 @@ import Text.XML.Cursor
 import qualified Data.Map  as Map
 
 #if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
+import Control.Applicative ()
 #endif
 
 import Codec.Xlsx.Types.Common

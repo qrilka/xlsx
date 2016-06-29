@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
-{-# OPTIONS_GHC -Wall #-}
 module Codec.Xlsx.Types.RichText (
     -- * Main types
     RichTextRun(..)

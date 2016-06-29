@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
-{-# OPTIONS_GHC -Wall #-}
 -- | Support for writing (but not reading) style sheets
 module Codec.Xlsx.Types.StyleSheet (
     -- * The main two types
