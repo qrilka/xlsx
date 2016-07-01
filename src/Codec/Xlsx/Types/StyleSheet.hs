@@ -1297,16 +1297,16 @@ instance FromCursor Font where
     _fontName         <- maybeElementValue (n"name") cur
     _fontCharset      <- maybeElementValue (n"charset") cur
     _fontFamily       <- maybeElementValue (n"family") cur
-    _fontBold         <- maybeElementValue (n"b") cur
-    _fontItalic       <- maybeElementValue (n"i") cur
-    _fontStrikeThrough<- maybeElementValue (n"strike") cur
-    _fontOutline      <- maybeElementValue (n"outline") cur
-    _fontShadow       <- maybeElementValue (n"shadow") cur
-    _fontCondense     <- maybeElementValue (n"condense") cur
-    _fontExtend       <- maybeElementValue (n"extend") cur
+    _fontBold         <- maybeBoolElemValue (n"b") cur
+    _fontItalic       <- maybeBoolElemValue (n"i") cur
+    _fontStrikeThrough<- maybeBoolElemValue (n"strike") cur
+    _fontOutline      <- maybeBoolElemValue (n"outline") cur
+    _fontShadow       <- maybeBoolElemValue (n"shadow") cur
+    _fontCondense     <- maybeBoolElemValue (n"condense") cur
+    _fontExtend       <- maybeBoolElemValue (n"extend") cur
     _fontColor        <- maybeFromElement  (n"color") cur
     _fontSize         <- maybeElementValue (n"sz") cur
-    _fontUnderline    <- maybeElementValue (n"u") cur
+    _fontUnderline    <- maybeElementValueDef (n"u") FontUnderlineSingle cur
     _fontVertAlign    <- maybeElementValue (n"vertAlign") cur
     _fontScheme       <- maybeElementValue (n"scheme") cur
     return Font{..}
