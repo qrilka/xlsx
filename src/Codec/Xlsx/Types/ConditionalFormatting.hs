@@ -6,6 +6,7 @@ module Codec.Xlsx.Types.ConditionalFormatting
     , CfRule(..)
     , Condition(..)
     , OperatorExpression (..)
+    , TimePeriod (..)
     -- * Lenses
     -- ** CfRule
     , cfrCondition
@@ -45,6 +46,24 @@ data OperatorExpression
     | OpNotBetween Formula Formula -- ^ 'Not between' operator
     | OpNotContains Formula        -- ^ 'Does not contain' operator
     | OpNotEqual Formula           -- ^ 'Not equal to' operator
+    deriving (Eq, Show)
+
+-- | Used in a "contains dates" conditional formatting rule.
+-- These are dynamic time periods, which change based on
+-- the date the conditional formatting is refreshed / applied.
+--
+-- See 18.18.82 "ST_TimePeriod (Time Period Types)" (p. 2508)
+data TimePeriod
+    = PerLast7Days  -- ^ A date in the last seven days.
+    | PerLastMonth  -- ^ A date occuring in the last calendar month.
+    | PerLastWeek   -- ^ A date occuring last week.
+    | PerNextMonth  -- ^ A date occuring in the next calendar month.
+    | PerNextWeek   -- ^ A date occuring next week.
+    | PerThisMonth  -- ^ A date occuring in this calendar month.
+    | PerThisWeek   -- ^ A date occuring this week.
+    | PerToday      -- ^ Today's date.
+    | PerTomorrow   -- ^ Tomorrow's date.
+    | PerYesterday  -- ^ Yesterday's date.
     deriving (Eq, Show)
 
 -- | Conditions which could be used for conditional formatting
@@ -95,6 +114,14 @@ data Condition
     -- evaluate. When the formula result is true, the cell is
     -- highlighted.
     | Expression Formula
+    -- | This conditional formatting rule highlights cells
+    -- containing dates in the specified time period. The
+    -- underlying value of the cell is evaluated, therefore the
+    -- cell does not need to be formatted as a date to be
+    -- evaluated. For example, with a cell containing the
+    -- value 38913 the conditional format shall be applied if
+    -- the rule requires a value of 7/14/2006.
+    | InTimePeriod TimePeriod
     -- TODO: aboveAverage
     -- TODO: colorScale
     -- TODO: dataBar
@@ -171,6 +198,9 @@ readCondition "endsWith" cur         = do
 readCondition "expression" cur       = do
     formula <- cur $/ element "formula" >=> fromCursor
     return $ Expression formula
+readCondition "timePeriod" cur  = do
+    period <- fromAttribute "timePeriod" cur
+    return $ InTimePeriod period
 readCondition _ _                    = error "Unexpected conditional formatting type"
 
 readOpExpression :: Text -> [Formula] -> [OperatorExpression]
@@ -187,6 +217,20 @@ readOpExpression "notBetween" [f1, f2]    = [OpNotBetween f1 f2]
 readOpExpression "notContains" [f]        = [OpNotContains f]
 readOpExpression "notEqual" [f]           = [OpNotEqual f]
 readOpExpression _ _                      = []
+
+instance FromAttrVal TimePeriod where
+    fromAttrVal "last7Days" = readSuccess PerLast7Days
+    fromAttrVal "lastMonth" = readSuccess PerLastMonth
+    fromAttrVal "lastWeek"  = readSuccess PerLastWeek
+    fromAttrVal "nextMonth" = readSuccess PerNextMonth
+    fromAttrVal "nextWeek"  = readSuccess PerNextWeek
+    fromAttrVal "thisMonth" = readSuccess PerThisMonth
+    fromAttrVal "thisWeek"  = readSuccess PerThisWeek
+    fromAttrVal "today"     = readSuccess PerToday
+    fromAttrVal "tomorrow"  = readSuccess PerTomorrow
+    fromAttrVal "yesterday" = readSuccess PerYesterday
+    fromAttrVal t           = invalidText "TimePeriod" t
+
 
 {-------------------------------------------------------------------------------
   Rendering
@@ -219,6 +263,7 @@ conditionData DoesNotContainErrors   = ("notContainsErrors", M.empty, [])
 conditionData (DoesNotContainText t) = ("notContainsText", M.fromList [ "text" .= t], [])
 conditionData (EndsWith t)           = ("endsWith", M.fromList [ "text" .= t], [])
 conditionData (Expression formula)   = ("expression", M.empty, [formulaNode formula])
+conditionData (InTimePeriod period)  = ("timePeriod", M.fromList [ "timePeriod" .= period ], [])
 
 operatorExpressionData :: OperatorExpression -> (Text, [Node])
 operatorExpressionData (OpBeginsWith f)          = ("beginsWith", [formulaNode f])
@@ -236,3 +281,15 @@ operatorExpressionData (OpNotEqual f)            = ("notEqual", [formulaNode  f]
 
 formulaNode :: Formula -> Node
 formulaNode = NodeElement . toElement "formula"
+
+instance ToAttrVal TimePeriod where
+    toAttrVal PerLast7Days = "last7Days"
+    toAttrVal PerLastMonth = "lastMonth"
+    toAttrVal PerLastWeek  = "lastWeek"
+    toAttrVal PerNextMonth = "nextMonth"
+    toAttrVal PerNextWeek  = "nextWeek"
+    toAttrVal PerThisMonth = "thisMonth"
+    toAttrVal PerThisWeek  = "thisWeek"
+    toAttrVal PerToday     = "today"
+    toAttrVal PerTomorrow  = "tomorrow"
+    toAttrVal PerYesterday = "yesterday"
