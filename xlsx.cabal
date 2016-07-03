@@ -72,7 +72,6 @@ Library
                    , text         >= 0.11.3.1
                    , time         >= 1.4.0.1
                    , transformers >= 0.3.0.0
-                   , unordered-containers
                    , vector       >= 0.10
                    , xml-conduit  >= 1.1.0
                    , zip-archive  >= 0.2
@@ -107,7 +106,6 @@ test-suite data-test
                , bytestring
                , vector
                , raw-strings-qq
-               , unordered-containers
   Default-Language:     Haskell2010
 
 source-repository head
