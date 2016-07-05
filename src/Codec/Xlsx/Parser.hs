@@ -28,11 +28,12 @@ import           Text.XML.Cursor
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types
 import           Codec.Xlsx.Types.Internal
+import           Codec.Xlsx.Types.Internal.CfPair
+import           Codec.Xlsx.Types.Internal.CommentTable
+import           Codec.Xlsx.Types.Internal.CustomProperties
+import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
 import           Codec.Xlsx.Types.Internal.SharedStringTable
-import           Codec.Xlsx.Types.Internal.CustomProperties
-import           Codec.Xlsx.Types.Internal.CommentTable
-import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)
@@ -55,7 +56,7 @@ extractSheet :: Zip.Archive
              -> SharedStringTable
              -> WorksheetFile
              -> Worksheet
-extractSheet ar sst wf = Worksheet cws rowProps cells merges sheetViews pageSetup
+extractSheet ar sst wf = Worksheet cws rowProps cells merges sheetViews pageSetup condFormtattings
   where
     file = fromJust $ Zip.fromEntry <$> Zip.findEntryByPath (wfPath wf) ar
     cur = case parseLBS def file of
@@ -113,6 +114,8 @@ extractSheet ar sst wf = Worksheet cws rowProps cells merges sheetViews pageSetu
     parseMerges :: Cursor -> [Text]
     parseMerges = element (n"mergeCells") &/ element (n"mergeCell") >=> parseMerge
     parseMerge c = c $| attribute "ref"
+
+    condFormtattings = M.fromList . map unCfPair  $ cur $/ element (n"conditionalFormatting") >=> fromCursor
 
 extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
 extractCellValue sst "s" v =

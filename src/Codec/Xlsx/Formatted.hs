@@ -3,7 +3,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes      #-}
-{-# OPTIONS_GHC -Wall        #-}
 module Codec.Xlsx.Formatted (
     FormattedCell(..)
   , Formatted(..)
@@ -46,6 +45,7 @@ data FormattingState = FormattingState {
   , _formattingCellXfs :: Map CellXf Int
   , _formattingFills   :: Map Fill   Int
   , _formattingFonts   :: Map Font   Int
+  -- TODO: dxfs
   , _formattingMerges  :: [Range]         -- ^ In reverse order
   }
 
@@ -69,6 +69,7 @@ stateToStyleSheet FormattingState{..} = StyleSheet{
     , _styleSheetCellXfs = toList  _formattingCellXfs
     , _styleSheetFills   = toList  _formattingFills
     , _styleSheetFonts   = toList  _formattingFonts
+    , _styleSheetDxfs    = []
     }
   where
     toList :: Map a Int -> [a]

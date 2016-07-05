@@ -1,6 +1,6 @@
+{-# LANGUAGE CPP                #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings  #-}
 module Codec.Xlsx.Parser.Internal
     ( ParseException(..)
     , n
@@ -9,6 +9,8 @@ module Codec.Xlsx.Parser.Internal
     , fromAttribute
     , maybeAttribute
     , maybeElementValue
+    , maybeElementValueDef
+    , maybeBoolElemValue
     , maybeFromElement
     , readSuccess
     , readFailure
@@ -19,11 +21,12 @@ module Codec.Xlsx.Parser.Internal
     , rational
     ) where
 
-import           Control.Exception (Exception)
-import           Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Read as T
-import           Data.Typeable (Typeable)
+import           Control.Exception       (Exception)
+import           Data.Maybe
+import           Data.Text               (Text)
+import qualified Data.Text               as T
+import qualified Data.Text.Read          as T
+import           Data.Typeable           (Typeable)
 import           Text.XML
 import           Text.XML.Cursor
 
@@ -73,6 +76,15 @@ maybeElementValue name cursor =
   case cursor $/ element name of
     [cursor'] -> maybeAttribute "val" cursor'
     _ -> [Nothing]
+
+maybeElementValueDef :: FromAttrVal a => Name -> a -> Cursor -> [Maybe a]
+maybeElementValueDef name defVal cursor =
+  case cursor $/ element name of
+    [cursor'] -> Just . fromMaybe defVal <$> maybeAttribute "val" cursor'
+    _ -> [Nothing]
+
+maybeBoolElemValue :: Name -> Cursor -> [Maybe Bool]
+maybeBoolElemValue name cursor = maybeElementValueDef name True cursor
 
 maybeFromElement :: FromCursor a => Name -> Cursor -> [Maybe a]
 maybeFromElement name cursor = case cursor $/ element name of

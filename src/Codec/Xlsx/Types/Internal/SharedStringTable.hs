@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
-{-# OPTIONS_GHC -Wall #-}
 module Codec.Xlsx.Types.Internal.SharedStringTable (
     -- * Main types
     SharedStringTable(..)

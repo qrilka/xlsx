@@ -32,6 +32,7 @@ import           Control.Applicative
 #endif
 
 import           Codec.Xlsx.Types
+import           Codec.Xlsx.Types.Internal.CfPair
 import qualified Codec.Xlsx.Types.Internal.CommentTable      as CommentTable
 import           Codec.Xlsx.Types.Internal.CustomProperties
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships hiding (lookup)
@@ -193,14 +194,18 @@ sheetXml ws rows = renderLBS def $ Document (Prologue [] Nothing []) root []
     merges = ws ^. wsMerges
     sheetViews = ws ^. wsSheetViews
     pageSetup = ws ^. wsPageSetup
-    cType = xlsxCellType
+    cfPairs = map CfPair . M.toList $ ws ^. wsConditionalFormattings
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
-           Element "worksheet" M.empty $ catMaybes
-           [renderSheetViews <$> sheetViews,
-            nonEmptyNmEl "cols" M.empty $  map cwEl cws,
-            justNmEl "sheetData" M.empty $ map rowEl rows,
-            nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges,
-            NodeElement . toElement "pageSetup" <$> pageSetup]
+           Element "worksheet" M.empty $ catMaybes $
+           [ renderSheetViews <$> sheetViews,
+             nonEmptyNmEl "cols" M.empty $  map cwEl cws,
+             justNmEl "sheetData" M.empty $ map rowEl rows
+           ] ++
+           map (Just . NodeElement . toElement "conditionalFormatting") cfPairs ++
+           [ nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges,
+             NodeElement . toElement "pageSetup" <$> pageSetup
+           ]
+    cType = xlsxCellType
     cwEl cw = NodeElement $! Element "col" (M.fromList
               [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw), ("style", txti $ cwStyle cw)]) []
     rowEl (r, cells) = nEl "row"
