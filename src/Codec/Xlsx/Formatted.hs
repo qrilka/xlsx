@@ -212,15 +212,15 @@ formatted cs styleSheet =
 
 data CondFormatted = CondFormatted {
     -- | The resulting stylesheet
-    condfmtStyleSheet  :: StyleSheet
+    condformattedStyleSheet  :: StyleSheet
     -- | The final map of conditional formatting rules applied to ranges
-    , condfmtFormattings :: Map SqRef ConditionalFormatting
+    , condformattedFormattings :: Map SqRef ConditionalFormatting
     } deriving (Eq, Show)
 
 conditionallyFormatted :: Map CellRef [FormattedCondFmt] -> StyleSheet -> CondFormatted
 conditionallyFormatted cfs styleSheet = CondFormatted
-    { condfmtStyleSheet  = styleSheet & styleSheetDxfs .~ finalDxfs
-    , condfmtFormattings = fmts
+    { condformattedStyleSheet  = styleSheet & styleSheetDxfs .~ finalDxfs
+    , condformattedFormattings = fmts
     }
   where
     (cellFmts, dxf2id) = runState (mapM (mapM mapDxf) cfs) dxf2id0
