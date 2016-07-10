@@ -3,27 +3,32 @@
 module Main (main) where
 
 import           Control.Lens
-import           Data.ByteString.Lazy               (ByteString)
-import qualified Data.Map                           as M
-import           Data.Time.Clock.POSIX              (POSIXTime)
-import qualified Data.Vector                        as V
+import           Control.Monad.State.Lazy
+import           Data.ByteString.Lazy                        (ByteString)
+import qualified Data.Map                                    as M
+import           Data.Time.Clock.POSIX                       (POSIXTime)
+import qualified Data.Vector                                 as V
 import           Text.RawString.QQ
 import           Text.XML
 import           Text.XML.Cursor
 
-import           Test.Tasty                         (defaultMain, testGroup)
-import           Test.Tasty.HUnit                   (testCase)
-import           Test.Tasty.SmallCheck              (testProperty)
+import           Test.Tasty                                  (defaultMain,
+                                                              testGroup)
+import           Test.Tasty.HUnit                            (testCase)
+import           Test.Tasty.SmallCheck                       (testProperty)
 
-import           Test.HUnit                         ((@=?))
-import           Test.SmallCheck.Series             (Positive (..))
+import           Test.SmallCheck.Series                      (Positive (..))
+import           Test.Tasty.HUnit                            (HUnitFailure (..),
+                                                              (@=?))
 
 import           Codec.Xlsx
+import           Codec.Xlsx.Formatted
 import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Internal.CustomProperties as CustomProperties
 import           Codec.Xlsx.Types.Internal.CommentTable
+import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 
+import           Diff
 
 main :: IO ()
 main = defaultMain $
@@ -43,7 +48,11 @@ main = defaultMain $
     , testCase "correct comments parsing" $
         [testCommentTable] @=? testParsedComments
     , testCase "correct custom properties parsing" $
-        [testCustomProperties] @=? testParsedCustomProperties
+        [testCustomProperties] @==? testParsedCustomProperties
+    , testCase "proper results from `formatted`" $
+        testFormattedResult @==? testRunFormatted
+    , testCase "proper results from `conditionalltyFormatted`" $
+        testCondFormattedResult @==? testRunCondFormatted
     ]
 
 testXlsx :: Xlsx
@@ -269,3 +278,85 @@ testCustomPropertiesXml = [r|
   </property>
 </Properties>
 |]
+
+testFormattedResult :: Formatted
+testFormattedResult = Formatted cm styleSheet merges
+  where
+    cm = M.fromList [((1, 1), cell11),((1, 2), cell2)]
+    cell11 = Cell
+        { _cellStyle   = Just 1
+        , _cellValue   = Just (CellText "text at A1")
+        , _cellComment = Nothing }
+    cell2 = Cell
+        { _cellStyle   = Just 2
+        , _cellValue   = Just (CellDouble 1.23)
+        , _cellComment = Nothing }
+    merges = []
+    styleSheet =
+        minimalStyleSheet & styleSheetCellXfs %~ (++ [cellXf1, cellXf2])
+                          & styleSheetFonts   %~ (++ [font1, font2])
+    nextFontId = length (minimalStyleSheet ^. styleSheetFonts)
+    cellXf1 = def
+        { _cellXfApplyFont = Just True
+        , _cellXfFontId    = Just nextFontId }
+    font1 = def
+        { _fontName = Just "Calibri"
+        , _fontBold = Just True }
+    cellXf2 = def
+        { _cellXfApplyFont = Just True
+        , _cellXfFontId    = Just (nextFontId + 1) }
+    font2 = def
+        { _fontItalic = Just True }
+
+testRunFormatted :: Formatted
+testRunFormatted = formatted formattedCellMap minimalStyleSheet
+  where
+    formattedCellMap = flip execState def $ do
+        let font1 = def & fontBold ?~ True
+                        & fontName ?~ "Calibri"
+        at (1, 1) ?= (def & formattedValue ?~ CellText "text at A1"
+                          & formattedFont  ?~ font1)
+        at (1, 2) ?= (def & formattedValue ?~ CellDouble 1.23
+                          & formattedFont . non def . fontItalic ?~ True)
+
+testCondFormattedResult :: CondFormatted
+testCondFormattedResult = CondFormatted styleSheet formattings
+  where
+    styleSheet =
+        minimalStyleSheet & styleSheetDxfs .~ dxfs
+    dxfs = [ def & dxfFont ?~ (def & fontUnderline ?~ FontUnderlineSingle)
+           , def & dxfFont ?~ (def & fontStrikeThrough ?~ True)
+           , def & dxfFont ?~ (def & fontBold ?~ True) ]
+    formattings = M.fromList [ (SqRef ["A1:A2", "B2:B3"], [cfRule1, cfRule2])
+                             , (SqRef ["C3:E10"], [cfRule1])
+                             , (SqRef ["F1:G10"], [cfRule3]) ]
+    cfRule1 = CfRule
+        { _cfrCondition  = ContainsBlanks
+        , _cfrDxfId      = Just 0
+        , _cfrPriority   = 1
+        , _cfrStopIfTrue = Nothing }
+    cfRule2 = CfRule
+        { _cfrCondition  = BeginsWith "foo"
+        , _cfrDxfId      = Just 1
+        , _cfrPriority   = 1
+        , _cfrStopIfTrue = Nothing }
+    cfRule3 = CfRule
+        { _cfrCondition  = CellIs (OpGreaterThan (Formula "A1"))
+        , _cfrDxfId      = Just 2
+        , _cfrPriority   = 1
+        , _cfrStopIfTrue = Nothing }
+
+testRunCondFormatted :: CondFormatted
+testRunCondFormatted = conditionallyFormatted condFmts minimalStyleSheet
+  where
+    condFmts = flip execState def $ do
+        let cfRule1 = def & condfmtCondition .~ ContainsBlanks
+                          & condfmtDxf . dxfFont . non def . fontUnderline ?~ FontUnderlineSingle
+            cfRule2 = def & condfmtCondition .~ BeginsWith "foo"
+                          & condfmtDxf . dxfFont . non def . fontStrikeThrough ?~ True
+            cfRule3 = def & condfmtCondition .~ CellIs (OpGreaterThan (Formula "A1"))
+                          & condfmtDxf . dxfFont . non def . fontBold ?~ True
+        at "A1:A2"  ?= [cfRule1, cfRule2]
+        at "B2:B3"  ?= [cfRule1, cfRule2]
+        at "C3:E10" ?= [cfRule1]
+        at "F1:G10" ?= [cfRule3]

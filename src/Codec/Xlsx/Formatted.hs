@@ -7,6 +7,8 @@ module Codec.Xlsx.Formatted (
     FormattedCell(..)
   , Formatted(..)
   , formatted
+  , CondFormatted(..)
+  , conditionallyFormatted
     -- * Lenses
     -- ** FormattedCell
   , formattedAlignment
@@ -20,6 +22,11 @@ module Codec.Xlsx.Formatted (
   , formattedValue
   , formattedColSpan
   , formattedRowSpan
+    -- ** FormattedCondFmt
+  , condfmtCondition
+  , condfmtDxf
+  , condfmtPriority
+  , condfmtStopIfTrue
   ) where
 
 import Prelude hiding (mapM)
@@ -27,12 +34,14 @@ import Control.Lens
 import Control.Monad.State hiding (mapM, forM_)
 import Data.Default
 import Data.Foldable (forM_)
-import Data.List (sortBy)
+import Data.Function (on)
+import Data.List (sortBy, groupBy, sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Traversable (mapM)
 import Data.Tuple (swap)
-import qualified Data.Map as Map
+import qualified Data.Map as M
+import Safe (headNote)
 
 import Codec.Xlsx.Types
 
@@ -41,48 +50,59 @@ import Codec.Xlsx.Types
 -------------------------------------------------------------------------------}
 
 data FormattingState = FormattingState {
-    _formattingBorders :: Map Border Int
-  , _formattingCellXfs :: Map CellXf Int
-  , _formattingFills   :: Map Fill   Int
-  , _formattingFonts   :: Map Font   Int
-  -- TODO: dxfs
-  , _formattingMerges  :: [Range]         -- ^ In reverse order
+    _formattingBorders                :: Map Border Int
+  , _formattingCellXfs                :: Map CellXf Int
+  , _formattingFills                  :: Map Fill   Int
+  , _formattingFonts                  :: Map Font   Int
+  , _formattingMerges                 :: [Range] -- ^ In reverse order
   }
 
 makeLenses ''FormattingState
 
 stateFromStyleSheet :: StyleSheet -> FormattingState
 stateFromStyleSheet StyleSheet{..} = FormattingState{
-      _formattingBorders = fromValueList _styleSheetBorders
-    , _formattingCellXfs = fromValueList _styleSheetCellXfs
-    , _formattingFills   = fromValueList _styleSheetFills
-    , _formattingFonts   = fromValueList _styleSheetFonts
-    , _formattingMerges  = []
+      _formattingBorders                = fromValueList _styleSheetBorders
+    , _formattingCellXfs                = fromValueList _styleSheetCellXfs
+    , _formattingFills                  = fromValueList _styleSheetFills
+    , _formattingFonts                  = fromValueList _styleSheetFonts
+    , _formattingMerges                 = []
     }
-  where
-    fromValueList :: Ord a => [a] -> Map a Int
-    fromValueList = Map.fromList . (`zip` [0..])
 
-stateToStyleSheet :: FormattingState -> StyleSheet
-stateToStyleSheet FormattingState{..} = StyleSheet{
-      _styleSheetBorders = toList  _formattingBorders
-    , _styleSheetCellXfs = toList  _formattingCellXfs
-    , _styleSheetFills   = toList  _formattingFills
-    , _styleSheetFonts   = toList  _formattingFonts
-    , _styleSheetDxfs    = []
+fromValueList :: Ord a => [a] -> Map a Int
+fromValueList = M.fromList . (`zip` [0..])
+
+toValueList :: Map a Int -> [a]
+toValueList = map snd . sortBy (comparing fst) . map swap . M.toList
+
+updateStyleSheetFromState :: StyleSheet -> FormattingState -> StyleSheet
+updateStyleSheetFromState sSheet FormattingState{..} = sSheet
+    { _styleSheetBorders = toValueList _formattingBorders
+    , _styleSheetCellXfs = toValueList _formattingCellXfs
+    , _styleSheetFills   = toValueList _formattingFills
+    , _styleSheetFonts   = toValueList _formattingFonts
     }
-  where
-    toList :: Map a Int -> [a]
-    toList = map snd . sortBy (comparing fst) . map swap . Map.toList
 
 getId :: Ord a => Lens' FormattingState (Map a Int) -> a -> State FormattingState Int
 getId f a = do
     aMap <- use f
-    case Map.lookup a aMap of
+    case M.lookup a aMap of
       Just aId -> return aId
-      Nothing  -> do let aId = Map.size aMap
-                     f %= Map.insert a aId
+      Nothing  -> do let aId = M.size aMap
+                     f %= M.insert a aId
                      return aId
+
+{-------------------------------------------------------------------------------
+  Unwrapped cell conditional formatting
+-------------------------------------------------------------------------------}
+
+data FormattedCondFmt = FormattedCondFmt
+    { _condfmtCondition  :: Condition
+    , _condfmtDxf        :: Dxf
+    , _condfmtPriority   :: Int
+    , _condfmtStopIfTrue :: Maybe Bool
+    } deriving (Eq, Show)
+
+makeLenses ''FormattedCondFmt
 
 {-------------------------------------------------------------------------------
   Cell with formatting
@@ -113,6 +133,11 @@ data FormattedCell = FormattedCell {
 
 makeLenses ''FormattedCell
 
+
+{-------------------------------------------------------------------------------
+  Default instances
+-------------------------------------------------------------------------------}
+
 instance Default FormattedCell where
   def = FormattedCell {
       _formattedAlignment    = Nothing
@@ -127,6 +152,9 @@ instance Default FormattedCell where
     , _formattedColSpan      = 1
     , _formattedRowSpan      = 1
     }
+
+instance Default FormattedCondFmt where
+  def = FormattedCondFmt ContainsBlanks def topCfPriority Nothing
 
 {-------------------------------------------------------------------------------
   Client-facing API
@@ -144,7 +172,7 @@ data Formatted = Formatted {
 
     -- | The final list of cell merges; see '_wsMerges'
   , formattedMerges :: [Range]
-  }
+  } deriving (Eq, Show)
 
 -- | Higher level API for creating formatted documents
 --
@@ -174,13 +202,39 @@ data Formatted = Formatted {
 formatted :: Map (Int, Int) FormattedCell -> StyleSheet -> Formatted
 formatted cs styleSheet =
    let initSt         = stateFromStyleSheet styleSheet
-       (cs', finalSt) = runState (mapM (uncurry formatCell) (Map.toList cs)) initSt
-       styleSheet'    = stateToStyleSheet finalSt
+       (cs', finalSt) = runState (mapM (uncurry formatCell) (M.toList cs)) initSt
+       styleSheet'    = updateStyleSheetFromState styleSheet finalSt
    in Formatted {
-          formattedCellMap    = Map.fromList (concat cs')
+          formattedCellMap    = M.fromList (concat cs')
         , formattedStyleSheet = styleSheet'
         , formattedMerges     = reverse (finalSt ^. formattingMerges)
         }
+
+data CondFormatted = CondFormatted {
+    -- | The resulting stylesheet
+    condfmtStyleSheet  :: StyleSheet
+    -- | The final map of conditional formatting rules applied to ranges
+    , condfmtFormattings :: Map SqRef ConditionalFormatting
+    } deriving (Eq, Show)
+
+conditionallyFormatted :: Map CellRef [FormattedCondFmt] -> StyleSheet -> CondFormatted
+conditionallyFormatted cfs styleSheet = CondFormatted
+    { condfmtStyleSheet  = styleSheet & styleSheetDxfs .~ finalDxfs
+    , condfmtFormattings = fmts
+    }
+  where
+    (cellFmts, dxf2id) = runState (mapM (mapM mapDxf) cfs) dxf2id0
+    dxf2id0 = fromValueList (styleSheet ^. styleSheetDxfs)
+    fmts = M.fromList . map mergeSqRef . groupBy ((==) `on` snd) .
+           sortBy (comparing snd) $ M.toList cellFmts
+    mergeSqRef cellRefs2fmt =
+        (SqRef (map fst cellRefs2fmt),
+         headNote "fmt group should not be empty" (map snd cellRefs2fmt))
+    finalDxfs = toValueList dxf2id
+
+{-------------------------------------------------------------------------------
+  Implementation details
+-------------------------------------------------------------------------------}
 
 -- | Format a cell with (potentially) rowspan or colspan
 formatCell :: (Int, Int) -> FormattedCell -> State FormattingState [((Int, Int), Cell)]
@@ -269,3 +323,20 @@ cellXf FormattedCell{..} = do
     apply :: Maybe a -> Maybe Bool
     apply Nothing  = Nothing
     apply (Just _) = Just True
+
+mapDxf :: FormattedCondFmt -> State (Map Dxf Int) CfRule
+mapDxf FormattedCondFmt{..} = do
+    dxf2id <- get
+    dxfId <- case M.lookup _condfmtDxf dxf2id of
+                 Just i ->
+                     return i
+                 Nothing -> do
+                     let newId = M.size dxf2id
+                     modify $ M.insert _condfmtDxf newId
+                     return newId
+    return CfRule
+        { _cfrCondition  = _condfmtCondition
+        , _cfrDxfId      = Just dxfId
+        , _cfrPriority   = _condfmtPriority
+        , _cfrStopIfTrue = _condfmtStopIfTrue
+        }

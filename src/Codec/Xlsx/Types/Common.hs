@@ -51,7 +51,7 @@ data XlsxText = XlsxText Text
 --
 -- See 18.18.35 "ST_Formula (Formula)" (p. 2457)
 newtype Formula = Formula {unFormula :: Text}
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)
 
 {-------------------------------------------------------------------------------
   Parsing

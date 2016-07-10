@@ -13,6 +13,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , Border(..)
   , BorderStyle(..)
   , Color(..)
+  , Dxf(..)
   , Fill(..)
   , FillPattern(..)
   , Font(..)

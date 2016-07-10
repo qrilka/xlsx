@@ -132,7 +132,7 @@ data Worksheet = Worksheet
     , _wsMerges                 :: [Range]                 -- ^ list of cell merges
     , _wsSheetViews             :: Maybe [SheetView]
     , _wsPageSetup              :: Maybe PageSetup
-    , _wsConditionalFormattings :: Map SqRef [CfRule]
+    , _wsConditionalFormattings :: Map SqRef ConditionalFormatting
     } deriving (Eq, Show)
 
 makeLenses ''Worksheet
