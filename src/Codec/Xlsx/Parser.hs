@@ -30,7 +30,6 @@ import           Codec.Xlsx.Types
 import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.CfPair
 import           Codec.Xlsx.Types.Internal.CommentTable
-import           Codec.Xlsx.Types.Internal.CustomProperties
 import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
 import           Codec.Xlsx.Types.Internal.SharedStringTable

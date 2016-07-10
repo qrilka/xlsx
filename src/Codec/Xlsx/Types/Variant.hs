@@ -32,15 +32,15 @@ instance FromCursor Variant where
   fromCursor = variantFromNode . node
 
 variantFromNode :: Node -> [Variant]
-variantFromNode n@(NodeElement el) | elementName el == (vt"lpwstr") =
+variantFromNode n@(NodeElement el) | elementName el == vt "lpwstr" =
                                          fromNode n $/ content &| VtLpwstr
-                                   | elementName el == (vt"bool") =
+                                   | elementName el == vt "bool" =
                                          fromNode n $/ content >=> fmap VtBool . boolean
-                                   | elementName el == (vt"int") =
+                                   | elementName el == vt "int" =
                                          fromNode n $/ content >=> fmap VtInt . decimal
-                                   | elementName el == (vt"decimal") =
+                                   | elementName el == vt "decimal" =
                                          fromNode n $/ content >=> fmap VtDecimal . rational
-                                   | elementName el == (vt"blob") =
+                                   | elementName el == vt "blob" =
                                          fromNode n $/ content >=> fmap VtBlob . decodeBase64 . killWhitespace
 variantFromNode  _ = fail "no matching nodes"
 

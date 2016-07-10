@@ -1,6 +1,5 @@
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Codec.Xlsx.Types.Internal.SharedStringTable (
     -- * Main types
     SharedStringTable(..)
@@ -12,15 +11,16 @@ module Codec.Xlsx.Types.Internal.SharedStringTable (
 
 import           Control.Monad
 
-import           Data.Maybe (mapMaybe)
-import           Data.Text (Text)
-import           Data.Vector (Vector)
-import           Numeric.Search.Range (searchFromTo)
+import qualified Data.Map                   as Map
+import           Data.Maybe                 (mapMaybe)
+import qualified Data.Set                   as Set
+import           Data.Text                  (Text)
+import           Data.Vector                (Vector)
+import qualified Data.Vector                as V
+import           Numeric.Search.Range       (searchFromTo)
+import           Safe                       (fromJustNote)
 import           Text.XML
 import           Text.XML.Cursor
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Vector as V
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types
@@ -109,9 +109,8 @@ sstLookupRich sst = sstLookup sst . XlsxRichText
 -- | Internal generalization used by 'sstLookupText' and 'sstLookupRich'
 sstLookup :: SharedStringTable -> XlsxText -> Int
 sstLookup SharedStringTable{sstTable = shared} si =
-    case searchFromTo (\p -> shared V.! p >= si) 0 (V.length shared - 1) of
-      Just i  -> i
-      Nothing -> error $ "SST entry for " ++ show si ++ " not found"
+    fromJustNote ("SST entry for " ++ show si ++ " not found") $
+    searchFromTo (\p -> shared V.! p >= si) 0 (V.length shared - 1)
 
 sstItem :: SharedStringTable -> Int -> XlsxText
 sstItem (SharedStringTable shared) = (V.!) shared
