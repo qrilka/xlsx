@@ -1,3 +1,8 @@
+0.2.3
+-----
+* added conditional formatting support
+* fixed reading empty <font> subelements with defaults (thanks Steve Bigham <steve.bigham@gmail.com>)
+
 0.2.2.2
 -----
 * fixed missing from parsing code font family value 0 (Not applicable) (thanks Steve Bigham <steve.bigham@gmail.com>)
