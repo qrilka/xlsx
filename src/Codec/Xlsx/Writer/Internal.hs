@@ -27,6 +27,9 @@ module Codec.Xlsx.Writer.Internal (
   , txti
   , txtb
   , txtd
+  , justNonDef
+  , justTrue
+  , justFalse
   ) where
 
 import           Data.Text                        (Text)
@@ -178,3 +181,13 @@ txtb = T.toLower . T.pack . show
 
 txti :: Int -> Text
 txti = toStrict . toLazyText . decimal
+
+justNonDef :: (Eq a) => a -> a -> Maybe a
+justNonDef defVal a | a == defVal = Nothing
+                    | otherwise   = Just a
+
+justFalse :: Bool -> Maybe Bool
+justFalse = justNonDef True
+
+justTrue :: Bool -> Maybe Bool
+justTrue = justNonDef False

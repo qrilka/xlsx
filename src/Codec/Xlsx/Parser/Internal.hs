@@ -7,6 +7,7 @@ module Codec.Xlsx.Parser.Internal
     , FromCursor(..)
     , FromAttrVal(..)
     , fromAttribute
+    , fromAttributeDef
     , maybeAttribute
     , maybeElementValue
     , maybeElementValueDef
@@ -63,6 +64,13 @@ instance FromAttrVal Bool where
 fromAttribute :: FromAttrVal a => Name -> Cursor -> [a]
 fromAttribute name cursor =
     attribute name cursor >>= runReader fromAttrVal
+
+-- | parsing optional attributes with defaults
+fromAttributeDef :: FromAttrVal a => Name -> a -> Cursor -> [a]
+fromAttributeDef name defVal cursor =
+    case attribute name cursor of
+      [attr] -> runReader fromAttrVal attr
+      _      -> [defVal]
 
 -- | parsing optional attributes
 maybeAttribute :: FromAttrVal a => Name -> Cursor -> [Maybe a]

@@ -20,6 +20,7 @@ module Codec.Xlsx.Formatted (
   , formattedPivotButton
   , formattedQuotePrefix
   , formattedValue
+  , formattedFormula
   , formattedColSpan
   , formattedRowSpan
     -- ** FormattedCondFmt
@@ -126,6 +127,7 @@ data FormattedCell = FormattedCell {
   , _formattedPivotButton  :: Maybe Bool
   , _formattedQuotePrefix  :: Maybe Bool
   , _formattedValue        :: Maybe CellValue
+  , _formattedFormula      :: Maybe CellFormula
   , _formattedColSpan      :: Int
   , _formattedRowSpan      :: Int
   }
@@ -149,6 +151,7 @@ instance Default FormattedCell where
     , _formattedPivotButton  = Nothing
     , _formattedQuotePrefix  = Nothing
     , _formattedValue        = Nothing
+    , _formattedFormula      = Nothing
     , _formattedColSpan      = 1
     , _formattedRowSpan      = 1
     }
@@ -246,7 +249,7 @@ formatCell (row, col) cell = do
     go :: ((Int, Int), FormattedCell) -> State FormattingState ((Int, Int), Cell)
     go (pos, c) = do
       styleId <- cellStyleId c
-      return (pos, Cell styleId (_formattedValue c) Nothing)
+      return (pos, Cell styleId (_formattedValue c) Nothing (_formattedFormula c))
 
 -- | Cell block corresponding to a single 'FormattedCell'
 --

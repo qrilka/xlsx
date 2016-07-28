@@ -36,7 +36,7 @@ main = defaultMain $
     [ testProperty "col2int . int2col == id" $
         \(Positive i) -> i == col2int (int2col i)
     , testCase "write . read == id" $
-        testXlsx @=? toXlsx (fromXlsx testTime testXlsx)
+        testXlsx @==? toXlsx (fromXlsx testTime testXlsx)
     , testCase "fromRows . toRows == id" $
         testCellMap1 @=? fromRows (toRows testCellMap1)
     , testCase "fromRight . parseStyleSheet . renderStyleSheet == id" $
@@ -94,16 +94,22 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
     rules2 = [ cfRule ContainsErrors 3 ]
 
 testCellMap1 :: CellMap
-testCellMap1 = M.fromList [ ((1, 2), cd1), ((1, 5), cd2)
-                         , ((3, 1), cd3), ((3, 2), cd4), ((3, 7), cd5)
-                         ]
+testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5)
+                          , ((3, 1), cd3_1), ((3, 2), cd3_2), ((3, 7), cd3_7)
+                          , ((4, 1), cd4_1), ((4, 2), cd4_2), ((4, 3), cd4_3)
+                          ]
   where
     cd v = def {_cellValue=Just v}
-    cd1 = cd (CellText "just a text")
-    cd2 = cd (CellDouble 42.4567)
-    cd3 = cd (CellText "another text")
-    cd4 = def -- shouldn't it be skipped?
-    cd5 = cd (CellBool True)
+    cd1_2 = cd (CellText "just a text")
+    cd1_5 = cd (CellDouble 42.4567)
+    cd3_1 = cd (CellText "another text")
+    cd3_2 = def -- shouldn't it be skipped?
+    cd3_7 = cd (CellBool True)
+    cd4_1 = cd (CellDouble 1)
+    cd4_2 = cd (CellDouble 2)
+    cd4_3 = (cd (CellDouble (1+2))) { _cellFormula =
+                                            Just $ simpleCellFormula "A4+B4"
+                                    }
 
 testCellMap2 :: CellMap
 testCellMap2 = M.fromList [ ((1, 2), def & cellValue ?~ CellText "something here")
@@ -286,11 +292,13 @@ testFormattedResult = Formatted cm styleSheet merges
     cell11 = Cell
         { _cellStyle   = Just 1
         , _cellValue   = Just (CellText "text at A1")
-        , _cellComment = Nothing }
+        , _cellComment = Nothing
+        , _cellFormula = Nothing }
     cell2 = Cell
         { _cellStyle   = Just 2
         , _cellValue   = Just (CellDouble 1.23)
-        , _cellComment = Nothing }
+        , _cellComment = Nothing
+        , _cellFormula = Nothing }
     merges = []
     styleSheet =
         minimalStyleSheet & styleSheetCellXfs %~ (++ [cellXf1, cellXf2])

@@ -99,9 +99,10 @@ extractSheet ar sst wf = Worksheet cws rowProps cells merges sheetViews pageSetu
         s = listToMaybe $ cell $| attribute "s" >=> decimal
         t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
         d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractCellValue sst t
+        f = listToMaybe $ cell $/ element (n"f") >=> fromCursor
         (c, r) = T.span (>'9') ref
         comment = commentsMap >>= lookupComment ref
-      return (int r, col2int c, Cell s d comment)
+      return (int r, col2int c, Cell s d comment f)
     collect = foldr collectRow (M.empty, M.empty)
     collectRow (_, Nothing, rowCells) (rowMap, cellMap) =
       (rowMap, foldr collectCell cellMap rowCells)

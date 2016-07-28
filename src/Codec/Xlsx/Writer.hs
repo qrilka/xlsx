@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 -- | This module provides a function for serializing structured `Xlsx` into lazy bytestring
 module Codec.Xlsx.Writer
     ( fromXlsx
@@ -158,9 +159,10 @@ data XlsxCellData = XlsxSS Int
                   | XlsxBool Bool
                     deriving (Show, Eq)
 data XlsxCell = XlsxCell
-    { xlsxCellStyle :: Maybe Int
-    , xlsxCellValue :: Maybe XlsxCellData
-    , xlsxComment   :: Maybe Comment
+    { xlsxCellStyle   :: Maybe Int
+    , xlsxCellValue   :: Maybe XlsxCellData
+    , xlsxComment     :: Maybe Comment
+    , xlsxCellFormula :: Maybe CellFormula
     } deriving (Show, Eq)
 
 xlsxCellType :: XlsxCell -> Text
@@ -168,19 +170,18 @@ xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxSS _)} = "s"
 xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxBool _)} = "b"
 xlsxCellType _ = "n" -- default in SpreadsheetML schema, TODO: add other types
 
-value :: XlsxCell -> Text
-value XlsxCell{xlsxCellValue=Just(XlsxSS i)} = txti i
-value XlsxCell{xlsxCellValue=Just(XlsxDouble d)} = txtd d
-value XlsxCell{xlsxCellValue=Just(XlsxBool True)} = "1"
-value XlsxCell{xlsxCellValue=Just(XlsxBool False)} = "0"
-value _ = error "value undefined"
+value :: XlsxCellData -> Text
+value (XlsxSS i)       = txti i
+value (XlsxDouble d)   = txtd d
+value (XlsxBool True)  = "1"
+value (XlsxBool False) = "0"
 
 transformSheetData :: SharedStringTable -> Worksheet -> Cells
 transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
   where
     transformRow = second (map transformCell)
-    transformCell (c, Cell{_cellValue=v, _cellStyle=s, _cellComment=comment}) =
-        (c, XlsxCell s (fmap transformValue v) comment)
+    transformCell (c, Cell{..}) =
+        (c, XlsxCell _cellStyle (fmap transformValue _cellValue) _cellComment _cellFormula)
     transformValue (CellText t) = XlsxSS (sstLookupText shared t)
     transformValue (CellDouble dbl) =  XlsxDouble dbl
     transformValue (CellBool b) = XlsxBool b
@@ -222,7 +223,9 @@ sheetXml ws rows = renderLBS def $ Document (Prologue [] Nothing []) root []
     mergeE1 t = NodeElement $! Element "mergeCell" (M.fromList [("ref",t)]) []
     cellEl r (icol, cell) =
       nEl "c" (M.fromList (cellAttrs (mkCellRef (r, icol)) cell))
-              [nEl "v" M.empty [NodeContent $ value cell] | isJust $ xlsxCellValue cell]
+              (catMaybes [ (\v -> nEl "v" M.empty [NodeContent v]) .  value <$> xlsxCellValue cell
+                         , NodeElement . toElement "f" <$> xlsxCellFormula cell
+                         ])
     cellAttrs ref cell = cellStyleAttr cell ++ [("r", ref), ("t", cType cell)]
     cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
     cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
