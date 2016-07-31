@@ -45,12 +45,15 @@ module Codec.Xlsx.Types (
     , int2col
     , col2int
     , mkCellRef
+    , fromCellRef
     , mkRange
+    , fromRange
     , toRows
     , fromRows
     , module X
     ) where
 
+import           Control.Arrow
 import           Control.Exception                      (SomeException,
                                                          toException)
 import           Control.Lens.TH
@@ -62,11 +65,13 @@ import           Data.List                              (groupBy)
 import           Data.Map                               (Map)
 import qualified Data.Map                               as M
 import           Data.Maybe                             (catMaybes)
+import           Data.Monoid                            ((<>))
 import           Data.Text                              (Text)
 import qualified Data.Text                              as T
 import           Text.XML                               (Element (..), parseLBS,
                                                          renderLBS)
 import           Text.XML.Cursor
+import           Safe                                   (fromJustNote)
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Comment               as X
@@ -279,12 +284,29 @@ fromRows rows = M.fromList $ concatMap mapRow rows
 mkCellRef :: (Int, Int) -> CellRef
 mkCellRef (row, col) = T.concat [int2col col, T.pack (show row)]
 
+-- | reverse to 'mkCellRef'
+--
+-- /Warning:/ the function isn't total and will throw an error if
+-- incorrect value will get passed
+fromCellRef :: CellRef -> (Int, Int)
+fromCellRef t = col2int *** toInt $ T.span (not . isDigit) t
+  where
+    toInt = fromJustNote "non-integer row in cell reference" . decimal
+
 -- | Render range
 --
 -- > mkRange (2, 4) (6, 8) == "D2:H6"
 mkRange :: (Int, Int) -> (Int, Int) -> Range
 mkRange fr to = T.concat [mkCellRef fr, T.pack ":", mkCellRef to]
 
+-- | reverse to 'mkRange'
+--
+-- /Warning:/ the function isn't total and will throw an error if
+-- incorrect value will get passed
+fromRange :: Range -> ((Int, Int), (Int, Int))
+fromRange t = case T.split (==':') t of
+    [from, to] -> (fromCellRef from, fromCellRef to)
+    _ -> error $ "invalid range " <> show t
 
 {-------------------------------------------------------------------------------
   Parsing

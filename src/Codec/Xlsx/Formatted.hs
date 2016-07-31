@@ -1,12 +1,13 @@
 -- | Higher level interface for creating styled worksheets
 {-# LANGUAGE CPP             #-}
+{-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE RankNTypes      #-}
 module Codec.Xlsx.Formatted (
     FormattedCell(..)
   , Formatted(..)
   , formatted
+  , toFormattedCells
   , CondFormatted(..)
   , conditionallyFormatted
     -- * Lenses
@@ -30,32 +31,32 @@ module Codec.Xlsx.Formatted (
   , condfmtStopIfTrue
   ) where
 
-import Prelude hiding (mapM)
-import Control.Lens
-import Control.Monad.State hiding (mapM, forM_)
-import Data.Default
-import Data.Foldable (forM_)
-import Data.Function (on)
-import Data.List (sortBy, groupBy, sortBy)
-import Data.Map (Map)
-import Data.Ord (comparing)
-import Data.Traversable (mapM)
-import Data.Tuple (swap)
-import qualified Data.Map as M
-import Safe (headNote)
+import           Control.Lens
+import           Control.Monad.State hiding (forM_, mapM)
+import           Data.Default
+import           Data.Foldable       (forM_)
+import           Data.Function       (on)
+import           Data.List           (foldl', groupBy, sortBy, sortBy)
+import           Data.Map            (Map)
+import qualified Data.Map            as M
+import           Data.Ord            (comparing)
+import           Data.Traversable    (mapM)
+import           Data.Tuple          (swap)
+import           Prelude             hiding (mapM)
+import           Safe                (headNote)
 
-import Codec.Xlsx.Types
+import           Codec.Xlsx.Types
 
 {-------------------------------------------------------------------------------
   Internal: formatting state
 -------------------------------------------------------------------------------}
 
 data FormattingState = FormattingState {
-    _formattingBorders                :: Map Border Int
-  , _formattingCellXfs                :: Map CellXf Int
-  , _formattingFills                  :: Map Fill   Int
-  , _formattingFonts                  :: Map Font   Int
-  , _formattingMerges                 :: [Range] -- ^ In reverse order
+    _formattingBorders :: Map Border Int
+  , _formattingCellXfs :: Map CellXf Int
+  , _formattingFills   :: Map Fill   Int
+  , _formattingFonts   :: Map Font   Int
+  , _formattingMerges  :: [Range] -- ^ In reverse order
   }
 
 makeLenses ''FormattingState
@@ -168,13 +169,13 @@ instance Default FormattedCondFmt where
 -- See 'formatted'
 data Formatted = Formatted {
     -- | The final 'CellMap'; see '_wsCells'
-    formattedCellMap  :: CellMap
+    formattedCellMap    :: CellMap
 
     -- | The final stylesheet; see '_xlStyles' (and 'renderStyleSheet')
   , formattedStyleSheet :: StyleSheet
 
     -- | The final list of cell merges; see '_wsMerges'
-  , formattedMerges :: [Range]
+  , formattedMerges     :: [Range]
   } deriving (Eq, Show)
 
 -- | Higher level API for creating formatted documents
@@ -213,9 +214,51 @@ formatted cs styleSheet =
         , formattedMerges     = reverse (finalSt ^. formattingMerges)
         }
 
+-- | reverse to 'formatted' which allows to get a map of formatted cells
+-- from an existing worksheet and its workbook's style sheet
+toFormattedCells :: CellMap -> [Range] -> StyleSheet -> Map (Int, Int) FormattedCell
+toFormattedCells m merges StyleSheet{..} = applyMerges $ M.map toFormattedCell m
+  where
+    toFormattedCell Cell{..} =
+        let mCellXf = _cellStyle >>= \styleId -> M.lookup styleId cellXfs
+        in FormattedCell
+           { _formattedAlignment    = applied _cellXfApplyAlignment _cellXfAlignment =<< mCellXf
+           , _formattedBorder       = flip M.lookup borders =<<
+                                      applied _cellXfApplyBorder _cellXfBorderId =<< mCellXf
+           , _formattedFill         = flip M.lookup fills =<<
+                                      applied _cellXfApplyFill _cellXfFillId =<< mCellXf
+           , _formattedFont         = flip M.lookup fonts =<<
+                                      applied _cellXfApplyFont _cellXfFontId =<< mCellXf
+           , _formattedNumberFormat = idToStdNumberFormat =<<
+                                      applied _cellXfApplyNumberFormat _cellXfNumFmtId =<< mCellXf
+           , _formattedProtection   = _cellXfProtection  =<< mCellXf
+           , _formattedPivotButton  = _cellXfPivotButton =<< mCellXf
+           , _formattedQuotePrefix  = _cellXfQuotePrefix =<< mCellXf
+           , _formattedValue        = _cellValue
+           , _formattedFormula      = _cellFormula
+           , _formattedColSpan      = 1
+           , _formattedRowSpan      = 1 }
+    idMapped :: [a] -> Map Int a
+    idMapped = M.fromList . zip [0..]
+    cellXfs = idMapped _styleSheetCellXfs
+    borders = idMapped _styleSheetBorders
+    fills = idMapped _styleSheetFills
+    fonts = idMapped _styleSheetFonts
+    applied :: (CellXf -> Maybe Bool) -> (CellXf -> Maybe a) -> CellXf -> Maybe a
+    applied applyProp prop cXf = do
+        apply <- applyProp cXf
+        if apply then prop cXf else fail "not applied"
+    applyMerges cells = foldl' onlyTopLeft cells merges
+    onlyTopLeft cells range = flip execState cells $ do
+        let ((r1, c1), (r2, c2)) = fromRange range
+            nonTopLeft = tail [(r, c) | r<-[r1..r2], c<-[c1..c2]]
+        forM_ nonTopLeft (modify . M.delete)
+        at (r1, c1) . non def . formattedRowSpan .= (r2 - r1 +1)
+        at (r1, c1) . non def . formattedColSpan .= (c2 - c1 +1)
+
 data CondFormatted = CondFormatted {
     -- | The resulting stylesheet
-    condformattedStyleSheet  :: StyleSheet
+    condformattedStyleSheet    :: StyleSheet
     -- | The final map of conditional formatting rules applied to ranges
     , condformattedFormattings :: Map SqRef ConditionalFormatting
     } deriving (Eq, Show)

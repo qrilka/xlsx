@@ -5,6 +5,7 @@ module Main (main) where
 import           Control.Lens
 import           Control.Monad.State.Lazy
 import           Data.ByteString.Lazy                        (ByteString)
+import           Data.Map                                    (Map)
 import qualified Data.Map                                    as M
 import           Data.Time.Clock.POSIX                       (POSIXTime)
 import qualified Data.Vector                                 as V
@@ -51,6 +52,10 @@ main = defaultMain $
         [testCustomProperties] @==? testParsedCustomProperties
     , testCase "proper results from `formatted`" $
         testFormattedResult @==? testRunFormatted
+    , testCase "formatted . toFormattedCells = id" $ do
+        let fmtd = formatted testFormattedCells minimalStyleSheet
+        testFormattedCells @==? toFormattedCells (formattedCellMap fmtd) (formattedMerges fmtd)
+                                                 (formattedStyleSheet fmtd)
     , testCase "proper results from `conditionalltyFormatted`" $
         testCondFormattedResult @==? testRunCondFormatted
     ]
@@ -353,6 +358,16 @@ testCondFormattedResult = CondFormatted styleSheet formattings
         , _cfrDxfId      = Just 2
         , _cfrPriority   = 1
         , _cfrStopIfTrue = Nothing }
+
+testFormattedCells :: Map (Int, Int) FormattedCell
+testFormattedCells = flip execState def $ do
+    at (1,1) ?= (def & formattedRowSpan .~ 5
+                     & formattedColSpan .~ 5
+                     & formattedBorder . non def . borderTop .
+                                         non def . borderStyleLine ?~ LineStyleDashed
+                     & formattedBorder . non def . borderBottom .
+                                         non def . borderStyleLine ?~ LineStyleDashed)
+    at (10,2) ?= (def & formattedFont . non def . fontBold ?~ True)
 
 testRunCondFormatted :: CondFormatted
 testRunCondFormatted = conditionallyFormatted condFmts minimalStyleSheet

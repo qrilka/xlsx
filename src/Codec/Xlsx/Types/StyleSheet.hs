@@ -17,7 +17,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , Fill(..)
   , FillPattern(..)
   , Font(..)
-  , NumberFormat(..), numberFormatId
+  , NumberFormat(..), numberFormatId, idToStdNumberFormat
   , Protection(..)
     -- * Supporting enumerations
   , CellHorizontalAlignment(..)
@@ -650,6 +650,37 @@ numberFormatId NfOptHMmSs                        = 46 -- [h]:mm:ss
 numberFormatId NfMmSs1Decimal                    = 47 -- mmss.0
 numberFormatId NfExponent1Decimal                = 48 -- ##0.0E+0
 numberFormatId NfTextPlaceHolder                 = 49 -- @
+
+idToStdNumberFormat :: Int -> Maybe NumberFormat
+idToStdNumberFormat 0  = Just NfGeneral                         -- General
+idToStdNumberFormat 1  = Just NfZero                            -- 0
+idToStdNumberFormat 2  = Just Nf2Decimal                        -- 0.00
+idToStdNumberFormat 3  = Just NfMax3Decimal                     -- #,##0
+idToStdNumberFormat 4  = Just NfThousandSeparator2Decimal       -- #,##0.00
+idToStdNumberFormat 9  = Just NfPercent                         -- 0%
+idToStdNumberFormat 10 = Just NfPercent2Decimal                 -- 0.00%
+idToStdNumberFormat 11 = Just NfExponent2Decimal                -- 0.00E+00
+idToStdNumberFormat 12 = Just NfSingleSpacedFraction            -- # ?/?
+idToStdNumberFormat 13 = Just NfDoubleSpacedFraction            -- # ??/??
+idToStdNumberFormat 14 = Just NfMmDdYy                          -- mm-dd-yy
+idToStdNumberFormat 15 = Just NfDMmmYy                          -- d-mmm-yy
+idToStdNumberFormat 16 = Just NfDMmm                            -- d-mmm
+idToStdNumberFormat 17 = Just NfMmmYy                           -- mmm-yy
+idToStdNumberFormat 18 = Just NfHMm12Hr                         -- h:mm AM/PM
+idToStdNumberFormat 19 = Just NfHMmSs12Hr                       -- h:mm:ss AM/PM
+idToStdNumberFormat 20 = Just NfHMm                             -- h:mm
+idToStdNumberFormat 21 = Just NfHMmSs                           -- h:mm:ss
+idToStdNumberFormat 22 = Just NfMdyHMm                          -- m/d/yy h:mm
+idToStdNumberFormat 37 = Just NfThousandsNegativeParens         -- #,##0 ;(#,##0)
+idToStdNumberFormat 38 = Just NfThousandsNegativeRed            -- #,##0 ;[Red](#,##0)
+idToStdNumberFormat 39 = Just NfThousands2DecimalNegativeParens -- #,##0.00;(#,##0.00)
+idToStdNumberFormat 40 = Just NfTousands2DecimalNEgativeRed     -- #,##0.00;[Red](#,##0.00)
+idToStdNumberFormat 45 = Just NfMmSs                            -- mm:ss
+idToStdNumberFormat 46 = Just NfOptHMmSs                        -- [h]:mm:ss
+idToStdNumberFormat 47 = Just NfMmSs1Decimal                    -- mmss.0
+idToStdNumberFormat 48 = Just NfExponent1Decimal                -- ##0.0E+0
+idToStdNumberFormat 49 = Just NfTextPlaceHolder                 -- @
+idToStdNumberFormat _  = Nothing
 
 -- | Protection properties
 --
