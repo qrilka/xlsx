@@ -23,6 +23,7 @@ import           Data.Ord
 import           Data.Text                                   (Text)
 import qualified Data.Text                                   as T
 import qualified Data.Text.Read                              as T
+import           Data.Traversable
 import           Prelude                                     hiding (sequence)
 import           Safe
 import           System.FilePath.Posix
