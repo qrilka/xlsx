@@ -57,6 +57,7 @@ Library
                    , Codec.Xlsx.Writer.Internal
 
   Build-depends:     base         == 4.*
+                   , bifunctors
                    , binary-search
                    , bytestring   >= 0.10.0.2
                    , conduit      >= 1.0.0
