@@ -84,9 +84,9 @@ extractSheet ar sst wf = do
       commentTarget :: Maybe FilePath
       commentTarget = relTarget <$> findRelByType commentsType sheetRels
 
-  commentsMap :: Maybe CommentTable <- maybe (Right Nothing) (getComments ar) commentTarget --  getComments ar <$> commentTarget
+  commentsMap :: Maybe CommentTable <- maybe (Right Nothing) (getComments ar) commentTarget
 
-        -- Likewise, @pageSetup@ also occurs either 0 or 1 times
+  -- Likewise, @pageSetup@ also occurs either 0 or 1 times
   let pageSetup = listToMaybe $ cur $/ element (n"pageSetup") >=> fromCursor
 
       cws = cur $/ element (n"cols") &/ element (n"col") >=> fromCursor
@@ -168,14 +168,14 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Just xml -> Styles xml
 
 getComments :: Zip.Archive -> FilePath -> Either ParseError (Maybe CommentTable)
-getComments ar fp = (listToMaybe . fromCursor =<<) <$> xmlCursor ar fp  --listToMaybe =<< fromCursor <$$> xmlCursor ar fp
+getComments ar fp = (listToMaybe . fromCursor =<<) <$> xmlCursor ar fp
 
 getCustomProperties :: Zip.Archive -> Either ParseError CustomProperties
 getCustomProperties ar = maybe CustomProperties.empty (head . fromCursor) <$> xmlCursor ar "docProps/custom.xml"
 
 -- | readWorkbook pulls the names of the sheets and the defined names
 readWorkbook :: Zip.Archive -> Either ParseError ([WorksheetFile], DefinedNames)
-readWorkbook ar = do -- case xmlCursor ar wbPath of
+readWorkbook ar = do
   let wbPath = "xl/workbook.xml"
   cur <- xmlCursorRequired ar wbPath
   wbRels <- getRels ar wbPath
