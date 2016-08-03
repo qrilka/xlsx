@@ -59,9 +59,9 @@ main = defaultMain $
     , testCase "proper results from `conditionalltyFormatted`" $
         testCondFormattedResult @==? testRunCondFormatted
     , testCase "toXlsxEither: properly formatted" $
-        Right testXlsx @==? toXlsxEither (fromXlsx testTime testXlsx)
+        Right testXlsx @==? toXlsxOrError (fromXlsx testTime testXlsx)
     , testCase "toXlsxEither: invalid format" $
-        Left InvalidZipArchive @==? toXlsxEither "this is not a valid XLSX file"
+        Left InvalidZipArchive @==? toXlsxOrError "this is not a valid XLSX file"
     ]
 
 testXlsx :: Xlsx

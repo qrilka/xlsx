@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
@@ -5,15 +6,16 @@
 -- | This module provides a function for reading .xlsx files
 module Codec.Xlsx.Parser
     ( toXlsx
-    , toXlsxEither
+    , toXlsxOrError
     , ParseError (..)
     ) where
 
 import qualified Codec.Archive.Zip                           as Zip
 import           Control.Applicative
 import           Control.Arrow                               ((&&&))
+import           Control.Monad                               (liftM)
+import           Control.Monad.Except                        (MonadError(..))
 import           Control.Monad.IO.Class                      ()
-import           Data.Bifunctor                              (bimap, first)
 import qualified Data.ByteString.Lazy                        as L
 import           Data.ByteString.Lazy.Char8                  ()
 import           Data.List
@@ -39,10 +41,9 @@ import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 
-
 -- | Reads `Xlsx' from raw data (lazy bytestring)
 toXlsx :: L.ByteString -> Xlsx
-toXlsx = either (error . show) id . toXlsxEither
+toXlsx = either (error . show) id . toXlsxOrError
 
 data ParseError = InvalidZipArchive
                 | MissingFile FilePath
@@ -50,12 +51,12 @@ data ParseError = InvalidZipArchive
                 deriving (Show, Eq)
 
 -- | Reads `Xlsx' from raw data (lazy bytestring), failing with Left on parse error
-toXlsxEither :: L.ByteString -> Either ParseError Xlsx
-toXlsxEither bs = do
-  ar <- first (const InvalidZipArchive) $ Zip.toArchiveOrFail bs
+toXlsxOrError :: MonadError ParseError m => L.ByteString -> m Xlsx
+toXlsxOrError bs = do
+  ar <- Zip.toArchiveOrFail bs `whenLeftThrow` const InvalidZipArchive
   sst <- getSharedStrings ar
   (wfs, names) <- readWorkbook ar
-  sheets <- sequenceA . M.fromList $ map (wfName &&& extractSheet ar sst) wfs
+  sheets <- sequence . M.fromList $ map (wfName &&& extractSheet ar sst) wfs
   CustomProperties customPropMap <- getCustomProperties ar
   return $ Xlsx sheets (getStyles ar) names customPropMap
 
@@ -64,14 +65,18 @@ data WorksheetFile = WorksheetFile { wfName :: Text
                                    }
                    deriving Show
 
-extractSheet :: Zip.Archive
+extractSheet :: MonadError ParseError m
+             => Zip.Archive
              -> SharedStringTable
              -> WorksheetFile
-             -> Either ParseError Worksheet
+             -> m Worksheet
 extractSheet ar sst wf = do
-  let  file = fromJust $ Zip.fromEntry <$> Zip.findEntryByPath (wfPath wf) ar
-  cur <- bimap (const $ MissingFile (wfPath wf)) fromDocument $ parseLBS def file
-  sheetRels <- getRels ar (wfPath wf)
+  let filePath = wfPath wf
+  file <- Zip.fromEntry `fmap` Zip.findEntryByPath filePath ar
+          `whenNothingThrow` MissingFile filePath
+  cur <- fromDocument `fmap` parseLBS def file
+         `whenLeftThrow` const (InvalidFile filePath)
+  sheetRels <- getRels ar filePath
 
   -- The specification says the file should contain either 0 or 1 @sheetViews@
   -- (4th edition, section 18.3.1.88, p. 1704 and definition CT_Worksheet, p. 3910)
@@ -84,7 +89,7 @@ extractSheet ar sst wf = do
       commentTarget :: Maybe FilePath
       commentTarget = relTarget <$> findRelByType commentsType sheetRels
 
-  commentsMap :: Maybe CommentTable <- maybe (Right Nothing) (getComments ar) commentTarget
+  commentsMap :: Maybe CommentTable <- maybe (return Nothing) (getComments ar) commentTarget
 
   -- Likewise, @pageSetup@ also occurs either 0 or 1 times
   let pageSetup = listToMaybe $ cur $/ element (n"pageSetup") >=> fromCursor
@@ -149,32 +154,30 @@ extractCellValue _ "b" "0" = [CellBool False]
 extractCellValue _ _ _ = []
 
 -- | Get xml cursor from the specified file inside the zip archive.
-xmlCursor :: Zip.Archive -> FilePath -> Either ParseError (Maybe Cursor)
-xmlCursor ar fname = maybe (Right Nothing) parse $ Zip.findEntryByPath fname ar
-  where
-    parse entry = bimap (const $ InvalidFile fname) (return . fromDocument) $ parseLBS def (Zip.fromEntry entry)
+xmlCursor :: MonadError ParseError m => Zip.Archive -> FilePath -> m (Maybe Cursor)
+xmlCursor ar fname = maybe (return Nothing) parse $ Zip.findEntryByPath fname ar
+  where parse entry = (return . fromDocument) `fmap` parseLBS def (Zip.fromEntry entry)
+                      `whenLeftThrow` const (InvalidFile fname)
 
 -- | Get xml cursor from the given file, failing with MissingFile if not found.
-xmlCursorRequired :: Zip.Archive -> FilePath -> Either ParseError Cursor
-xmlCursorRequired ar fname = maybe (Left $ MissingFile fname) Right =<< xmlCursor ar fname
+xmlCursorRequired :: MonadError ParseError m => Zip.Archive -> FilePath -> m Cursor
+xmlCursorRequired ar fname = xmlCursor ar fname >>= (`whenNothingThrow` MissingFile fname)
 
 -- | Get shared string table
-getSharedStrings  :: Zip.Archive -> Either ParseError SharedStringTable
-getSharedStrings x = head . fromCursor <$> xmlCursorRequired x "xl/sharedStrings.xml"
+getSharedStrings  :: MonadError ParseError m => Zip.Archive -> m SharedStringTable
+getSharedStrings x = (head . fromCursor) `liftM` xmlCursorRequired x "xl/sharedStrings.xml"
 
 getStyles :: Zip.Archive -> Styles
-getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
-  Nothing  -> Styles L.empty
-  Just xml -> Styles xml
+getStyles ar = Styles . fromMaybe L.empty $ Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar
 
-getComments :: Zip.Archive -> FilePath -> Either ParseError (Maybe CommentTable)
-getComments ar fp = (listToMaybe . fromCursor =<<) <$> xmlCursor ar fp
+getComments :: MonadError ParseError m => Zip.Archive -> FilePath -> m (Maybe CommentTable)
+getComments ar fp = (listToMaybe . fromCursor =<<) `liftM` xmlCursor ar fp
 
-getCustomProperties :: Zip.Archive -> Either ParseError CustomProperties
-getCustomProperties ar = maybe CustomProperties.empty (head . fromCursor) <$> xmlCursor ar "docProps/custom.xml"
+getCustomProperties :: MonadError ParseError m => Zip.Archive -> m CustomProperties
+getCustomProperties ar = maybe CustomProperties.empty (head . fromCursor) `liftM` xmlCursor ar "docProps/custom.xml"
 
 -- | readWorkbook pulls the names of the sheets and the defined names
-readWorkbook :: Zip.Archive -> Either ParseError ([WorksheetFile], DefinedNames)
+readWorkbook :: MonadError ParseError m => Zip.Archive -> m ([WorksheetFile], DefinedNames)
 readWorkbook ar = do
   let wbPath = "xl/workbook.xml"
   cur <- xmlCursorRequired ar wbPath
@@ -189,7 +192,7 @@ readWorkbook ar = do
       sheets = cur $/ element (n"sheets") &/ element (n"sheet") >=>
                     liftA2 (worksheetFile wbRels) <$> attribute "name" <*> (attribute (odr"id") &| RefId)
       names = cur $/ element (n"definedNames") &/ element (n"definedName") >=> mkDefinedName
-  return $ (sheets, DefinedNames names)
+  return (sheets, DefinedNames names)
 
 
 worksheetFile :: Relationships -> Text -> RefId -> WorksheetFile
@@ -197,7 +200,7 @@ worksheetFile wbRels name rId = WorksheetFile name path
   where
     path = relTarget . fromJustNote "sheet path" $ Relationships.lookup rId wbRels
 
-getRels :: Zip.Archive -> FilePath -> Either ParseError Relationships
+getRels :: MonadError ParseError m => Zip.Archive -> FilePath -> m Relationships
 getRels ar fp = do
     let (dir, file) = splitFileName fp
         relsPath = dir </> "_rels" </> file <.> "rels"
@@ -206,3 +209,14 @@ getRels ar fp = do
 
 int :: Text -> Int
 int = either error fst . T.decimal
+
+-- | Lift a 'Maybe' value into any 'MonadError'.
+-- Intended to be used infix; e.g.,
+--
+--    Just 3 `whenNothingThrow` SomeError
+whenNothingThrow :: MonadError e m => Maybe a -> e -> m a
+whenNothingThrow v e = maybe (throwError e) return v
+
+-- | Lift an 'Either' value into any 'MonadError'.
+whenLeftThrow :: MonadError e m => Either l r -> (l -> e) -> m r
+whenLeftThrow v e = either (throwError . e) return v
