@@ -2,18 +2,21 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE TupleSections             #-}
+
 -- | This module provides a function for reading .xlsx files
 module Codec.Xlsx.Parser
     ( toXlsx
     , toXlsxEither
     , ParseError (..)
+    , Parser
     ) where
 
 import qualified Codec.Archive.Zip                           as Zip
 import           Control.Applicative
-import           Control.Arrow                               ((&&&))
+import           Control.Arrow                               ((&&&), left)
+import           Control.Error.Util                          (note)
+import           Control.Monad.Except                        (throwError)
 import           Control.Monad.IO.Class                      ()
-import           Data.Bifunctor                              (bimap, first)
 import qualified Data.ByteString.Lazy                        as L
 import           Data.ByteString.Lazy.Char8                  ()
 import           Data.List
@@ -25,7 +28,6 @@ import qualified Data.Text                                   as T
 import qualified Data.Text.Read                              as T
 import           Data.Traversable
 import           Prelude                                     hiding (sequence)
-import           Safe
 import           System.FilePath.Posix
 import           Text.XML                                    as X
 import           Text.XML.Cursor
@@ -47,15 +49,18 @@ toXlsx = either (error . show) id . toXlsxEither
 data ParseError = InvalidZipArchive
                 | MissingFile FilePath
                 | InvalidFile FilePath
+                | InvalidRef RefId
                 deriving (Show, Eq)
 
+type Parser = Either ParseError
+
 -- | Reads `Xlsx' from raw data (lazy bytestring), failing with Left on parse error
-toXlsxEither :: L.ByteString -> Either ParseError Xlsx
+toXlsxEither :: L.ByteString -> Parser Xlsx
 toXlsxEither bs = do
-  ar <- first (const InvalidZipArchive) $ Zip.toArchiveOrFail bs
+  ar <- left (const InvalidZipArchive) $ Zip.toArchiveOrFail bs
   sst <- getSharedStrings ar
   (wfs, names) <- readWorkbook ar
-  sheets <- sequenceA . M.fromList $ map (wfName &&& extractSheet ar sst) wfs
+  sheets <- sequence . M.fromList $ map (wfName &&& extractSheet ar sst) wfs
   CustomProperties customPropMap <- getCustomProperties ar
   return $ Xlsx sheets (getStyles ar) names customPropMap
 
@@ -67,11 +72,13 @@ data WorksheetFile = WorksheetFile { wfName :: Text
 extractSheet :: Zip.Archive
              -> SharedStringTable
              -> WorksheetFile
-             -> Either ParseError Worksheet
+             -> Parser Worksheet
 extractSheet ar sst wf = do
-  let  file = fromJust $ Zip.fromEntry <$> Zip.findEntryByPath (wfPath wf) ar
-  cur <- bimap (const $ MissingFile (wfPath wf)) fromDocument $ parseLBS def file
-  sheetRels <- getRels ar (wfPath wf)
+  let filePath = wfPath wf
+  file <- note (MissingFile filePath) $ Zip.fromEntry <$> Zip.findEntryByPath filePath ar
+  cur <- either (\_ -> throwError $ InvalidFile filePath) (return . fromDocument) $ 
+         parseLBS def file
+  sheetRels <- getRels ar filePath
 
   -- The specification says the file should contain either 0 or 1 @sheetViews@
   -- (4th edition, section 18.3.1.88, p. 1704 and definition CT_Worksheet, p. 3910)
@@ -149,17 +156,19 @@ extractCellValue _ "b" "0" = [CellBool False]
 extractCellValue _ _ _ = []
 
 -- | Get xml cursor from the specified file inside the zip archive.
-xmlCursor :: Zip.Archive -> FilePath -> Either ParseError (Maybe Cursor)
+xmlCursor :: Zip.Archive -> FilePath -> Parser (Maybe Cursor)
 xmlCursor ar fname = maybe (Right Nothing) parse $ Zip.findEntryByPath fname ar
   where
-    parse entry = bimap (const $ InvalidFile fname) (return . fromDocument) $ parseLBS def (Zip.fromEntry entry)
+    parse :: Zip.Entry -> Parser (Maybe Cursor)
+    parse entry = either (\_ -> throwError (InvalidFile fname)) (return . Just . fromDocument) $ 
+                         parseLBS def (Zip.fromEntry entry)
 
 -- | Get xml cursor from the given file, failing with MissingFile if not found.
-xmlCursorRequired :: Zip.Archive -> FilePath -> Either ParseError Cursor
+xmlCursorRequired :: Zip.Archive -> FilePath -> Parser Cursor
 xmlCursorRequired ar fname = maybe (Left $ MissingFile fname) Right =<< xmlCursor ar fname
 
 -- | Get shared string table
-getSharedStrings  :: Zip.Archive -> Either ParseError SharedStringTable
+getSharedStrings  :: Zip.Archive -> Parser SharedStringTable
 getSharedStrings x = head . fromCursor <$> xmlCursorRequired x "xl/sharedStrings.xml"
 
 getStyles :: Zip.Archive -> Styles
@@ -167,14 +176,14 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Nothing  -> Styles L.empty
   Just xml -> Styles xml
 
-getComments :: Zip.Archive -> FilePath -> Either ParseError (Maybe CommentTable)
+getComments :: Zip.Archive -> FilePath -> Parser (Maybe CommentTable)
 getComments ar fp = (listToMaybe . fromCursor =<<) <$> xmlCursor ar fp
 
-getCustomProperties :: Zip.Archive -> Either ParseError CustomProperties
+getCustomProperties :: Zip.Archive -> Parser CustomProperties
 getCustomProperties ar = maybe CustomProperties.empty (head . fromCursor) <$> xmlCursor ar "docProps/custom.xml"
 
 -- | readWorkbook pulls the names of the sheets and the defined names
-readWorkbook :: Zip.Archive -> Either ParseError ([WorksheetFile], DefinedNames)
+readWorkbook :: Zip.Archive -> Parser ([WorksheetFile], DefinedNames)
 readWorkbook ar = do
   let wbPath = "xl/workbook.xml"
   cur <- xmlCursorRequired ar wbPath
@@ -186,18 +195,21 @@ readWorkbook ar = do
                                , T.concat $ c $/ content
                                )
 
-      sheets = cur $/ element (n"sheets") &/ element (n"sheet") >=>
-                    liftA2 (worksheetFile wbRels) <$> attribute "name" <*> (attribute (odr"id") &| RefId)
       names = cur $/ element (n"definedNames") &/ element (n"definedName") >=> mkDefinedName
+  sheets <- sequence $
+    cur $/ element (n"sheets") &/ element (n"sheet") >=>
+      liftA2 (worksheetFile wbRels) <$> attribute "name" <*> (attribute (odr"id") &| RefId)
   return $ (sheets, DefinedNames names)
 
 
-worksheetFile :: Relationships -> Text -> RefId -> WorksheetFile
-worksheetFile wbRels name rId = WorksheetFile name path
+worksheetFile :: Relationships -> Text -> RefId -> Parser WorksheetFile
+worksheetFile wbRels name rId = WorksheetFile name <$> path
   where
-    path = relTarget . fromJustNote "sheet path" $ Relationships.lookup rId wbRels
+    path :: Parser FilePath
+    path = maybe (throwError $ InvalidRef rId) (return . relTarget) $
+           Relationships.lookup rId wbRels
 
-getRels :: Zip.Archive -> FilePath -> Either ParseError Relationships
+getRels :: Zip.Archive -> FilePath -> Parser Relationships
 getRels ar fp = do
     let (dir, file) = splitFileName fp
         relsPath = dir </> "_rels" </> file <.> "rels"

@@ -57,16 +57,17 @@ Library
                    , Codec.Xlsx.Writer.Internal
 
   Build-depends:     base         == 4.*
-                   , bifunctors
                    , binary-search
                    , bytestring   >= 0.10.0.2
                    , conduit      >= 1.0.0
                    , containers   >= 0.5.0.0
                    , data-default
+                   , errors
                    , extra
                    , filepath
                    , lens         >= 3.8 && < 5
                    , mtl          >= 2.1
+                   , mtl-compat
                    , network-uri
                    , old-locale   >= 1.0.0.5
                    , safe         >= 0.3
