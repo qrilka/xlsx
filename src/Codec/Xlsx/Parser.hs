@@ -15,7 +15,8 @@ import qualified Codec.Archive.Zip                           as Zip
 import           Control.Applicative
 import           Control.Arrow                               ((&&&), left)
 import           Control.Error.Util                          (note)
-import           Control.Monad.Except                        (throwError)
+import           Control.Monad.Except                        (catchError,
+                                                              throwError)
 import           Control.Monad.IO.Class                      ()
 import qualified Data.ByteString.Lazy                        as L
 import           Data.ByteString.Lazy.Char8                  ()
@@ -157,15 +158,19 @@ extractCellValue _ _ _ = []
 
 -- | Get xml cursor from the specified file inside the zip archive.
 xmlCursor :: Zip.Archive -> FilePath -> Parser (Maybe Cursor)
-xmlCursor ar fname = maybe (Right Nothing) parse $ Zip.findEntryByPath fname ar
+xmlCursor ar fname =
+    (Just <$> xmlCursorRequired ar fname) `catchError` missingToNothing
   where
-    parse :: Zip.Entry -> Parser (Maybe Cursor)
-    parse entry = either (\_ -> throwError (InvalidFile fname)) (return . Just . fromDocument) $ 
-                         parseLBS def (Zip.fromEntry entry)
+    missingToNothing :: ParseError -> Either ParseError (Maybe a)
+    missingToNothing (MissingFile _) = return Nothing
+    missingToNothing other           = throwError other
 
 -- | Get xml cursor from the given file, failing with MissingFile if not found.
 xmlCursorRequired :: Zip.Archive -> FilePath -> Parser Cursor
-xmlCursorRequired ar fname = maybe (Left $ MissingFile fname) Right =<< xmlCursor ar fname
+xmlCursorRequired ar fname = do
+    entry <- note (MissingFile fname) $ Zip.findEntryByPath fname ar
+    cur <- left (\_ -> InvalidFile fname) $ parseLBS def (Zip.fromEntry entry)
+    return $ fromDocument cur
 
 -- | Get shared string table
 getSharedStrings  :: Zip.Archive -> Parser SharedStringTable
