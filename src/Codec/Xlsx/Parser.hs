@@ -157,8 +157,8 @@ extractCellValue _ "b" "0" = [CellBool False]
 extractCellValue _ _ _ = []
 
 -- | Get xml cursor from the specified file inside the zip archive.
-xmlCursor :: Zip.Archive -> FilePath -> Parser (Maybe Cursor)
-xmlCursor ar fname =
+xmlCursorOptional :: Zip.Archive -> FilePath -> Parser (Maybe Cursor)
+xmlCursorOptional ar fname =
     (Just <$> xmlCursorRequired ar fname) `catchError` missingToNothing
   where
     missingToNothing :: ParseError -> Either ParseError (Maybe a)
@@ -182,10 +182,10 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Just xml -> Styles xml
 
 getComments :: Zip.Archive -> FilePath -> Parser (Maybe CommentTable)
-getComments ar fp = (listToMaybe . fromCursor =<<) <$> xmlCursor ar fp
+getComments ar fp = (listToMaybe . fromCursor =<<) <$> xmlCursorOptional ar fp
 
 getCustomProperties :: Zip.Archive -> Parser CustomProperties
-getCustomProperties ar = maybe CustomProperties.empty (head . fromCursor) <$> xmlCursor ar "docProps/custom.xml"
+getCustomProperties ar = maybe CustomProperties.empty (head . fromCursor) <$> xmlCursorOptional ar "docProps/custom.xml"
 
 -- | readWorkbook pulls the names of the sheets and the defined names
 readWorkbook :: Zip.Archive -> Parser ([WorksheetFile], DefinedNames)
@@ -218,7 +218,7 @@ getRels :: Zip.Archive -> FilePath -> Parser Relationships
 getRels ar fp = do
     let (dir, file) = splitFileName fp
         relsPath = dir </> "_rels" </> file <.> "rels"
-    c <- xmlCursor ar relsPath
+    c <- xmlCursorOptional ar relsPath
     return $ maybe Relationships.empty (setTargetsFrom fp . head . fromCursor) c
 
 int :: Text -> Int
