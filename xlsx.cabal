@@ -62,10 +62,12 @@ Library
                    , conduit      >= 1.0.0
                    , containers   >= 0.5.0.0
                    , data-default
+                   , errors
                    , extra
                    , filepath
                    , lens         >= 3.8 && < 5
                    , mtl          >= 2.1
+                   , mtl-compat
                    , network-uri
                    , old-locale   >= 1.0.0.5
                    , safe         >= 0.3

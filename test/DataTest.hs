@@ -58,6 +58,10 @@ main = defaultMain $
                                                  (formattedStyleSheet fmtd)
     , testCase "proper results from `conditionalltyFormatted`" $
         testCondFormattedResult @==? testRunCondFormatted
+    , testCase "toXlsxEither: properly formatted" $
+        Right testXlsx @==? toXlsxEither (fromXlsx testTime testXlsx)
+    , testCase "toXlsxEither: invalid format" $
+        Left InvalidZipArchive @==? toXlsxEither "this is not a valid XLSX file"
     ]
 
 testXlsx :: Xlsx
