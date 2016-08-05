@@ -1,6 +1,6 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TupleSections             #-}
 
 -- | This module provides a function for reading .xlsx files
@@ -13,7 +13,7 @@ module Codec.Xlsx.Parser
 
 import qualified Codec.Archive.Zip                           as Zip
 import           Control.Applicative
-import           Control.Arrow                               ((&&&), left)
+import           Control.Arrow                               (left, (&&&))
 import           Control.Error.Util                          (note)
 import           Control.Monad.Except                        (catchError,
                                                               throwError)
@@ -85,7 +85,7 @@ extractSheet ar sst wf = do
   -- (4th edition, section 18.3.1.88, p. 1704 and definition CT_Worksheet, p. 3910)
   let  sheetViewList = cur $/ element (n"sheetViews") &/ element (n"sheetView") >=> fromCursor
        sheetViews = case sheetViewList of
-         [] -> Nothing
+         []    -> Nothing
          views -> Just views
 
   let commentsType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
@@ -151,7 +151,7 @@ extractCellValue _ "str" str = [CellText str]
 extractCellValue _ "n" v =
     case T.rational v of
       Right (d, _) -> [CellDouble d]
-      _ -> []
+      _            -> []
 extractCellValue _ "b" "1" = [CellBool True]
 extractCellValue _ "b" "0" = [CellBool False]
 extractCellValue _ _ _ = []
