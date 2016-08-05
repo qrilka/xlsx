@@ -77,7 +77,7 @@ extractSheet :: Zip.Archive
 extractSheet ar sst wf = do
   let filePath = wfPath wf
   file <- note (MissingFile filePath) $ Zip.fromEntry <$> Zip.findEntryByPath filePath ar
-  cur <- either (\_ -> throwError $ InvalidFile filePath) (return . fromDocument) $ 
+  cur <- fmap fromDocument . left (\_ -> InvalidFile filePath) $
          parseLBS def file
   sheetRels <- getRels ar filePath
 
