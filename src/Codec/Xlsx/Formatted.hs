@@ -85,13 +85,13 @@ updateStyleSheetFromState sSheet FormattingState{..} = sSheet
     }
 
 getId :: Ord a => Lens' FormattingState (Map a Int) -> a -> State FormattingState Int
-getId f a = do
+getId f v = do
     aMap <- use f
-    case M.lookup a aMap of
-      Just aId -> return aId
-      Nothing  -> do let aId = M.size aMap
-                     f %= M.insert a aId
-                     return aId
+    case M.lookup v aMap of
+      Just anId -> return anId
+      Nothing  -> do let anId = M.size aMap
+                     f %= M.insert v anId
+                     return anId
 
 {-------------------------------------------------------------------------------
   Unwrapped cell conditional formatting

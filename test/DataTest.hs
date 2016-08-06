@@ -25,9 +25,11 @@ import           Test.Tasty.HUnit                            (HUnitFailure (..),
 import           Codec.Xlsx
 import           Codec.Xlsx.Formatted
 import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.CommentTable
 import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 import           Codec.Xlsx.Types.Internal.SharedStringTable
+import           Codec.Xlsx.Writer.Internal
 
 import           Diff
 
@@ -48,6 +50,10 @@ main = defaultMain $
         [testSharedStringTableWithEmpty] @=? testParsedSharedStringTablesWithEmpty
     , testCase "correct comments parsing" $
         [testCommentTable] @=? testParsedComments
+    , testCase "correct drawing parsing" $
+        [testDrawing] @==? parseDrawing testDrawingFile
+    , testCase "write . read == id for Drawings" $
+        [testDrawing] @==? parseDrawing testWrittenDrawing
     , testCase "correct custom properties parsing" $
         [testCustomProperties] @==? testParsedCustomProperties
     , testCase "proper results from `formatted`" $
@@ -68,10 +74,13 @@ testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties
   where
     sheets = M.fromList [("List1", sheet1), ("Another sheet", sheet2)]
-    sheet1 = Worksheet cols rowProps testCellMap1 ranges sheetViews pageSetup cFormatting
+    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup cFormatting
     sheet2 = def & wsCells .~ testCellMap2
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
+    drawing = Just $ testDrawing { _xdrAnchors = [pic] }
+    pic = head (testDrawing ^. xdrAnchors) & anchObject . picBlipFill . bfpImageInfo ?~ fileInfo
+    fileInfo = FileInfo "dummy.png" "image/png" "fake contents"
     ranges = [mkRange (1,1) (1,2), mkRange (2,2) (10, 5)]
     minimalStyles = renderStyleSheet minimalStyleSheet
     definedNames = DefinedNames [("SampleName", Nothing, "A10:A20")]
@@ -252,6 +261,75 @@ testComments = [r|
   </commentList>
 </comments>
 |]
+
+testDrawing = Drawing [ anchor ]
+  where
+    anchor = Anchor
+        { _anchAnchoring  = anchoring
+        , _anchObject     = pic
+        , _anchClientData = def }
+    anchoring = TwoCellAnchor
+        { tcaFrom   = unqMarker ( 0,      0) ( 0,     0)
+        , tcaTo     = unqMarker (12, 320760) (33, 38160)
+        , tcaEditAs = EditAsAbsolute }
+    pic = Picture
+        { _picMacro           = Nothing
+        , _picPublished       = False
+        , _picNonVisual       = nonVis
+        , _picBlipFill        = bfProps
+        , _picShapeProperties = shProps }
+    nonVis = PicNonVisual $ PicDrawingNonVisual
+        { _pdnvId          = 0
+        , _pdnvName        = "Picture 1"
+        , _pdnvDescription = Just ""
+        , _pdnvHidden      = False
+        , _pdnvTitle       = Nothing }
+    bfProps = BlipFillProperties
+        { _bfpImageInfo = Just (RefId "rId1")
+        , _bfpFillMode  = Just FillStretch }
+    shProps = ShapeProperties
+        { _spXfrm      = Just trnsfrm
+        , _spGeometry  = Just PresetGeometry
+        , _spOutline   = Just $ LineProperties (Just LineNoFill) }
+    trnsfrm = Transform2D
+        {  _trRot    = Angle 0
+        , _trFlipH   = False
+        , _trFlipV   = False
+        , _trOffset  = Just (unqPoint2D 0 0)
+        , _trExtents = Just (PositiveSize2D (PositiveCoordinate 10074240)
+                                            (PositiveCoordinate 5402520)) }
+
+parseDrawing :: ByteString -> [UnresolvedDrawing]
+parseDrawing bs = fromCursor . fromDocument $ parseLBS_ def bs
+
+testDrawingFile :: ByteString
+testDrawingFile = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <xdr:twoCellAnchor editAs="absolute">
+    <xdr:from>
+      <xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff>
+      <xdr:row>0</xdr:row><xdr:rowOff>0</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>12</xdr:col><xdr:colOff>320760</xdr:colOff>
+      <xdr:row>33</xdr:row><xdr:rowOff>38160</xdr:rowOff>
+    </xdr:to>
+    <xdr:pic>
+      <xdr:nvPicPr><xdr:cNvPr id="0" name="Picture 1" descr=""/><xdr:cNvPicPr/></xdr:nvPicPr>
+      <xdr:blipFill><a:blip r:embed="rId1"></a:blip><a:stretch/></xdr:blipFill>
+      <xdr:spPr>
+        <a:xfrm><a:off x="0" y="0"/><a:ext cx="10074240" cy="5402520"/></a:xfrm>
+        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:ln><a:noFill/></a:ln>
+      </xdr:spPr>
+    </xdr:pic>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
+</xdr:wsDr>
+|]
+
+testWrittenDrawing :: ByteString
+testWrittenDrawing = renderLBS def $ toDocument testDrawing
 
 testCustomProperties :: CustomProperties
 testCustomProperties = CustomProperties.fromList

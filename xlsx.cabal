@@ -38,9 +38,11 @@ Library
                    , Codec.Xlsx.Types.Comment
                    , Codec.Xlsx.Types.Common
                    , Codec.Xlsx.Types.ConditionalFormatting
+                   , Codec.Xlsx.Types.Drawing
                    , Codec.Xlsx.Types.Internal
                    , Codec.Xlsx.Types.Internal.CfPair
                    , Codec.Xlsx.Types.Internal.CommentTable
+                   , Codec.Xlsx.Types.Internal.ContentTypes
                    , Codec.Xlsx.Types.Internal.CustomProperties
                    , Codec.Xlsx.Types.Internal.Relationships
                    , Codec.Xlsx.Types.Internal.SharedStringTable

@@ -8,9 +8,10 @@ module Codec.Xlsx.Writer
 
 import qualified Codec.Archive.Zip                           as Zip
 import           Control.Arrow                               (second)
-import           Control.Lens                                hiding (transform)
+import           Control.Lens                                hiding (transform, (.=))
 import qualified Data.ByteString.Lazy                        as L
 import           Data.ByteString.Lazy.Char8                  ()
+import           Data.List                                   (foldl')
 import           Data.Map                                    (Map)
 import qualified Data.Map                                    as M
 import           Data.Maybe
@@ -33,6 +34,7 @@ import           Control.Applicative
 #endif
 
 import           Codec.Xlsx.Types
+import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.CfPair
 import qualified Codec.Xlsx.Types.Internal.CommentTable      as CommentTable
 import           Codec.Xlsx.Types.Internal.CustomProperties
@@ -48,21 +50,28 @@ fromXlsx pt xlsx =
     t = round pt
     utcTime = posixSecondsToUTCTime pt
     entries = Zip.toEntry "[Content_Types].xml" t (contentTypesXml files) :
-              map (\fd -> Zip.toEntry (T.unpack $ fdName fd) t (fdContents fd)) files
+              map (\fd -> Zip.toEntry (fdPath fd) t (fdContents fd)) files
+    -- TODO: root files should be only core.xml, app.xml and workbook.xml
     files = sheetFiles ++ customPropFiles ++
       [ FileData "docProps/core.xml"
-        "application/vnd.openxmlformats-package.core-properties+xml" $ coreXml utcTime "xlsxwriter"
+        "application/vnd.openxmlformats-package.core-properties+xml"
+        "metadata/core-properties" $ coreXml utcTime "xlsxwriter"
       , FileData "docProps/app.xml"
-        "application/vnd.openxmlformats-officedocument.extended-properties+xml" $ appXml (xlsx ^. xlSheets)
+        "application/vnd.openxmlformats-officedocument.extended-properties+xml"
+        "xtended-properties" $ appXml (xlsx ^. xlSheets)
       , FileData "xl/workbook.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" $ bookXml (xlsx ^. xlSheets) (xlsx ^. xlDefinedNames)
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+        "officeDocument" $ bookXml (xlsx ^. xlSheets) (xlsx ^. xlDefinedNames)
       , FileData "xl/styles.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml" $ unStyles (xlsx ^. xlStyles)
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"
+        "styles" $ unStyles (xlsx ^. xlStyles)
       , FileData "xl/sharedStrings.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" $ ssXml shared
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"
+        "sharedStrings" $ ssXml shared
       , FileData "xl/_rels/workbook.xml.rels"
-        "application/vnd.openxmlformats-package.relationships+xml" bookRelsXml
-      , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml" rootRelXml
+        "application/vnd.openxmlformats-package.relationships+xml" "relationships" bookRelsXml
+      , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml"
+        "relationships" rootRelXml
       ]
     rootRelXml = renderLBS def . toDocument $ Relationships.fromList rootRels
     rootFiles =  customPropFileRels ++
@@ -76,39 +85,95 @@ fromXlsx pt xlsx =
         True  -> ([], [])
         False -> ([ FileData "docProps/custom.xml"
                     "application/vnd.openxmlformats-officedocument.custom-properties+xml"
+                    "custom-properties"
                     (customPropsXml (CustomProperties customProps)) ],
                   [ ("custom-properties", "docProps/custom.xml") ])
     bookRelsXml = renderLBS def . toDocument $ bookRels sheetCount
-    sheetFiles = concat $ zipWith3 singleSheelFiles [1..] sheetCells sheets
+    sheetFiles = concat $ zipWith3 singleSheetFiles [1..] sheetCells sheets
     sheets = xlsx ^. xlSheets . to M.elems
     sheetCount = length sheets
     shared = sstConstruct sheets
     sheetCells = map (transformSheetData shared) sheets
 
-singleSheelFiles :: Int -> Cells -> Worksheet -> [FileData]
-singleSheelFiles n cells ws = sheetFile:filesForComments
+singleSheetFiles :: Int -> Cells -> Worksheet -> [FileData]
+singleSheetFiles n cells ws = sheetFile:otherFiles
   where
-    sheetFile = FileData ("xl/worksheets/sheet" <> txti n <> ".xml")
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" $
-        sheetXml ws cells
-    filesForComments = if null comments then [] else [commentsFile, sheetRels]
+    sheetFilePath = "xl/worksheets/sheet" <> show n <> ".xml"
+    sheetFile = FileData sheetFilePath
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
+        "worksheet" $
+        sheetXml ws cells drawingRId
+    drawingRId = if null commentsReferenced then 1 else 2
+    otherFiles = sheetRels ++ referencedFiles ++ extraFiles
+    referencedFiles = commentsReferenced ++ drawingReferenced
+    extraFiles = drawingExtra
+    commentsReferenced = commentsFiles n cells
+    sheetRels = if null referencedFiles
+                then []
+                else [ FileData ("xl/worksheets/_rels/sheet" <> show n <> ".xml.rels")
+                      "application/vnd.openxmlformats-package.relationships+xml"
+                       "relationships" sheetRelsXml ]
+    sheetRelsXml = renderLBS def . toDocument . Relationships.fromList $
+        [ relEntry i fdRelType (fdPath `relFrom` sheetFilePath)
+        | (i, FileData{..}) <- zip [1..] referencedFiles ]
+    (drawingReferenced, drawingExtra) = drawingFiles n (ws ^. wsDrawing)
+
+commentsFiles :: Int -> Cells -> [FileData]
+commentsFiles n cells =
+    if null comments then [] else [commentsFile]
+  where
     comments = concatMap (\(row, rowCells) -> mapMaybe (maybeCellComment row) rowCells) cells
     maybeCellComment row (col, cell) = do
         comment <- xlsxComment cell
         return (mkCellRef (row, col), comment)
     commentsFile = FileData commentsPath
         "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"
+        "comments"
         commentsBS
-    commentsPath = "xl/comments" <> txti n <> ".xml"
+    commentsPath = "xl/comments" <> show n <> ".xml"
     commentsBS = renderLBS def . toDocument $ CommentTable.fromList comments
-    sheetRels = FileData ("xl/worksheets/_rels/sheet" <> txti n <> ".xml.rels")
-        "application/vnd.openxmlformats-package.relationships+xml" sheetRelsXml
-    sheetRelsXml = renderLBS def . toDocument $ Relationships.fromList
-        [relEntry 1 "comments" ("../comments" <> show n <> ".xml")]
 
-data FileData = FileData { fdName        :: Text
+drawingFiles :: Int -> Maybe Drawing -> ([FileData], [FileData])
+drawingFiles _ Nothing = ([], [])
+drawingFiles n(Just dr) = ([drawingFile], referenced)
+  where
+     drawingFilePath = "xl/drawings/drawing" <> show n <> ".xml"
+     drawingFile = FileData drawingFilePath
+                            "application/vnd.openxmlformats-officedocument.drawing+xml"
+                            "drawing" drawingXml
+     drawingXml = renderLBS def{rsNamespaces=nss} $ toDocument dr'
+     nss = [ ("xdr", "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing")
+           , ("a",   "http://schemas.openxmlformats.org/drawingml/2006/main")
+           , ("r",   "http://schemas.openxmlformats.org/officeDocument/2006/relationships") ]
+     dr' = Drawing{ _xdrAnchors = reverse anchors' }
+     (anchors', images, _) = foldl' collectImage ([], [], 1) (dr ^. xdrAnchors)
+     collectImage :: ([Anchor RefId], [Maybe FileInfo], Int) -> Anchor FileInfo
+                  -> ([Anchor RefId], [Maybe FileInfo], Int)
+     collectImage (as, fis, i) anch0 =
+         case anch0 ^. anchObject of
+             pic@Picture{} ->
+                 let anch = anch0{_anchObject = pic & picBlipFill . bfpImageInfo ?~ RefId ("rId" <> txti i)}
+                     fi = pic ^. picBlipFill . bfpImageInfo
+                 in (anch:as, fi:fis, i + 1)
+     imageFiles = [ FileData ("xl/media/" <> _fiFilename)
+                    _fiContentType
+                    "image" _fiContents
+                  | FileInfo{..} <- reverse (catMaybes images) ]
+     drawingRels = FileData ("xl/drawings/_rels/drawing" <> show n <> ".xml.rels")
+                   "application/vnd.openxmlformats-package.relationships+xml"
+                   "relationships" drawingRelsXml
+     drawingRelsXml = renderLBS def . toDocument . Relationships.fromList $
+        [ relEntry i fdRelType (fdPath `relFrom` drawingFilePath)
+        | (i, FileData{..}) <- zip [1..] imageFiles ]
+     referenced = case images of
+         [] -> []
+         _  -> drawingRels:imageFiles
+
+
+data FileData = FileData { fdPath        :: FilePath
                          , fdContentType :: Text
-                         , fdContents    :: L.ByteString}
+                         , fdRelType     :: Text
+                         , fdContents    :: L.ByteString }
 
 type Cells = [(Int, [(Int, XlsxCell)])]
 
@@ -187,14 +252,15 @@ transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
     transformValue (CellBool b) = XlsxBool b
     transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
 
-sheetXml :: Worksheet -> Cells -> L.ByteString
-sheetXml ws rows = renderLBS def $ Document (Prologue [] Nothing []) root []
+sheetXml :: Worksheet -> Cells -> Int -> L.ByteString
+sheetXml ws rows nextRId = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     cws = ws ^. wsColumns
     rh = ws ^. wsRowPropertiesMap
     merges = ws ^. wsMerges
     sheetViews = ws ^. wsSheetViews
     pageSetup = ws ^. wsPageSetup
+    drawing = ws ^. wsDrawing
     cfPairs = map CfPair . M.toList $ ws ^. wsConditionalFormattings
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
            Element "worksheet" M.empty $ catMaybes $
@@ -204,7 +270,8 @@ sheetXml ws rows = renderLBS def $ Document (Prologue [] Nothing []) root []
            ] ++
            map (Just . NodeElement . toElement "conditionalFormatting") cfPairs ++
            [ nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges,
-             NodeElement . toElement "pageSetup" <$> pageSetup
+             NodeElement . toElement "pageSetup" <$> pageSetup,
+             NodeElement . (\_ -> leafElement  "drawing" [ odr "id" .= ("rId" <> txti nextRId) ]) <$> drawing
            ]
     cType = xlsxCellType
     cwEl cw = NodeElement $! Element "col" (M.fromList
@@ -233,7 +300,7 @@ sheetXml ws rows = renderLBS def $ Document (Prologue [] Nothing []) root []
 bookXml :: Map Text Worksheet -> DefinedNames -> L.ByteString
 bookXml wss (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
-    numNames = [(txti i, name) | (i, name) <- zip [1..] (M.keys wss)]
+    numNames = [(txti i, name) | (i, name) <- zip [(1::Int)..] (M.keys wss)]
 
     -- The @bookViews@ element is not required according to the schema, but its
     -- absence can cause Excel to crash when opening the print preview
@@ -274,7 +341,7 @@ contentTypesXml fds = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
     root = addNS "http://schemas.openxmlformats.org/package/2006/content-types" $
            Element "Types" M.empty $
-           map (\fd -> nEl "Override" (M.fromList  [("PartName", T.concat ["/", fdName fd]),
+           map (\fd -> nEl "Override" (M.fromList  [("PartName", T.concat ["/", T.pack $ fdPath fd]),
                                        ("ContentType", fdContentType fd)]) []) fds
 
 -- | fully qualified XML name

@@ -52,6 +52,9 @@ instance FromAttrVal Text where
 instance FromAttrVal Int where
     fromAttrVal = T.decimal
 
+instance FromAttrVal Integer where
+    fromAttrVal = T.decimal
+
 instance FromAttrVal Double where
     fromAttrVal = T.rational
 
@@ -114,7 +117,7 @@ defaultReadFailure = Left "invalid text"
 
 runReader :: T.Reader a -> Text -> [a]
 runReader reader t = case reader t of
-  Right (r, _) -> [r]
+  Right (r, leftover) | T.null leftover -> [r]
   _ -> []
 
 -- | Add sml namespace to name
@@ -125,14 +128,14 @@ n x = Name
   , namePrefix = Nothing
   }
 
-decimal :: Monad m => Text -> m Int
+decimal :: (Monad m, Integral a) => Text -> m a
 decimal t = case T.decimal t of
-  Right (d, _) -> return d
+  Right (d, leftover) | T.null leftover -> return d
   _ -> fail $ "invalid decimal" ++ show t
 
 rational :: Monad m => Text -> m Double
 rational t = case T.rational t of
-  Right (r, _) -> return r
+  Right (r, leftover) | T.null leftover -> return r
   _ -> fail $ "invalid rational: " ++ show t
 
 boolean :: Monad m => Text -> m Bool

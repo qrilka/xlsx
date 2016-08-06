@@ -14,15 +14,18 @@ module Codec.Xlsx.Parser
 import qualified Codec.Archive.Zip                           as Zip
 import           Control.Applicative
 import           Control.Arrow                               (left, (&&&))
+import           Control.Error.Safe                          (headErr)
 import           Control.Error.Util                          (note)
+import           Control.Lens                                hiding (element,
+                                                              views, (<.>))
 import           Control.Monad.Except                        (catchError,
                                                               throwError)
-import           Control.Monad.IO.Class                      ()
 import qualified Data.ByteString.Lazy                        as L
 import           Data.ByteString.Lazy.Char8                  ()
 import           Data.List
 import qualified Data.Map                                    as M
 import           Data.Maybe
+import           Data.Monoid
 import           Data.Ord
 import           Data.Text                                   (Text)
 import qualified Data.Text                                   as T
@@ -38,10 +41,10 @@ import           Codec.Xlsx.Types
 import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.CfPair
 import           Codec.Xlsx.Types.Internal.CommentTable
+import           Codec.Xlsx.Types.Internal.ContentTypes      as ContentTypes
 import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
 import           Codec.Xlsx.Types.Internal.SharedStringTable
-
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)
 toXlsx :: L.ByteString -> Xlsx
@@ -50,7 +53,7 @@ toXlsx = either (error . show) id . toXlsxEither
 data ParseError = InvalidZipArchive
                 | MissingFile FilePath
                 | InvalidFile FilePath
-                | InvalidRef RefId
+                | InvalidRef FilePath RefId
                 deriving (Show, Eq)
 
 type Parser = Either ParseError
@@ -60,8 +63,9 @@ toXlsxEither :: L.ByteString -> Parser Xlsx
 toXlsxEither bs = do
   ar <- left (const InvalidZipArchive) $ Zip.toArchiveOrFail bs
   sst <- getSharedStrings ar
+  contentTypes <- getContentTypes ar
   (wfs, names) <- readWorkbook ar
-  sheets <- sequence . M.fromList $ map (wfName &&& extractSheet ar sst) wfs
+  sheets <- sequence . M.fromList $ map (wfName &&& extractSheet ar sst contentTypes) wfs
   CustomProperties customPropMap <- getCustomProperties ar
   return $ Xlsx sheets (getStyles ar) names customPropMap
 
@@ -72,9 +76,10 @@ data WorksheetFile = WorksheetFile { wfName :: Text
 
 extractSheet :: Zip.Archive
              -> SharedStringTable
+             -> ContentTypes
              -> WorksheetFile
              -> Parser Worksheet
-extractSheet ar sst wf = do
+extractSheet ar sst contentTypes wf = do
   let filePath = wfPath wf
   file <- note (MissingFile filePath) $ Zip.fromEntry <$> Zip.findEntryByPath filePath ar
   cur <- fmap fromDocument . left (\_ -> InvalidFile filePath) $
@@ -100,14 +105,13 @@ extractSheet ar sst wf = do
       cws = cur $/ element (n"cols") &/ element (n"col") >=> fromCursor
 
       (rowProps, cells) = collect $ cur $/ element (n"sheetData") &/ element (n"row") >=> parseRow
+      parseRow :: Cursor -> [(Int, Maybe RowProperties, [(Int, Int, Cell)])]
       parseRow c = do
         r <- c $| attribute "r" >=> decimal
         let ht = if attribute "customHeight" c == ["true"]
                  then listToMaybe $ c $| attribute "ht" >=> rational
                  else Nothing
-        let s = if attribute "s" c /= []
-                then listToMaybe $ c $| attribute "s" >=> decimal
-                else Nothing
+        let s = listToMaybe $ decimal =<< attribute "s" c :: Maybe Int
         let rp = if isNothing s && isNothing ht
                  then  Nothing
                  else  Just (RowProps ht s)
@@ -130,13 +134,23 @@ extractSheet ar sst wf = do
         (M.insert r h rowMap, foldr collectCell cellMap rowCells)
       collectCell (x, y, cd) = M.insert (x,y) cd
 
+      mDrawingId = listToMaybe $ cur $/ element (n"drawing") >=> fromAttribute (odr"id")
+
       merges = cur $/ parseMerges
       parseMerges :: Cursor -> [Text]
       parseMerges = element (n"mergeCells") &/ element (n"mergeCell") >=> parseMerge
       parseMerge c = c $| attribute "ref"
 
       condFormtattings = M.fromList . map unCfPair  $ cur $/ element (n"conditionalFormatting") >=> fromCursor
-  return $ Worksheet cws rowProps cells merges sheetViews pageSetup condFormtattings
+
+  mDrawing <- case mDrawingId of
+      Just dId -> do
+          rel <- note (InvalidRef filePath dId) $ Relationships.lookup dId sheetRels
+          Just <$> getDrawing ar contentTypes (relTarget rel)
+      Nothing  ->
+          return Nothing
+
+  return $ Worksheet cws rowProps cells mDrawing merges sheetViews pageSetup condFormtattings
 
 extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
 extractCellValue sst "s" v =
@@ -176,6 +190,9 @@ xmlCursorRequired ar fname = do
 getSharedStrings  :: Zip.Archive -> Parser SharedStringTable
 getSharedStrings x = head . fromCursor <$> xmlCursorRequired x "xl/sharedStrings.xml"
 
+getContentTypes :: Zip.Archive -> Parser ContentTypes
+getContentTypes x = head . fromCursor <$> xmlCursorRequired x "[Content_Types].xml"
+
 getStyles :: Zip.Archive -> Styles
 getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Nothing  -> Styles L.empty
@@ -186,6 +203,30 @@ getComments ar fp = (listToMaybe . fromCursor =<<) <$> xmlCursorOptional ar fp
 
 getCustomProperties :: Zip.Archive -> Parser CustomProperties
 getCustomProperties ar = maybe CustomProperties.empty (head . fromCursor) <$> xmlCursorOptional ar "docProps/custom.xml"
+
+getDrawing :: Zip.Archive -> ContentTypes ->  FilePath -> Parser Drawing
+getDrawing ar contentTypes fp = do
+    cur <- xmlCursorRequired ar fp
+    drawingRels <- getRels ar fp
+    unresolved <- headErr (InvalidFile fp) (fromCursor cur)
+    anchors <- forM (unresolved ^. xdrAnchors) $ resolveFileInfo drawingRels
+    return $ Drawing anchors
+  where
+    resolveFileInfo :: Relationships -> Anchor RefId -> Parser (Anchor FileInfo)
+    resolveFileInfo rels uAnch = case uAnch ^. anchObject of
+        pic@Picture{} -> do
+            let mRefId = pic ^. picBlipFill . bfpImageInfo
+            mFI <- lookupFI rels mRefId
+            return uAnch{ _anchObject = pic & picBlipFill . bfpImageInfo .~ mFI }
+    lookupFI _ Nothing = return Nothing
+    lookupFI rels (Just rId) = do
+        path <- relTarget <$> note (InvalidRef fp rId) (Relationships.lookup rId rels)
+        -- content types use paths starting with /
+        contentType <- note (InvalidFile path) $ ContentTypes.lookup ("/" <> path) contentTypes
+        contents <- Zip.fromEntry <$> note (MissingFile path) (Zip.findEntryByPath path ar)
+        return . Just $ FileInfo (stripMediaPrefix path) contentType contents
+    stripMediaPrefix :: FilePath -> FilePath
+    stripMediaPrefix p = fromMaybe p $ stripPrefix "xl/media/" p
 
 -- | readWorkbook pulls the names of the sheets and the defined names
 readWorkbook :: Zip.Archive -> Parser ([WorksheetFile], DefinedNames)
@@ -203,16 +244,15 @@ readWorkbook ar = do
       names = cur $/ element (n"definedNames") &/ element (n"definedName") >=> mkDefinedName
   sheets <- sequence $
     cur $/ element (n"sheets") &/ element (n"sheet") >=>
-      liftA2 (worksheetFile wbRels) <$> attribute "name" <*> (attribute (odr"id") &| RefId)
-  return $ (sheets, DefinedNames names)
+      liftA2 (worksheetFile wbPath wbRels) <$> attribute "name" <*> (attribute (odr"id") &| RefId)
+  return (sheets, DefinedNames names)
 
 
-worksheetFile :: Relationships -> Text -> RefId -> Parser WorksheetFile
-worksheetFile wbRels name rId = WorksheetFile name <$> path
+worksheetFile :: FilePath -> Relationships -> Text -> RefId -> Parser WorksheetFile
+worksheetFile parentPath wbRels name rId = WorksheetFile name <$> path
   where
     path :: Parser FilePath
-    path = maybe (throwError $ InvalidRef rId) (return . relTarget) $
-           Relationships.lookup rId wbRels
+    path = relTarget <$> note (InvalidRef parentPath rId) (Relationships.lookup rId wbRels)
 
 getRels :: Zip.Archive -> FilePath -> Parser Relationships
 getRels ar fp = do
