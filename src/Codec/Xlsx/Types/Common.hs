@@ -46,7 +46,6 @@ data XlsxText = XlsxText Text
               | XlsxRichText [RichTextRun]
               deriving (Show, Eq, Ord)
 
-
 -- | A formula
 --
 -- See 18.18.35 "ST_Formula (Formula)" (p. 2457)

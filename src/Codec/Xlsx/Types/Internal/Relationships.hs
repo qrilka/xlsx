@@ -60,6 +60,11 @@ joinRel abs rel = uriToString id (relPath `nonStrictRelativeTo` base) ""
     base = fromJustNote "joinRel base path" $ parseURIReference abs
     relPath = fromJustNote "joinRel relative path" $ parseURIReference rel
 
+relFrom :: FilePath -> FilePath -> FilePath
+relFrom path base = uriToString id (pathURI `relativeFrom` baseURI) ""
+  where
+    baseURI = fromJustNote "joinRel base path" $ parseURIReference base
+    pathURI = fromJustNote "joinRel relative path" $ parseURIReference path
 
 findRelByType :: Text -> Relationships -> Maybe Relationship
 findRelByType t (Relationships m) = find ((==t) . relType) (Map.elems m)

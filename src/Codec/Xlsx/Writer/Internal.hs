@@ -12,6 +12,8 @@ module Codec.Xlsx.Writer.Internal (
   , countedElementList
   , elementList
   , elementListSimple
+  , leafElement
+  , emptyElement
   , elementContent
   , elementContentPreserved
   , elementValue
@@ -84,6 +86,12 @@ elementList nm attrs els = Element {
 elementListSimple :: Name -> [Element] -> Element
 elementListSimple nm els = elementList nm [] els
 
+leafElement :: Name -> [(Name, Text)] -> Element
+leafElement nm attrs = elementList nm attrs []
+
+emptyElement :: Name -> Element
+emptyElement nm = elementList nm [] []
+
 elementContent0 :: Name -> [(Name, Text)] -> Text -> Element
 elementContent0 nm attrs txt = Element {
       elementName       = nm
@@ -112,10 +120,11 @@ elementContentPreserved nm txt = elementContent0 nm [ preserveSpace ] txt
 class ToAttrVal a where
   toAttrVal :: a -> Text
 
-instance ToAttrVal Text   where toAttrVal = id
-instance ToAttrVal String where toAttrVal = fromString
-instance ToAttrVal Int    where toAttrVal = fromString . show
-instance ToAttrVal Double where toAttrVal = fromString . show
+instance ToAttrVal Text    where toAttrVal = id
+instance ToAttrVal String  where toAttrVal = fromString
+instance ToAttrVal Int     where toAttrVal = txti
+instance ToAttrVal Integer where toAttrVal = txti
+instance ToAttrVal Double  where toAttrVal = fromString . show
 
 instance ToAttrVal Bool where
   toAttrVal True  = "true"
@@ -179,7 +188,7 @@ txtd = toStrict . toLazyText . realFloat
 txtb :: Bool -> Text
 txtb = T.toLower . T.pack . show
 
-txti :: Int -> Text
+txti :: (Integral a) => a -> Text
 txti = toStrict . toLazyText . decimal
 
 justNonDef :: (Eq a) => a -> a -> Maybe a
