@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 module Codec.Xlsx.Types.Internal.ContentTypes where
@@ -9,6 +10,10 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           Text.XML
 import           Text.XML.Cursor
+
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative
+#endif
 
 import           Codec.Xlsx.Parser.Internal
 
