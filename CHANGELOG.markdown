@@ -1,3 +1,9 @@
+0.2.4
+-----
+* added basic images support
+* added "normal" cell formula support
+* added basic xlsx parsing error reporting (thanks to Brad Ediger <brad.ediger@madriska.com>)
+
 0.2.3
 -----
 * added conditional formatting support
