@@ -409,10 +409,10 @@ testRunFormatted = formatted formattedCellMap minimalStyleSheet
     formattedCellMap = flip execState def $ do
         let font1 = def & fontBold ?~ True
                         & fontName ?~ "Calibri"
-        at (1, 1) ?= (def & formattedValue ?~ CellText "text at A1"
-                          & formattedFont  ?~ font1)
-        at (1, 2) ?= (def & formattedValue ?~ CellDouble 1.23
-                          & formattedFont . non def . fontItalic ?~ True)
+        at (1, 1) ?= (def & formattedCell . cellValue ?~ CellText "text at A1"
+                          & formattedFormat . formatFont  ?~ font1)
+        at (1, 2) ?= (def & formattedCell . cellValue ?~ CellDouble 1.23
+                          & formattedFormat . formatFont . non def . fontItalic ?~ True)
 
 testCondFormattedResult :: CondFormatted
 testCondFormattedResult = CondFormatted styleSheet formattings
@@ -445,11 +445,11 @@ testFormattedCells :: Map (Int, Int) FormattedCell
 testFormattedCells = flip execState def $ do
     at (1,1) ?= (def & formattedRowSpan .~ 5
                      & formattedColSpan .~ 5
-                     & formattedBorder . non def . borderTop .
-                                         non def . borderStyleLine ?~ LineStyleDashed
-                     & formattedBorder . non def . borderBottom .
-                                         non def . borderStyleLine ?~ LineStyleDashed)
-    at (10,2) ?= (def & formattedFont . non def . fontBold ?~ True)
+                     & formattedFormat . formatBorder . non def . borderTop .
+                                                        non def . borderStyleLine ?~ LineStyleDashed
+                     & formattedFormat . formatBorder . non def . borderBottom .
+                                                        non def . borderStyleLine ?~ LineStyleDashed)
+    at (10,2) ?= (def & formattedFormat . formatFont . non def . fontBold ?~ True)
 
 testRunCondFormatted :: CondFormatted
 testRunCondFormatted = conditionallyFormatted condFmts minimalStyleSheet

@@ -11,17 +11,18 @@ module Codec.Xlsx.Formatted (
   , CondFormatted(..)
   , conditionallyFormatted
     -- * Lenses
+    -- ** Format
+  , formatAlignment
+  , formatBorder
+  , formatFill
+  , formatFont
+  , formatNumberFormat
+  , formatProtection
+  , formatPivotButton
+  , formatQuotePrefix
     -- ** FormattedCell
-  , formattedAlignment
-  , formattedBorder
-  , formattedFill
-  , formattedFont
-  , formattedNumberFormat
-  , formattedProtection
-  , formattedPivotButton
-  , formattedQuotePrefix
-  , formattedValue
-  , formattedFormula
+  , formattedCell
+  , formattedFormat
   , formattedColSpan
   , formattedRowSpan
     -- ** FormattedCondFmt
@@ -110,52 +111,60 @@ makeLenses ''FormattedCondFmt
   Cell with formatting
 -------------------------------------------------------------------------------}
 
--- | Cell with formatting
---
--- See 'formatted' for more details.
+-- | Formatting options used to format cells
 --
 -- TODOs:
 --
 -- * Add a number format ('_cellXfApplyNumberFormat', '_cellXfNumFmtId')
 -- * Add references to the named style sheets ('_cellXfId')
-data FormattedCell = FormattedCell {
-    _formattedAlignment    :: Maybe Alignment
-  , _formattedBorder       :: Maybe Border
-  , _formattedFill         :: Maybe Fill
-  , _formattedFont         :: Maybe Font
-  , _formattedNumberFormat :: Maybe NumberFormat
-  , _formattedProtection   :: Maybe Protection
-  , _formattedPivotButton  :: Maybe Bool
-  , _formattedQuotePrefix  :: Maybe Bool
-  , _formattedValue        :: Maybe CellValue
-  , _formattedFormula      :: Maybe CellFormula
-  , _formattedColSpan      :: Int
-  , _formattedRowSpan      :: Int
-  }
-  deriving (Show, Eq)
+data Format = Format
+    { _formatAlignment    :: Maybe Alignment
+    , _formatBorder       :: Maybe Border
+    , _formatFill         :: Maybe Fill
+    , _formatFont         :: Maybe Font
+    , _formatNumberFormat :: Maybe NumberFormat
+    , _formatProtection   :: Maybe Protection
+    , _formatPivotButton  :: Maybe Bool
+    , _formatQuotePrefix  :: Maybe Bool
+    } deriving (Eq, Show)
+
+makeLenses ''Format
+
+-- | Cell with formatting. '_cellStyle' property of '_formattedCell' is ignored
+--
+-- See 'formatted' for more details.
+data FormattedCell = FormattedCell
+    { _formattedCell    :: Cell
+    , _formattedFormat  :: Format
+    , _formattedColSpan :: Int
+    , _formattedRowSpan :: Int
+    } deriving (Eq, Show)
 
 makeLenses ''FormattedCell
-
 
 {-------------------------------------------------------------------------------
   Default instances
 -------------------------------------------------------------------------------}
 
 instance Default FormattedCell where
-  def = FormattedCell {
-      _formattedAlignment    = Nothing
-    , _formattedBorder       = Nothing
-    , _formattedFill         = Nothing
-    , _formattedFont         = Nothing
-    , _formattedNumberFormat = Nothing
-    , _formattedProtection   = Nothing
-    , _formattedPivotButton  = Nothing
-    , _formattedQuotePrefix  = Nothing
-    , _formattedValue        = Nothing
-    , _formattedFormula      = Nothing
-    , _formattedColSpan      = 1
-    , _formattedRowSpan      = 1
-    }
+  def = FormattedCell
+        { _formattedCell    = def
+        , _formattedFormat  = def
+        , _formattedColSpan = 1
+        , _formattedRowSpan = 1
+        }
+
+instance Default Format where
+  def = Format
+        { _formatAlignment    = Nothing
+        , _formatBorder       = Nothing
+        , _formatFill         = Nothing
+        , _formatFont         = Nothing
+        , _formatNumberFormat = Nothing
+        , _formatProtection   = Nothing
+        , _formatPivotButton  = Nothing
+        , _formatQuotePrefix  = Nothing
+        }
 
 instance Default FormattedCondFmt where
   def = FormattedCondFmt ContainsBlanks def topCfPriority Nothing
@@ -219,25 +228,26 @@ formatted cs styleSheet =
 toFormattedCells :: CellMap -> [Range] -> StyleSheet -> Map (Int, Int) FormattedCell
 toFormattedCells m merges StyleSheet{..} = applyMerges $ M.map toFormattedCell m
   where
-    toFormattedCell Cell{..} =
-        let mCellXf = _cellStyle >>= \styleId -> M.lookup styleId cellXfs
-        in FormattedCell
-           { _formattedAlignment    = applied _cellXfApplyAlignment _cellXfAlignment =<< mCellXf
-           , _formattedBorder       = flip M.lookup borders =<<
-                                      applied _cellXfApplyBorder _cellXfBorderId =<< mCellXf
-           , _formattedFill         = flip M.lookup fills =<<
-                                      applied _cellXfApplyFill _cellXfFillId =<< mCellXf
-           , _formattedFont         = flip M.lookup fonts =<<
-                                      applied _cellXfApplyFont _cellXfFontId =<< mCellXf
-           , _formattedNumberFormat = idToStdNumberFormat =<<
-                                      applied _cellXfApplyNumberFormat _cellXfNumFmtId =<< mCellXf
-           , _formattedProtection   = _cellXfProtection  =<< mCellXf
-           , _formattedPivotButton  = _cellXfPivotButton =<< mCellXf
-           , _formattedQuotePrefix  = _cellXfQuotePrefix =<< mCellXf
-           , _formattedValue        = _cellValue
-           , _formattedFormula      = _cellFormula
-           , _formattedColSpan      = 1
-           , _formattedRowSpan      = 1 }
+    toFormattedCell cell@Cell{..} =
+        FormattedCell
+        { _formattedCell    = cell{ _cellStyle = Nothing } -- just to remove confusion
+        , _formattedFormat  = maybe def formatFromStyle $ flip M.lookup cellXfs =<< _cellStyle
+        , _formattedColSpan = 1
+        , _formattedRowSpan = 1 }
+    formatFromStyle cellXf =
+        Format
+        { _formatAlignment    = applied _cellXfApplyAlignment _cellXfAlignment cellXf
+        , _formatBorder       = flip M.lookup borders =<<
+                                applied _cellXfApplyBorder _cellXfBorderId cellXf
+        , _formatFill         = flip M.lookup fills =<<
+                                applied _cellXfApplyFill _cellXfFillId cellXf
+        , _formatFont         = flip M.lookup fonts =<<
+                                applied _cellXfApplyFont _cellXfFontId cellXf
+        , _formatNumberFormat = idToStdNumberFormat =<<
+                                applied _cellXfApplyNumberFormat _cellXfNumFmtId cellXf
+        , _formatProtection   = _cellXfProtection  cellXf
+        , _formatPivotButton  = _cellXfPivotButton cellXf
+        , _formatQuotePrefix  = _cellXfQuotePrefix cellXf }
     idMapped :: [a] -> Map Int a
     idMapped = M.fromList . zip [0..]
     cellXfs = idMapped _styleSheetCellXfs
@@ -290,9 +300,9 @@ formatCell (row, col) cell = do
     mapM go block
   where
     go :: ((Int, Int), FormattedCell) -> State FormattingState ((Int, Int), Cell)
-    go (pos, c) = do
+    go (pos, c@ FormattedCell{..}) = do
       styleId <- cellStyleId c
-      return (pos, Cell styleId (_formattedValue c) Nothing (_formattedFormula c))
+      return (pos, _formattedCell{_cellStyle = styleId})
 
 -- | Cell block corresponding to a single 'FormattedCell'
 --
@@ -321,14 +331,16 @@ cellBlock (row, col) cell@FormattedCell{..} = (block, merge)
     cellAt (row', col') =
       if row' == row && col == col'
         then cell
-        else def & formattedBorder .~ Just (borderAt (row', col'))
+        else def & formattedFormat . formatBorder ?~ borderAt (row', col')
+
+    border = _formatBorder _formattedFormat
 
     borderAt :: (Int, Int) -> Border
-    borderAt (row', col') = def
-      & borderTop    .~ do guard (row' == topRow)    ; _borderTop    =<< _formattedBorder
-      & borderBottom .~ do guard (row' == bottomRow) ; _borderBottom =<< _formattedBorder
-      & borderLeft   .~ do guard (col' == leftCol)   ; _borderLeft   =<< _formattedBorder
-      & borderRight  .~ do guard (col' == rightCol)  ; _borderRight  =<< _formattedBorder
+    borderAt (row', col') = def 
+      & borderTop    .~ do guard (row' == topRow)    ; _borderTop    =<< border
+      & borderBottom .~ do guard (row' == bottomRow) ; _borderBottom =<< border
+      & borderLeft   .~ do guard (col' == leftCol)   ; _borderLeft   =<< border
+      & borderRight  .~ do guard (col' == rightCol)  ; _borderRight  =<< border
 
     topRow, bottomRow, leftCol, rightCol :: Int
     topRow    = row
@@ -337,30 +349,30 @@ cellBlock (row, col) cell@FormattedCell{..} = (block, merge)
     rightCol  = col + _formattedColSpan - 1
 
 cellStyleId :: FormattedCell -> State FormattingState (Maybe Int)
-cellStyleId c = mapM (getId formattingCellXfs) =<< cellXf c
+cellStyleId c = mapM (getId formattingCellXfs) =<< constructCellXf c
 
-cellXf :: FormattedCell -> State FormattingState (Maybe CellXf)
-cellXf FormattedCell{..} = do
-    mBorderId <- getId formattingBorders `mapM` _formattedBorder
-    mFillId   <- getId formattingFills   `mapM` _formattedFill
-    mFontId   <- getId formattingFonts   `mapM` _formattedFont
-    let mNumFmtId = fmap numberFormatId _formattedNumberFormat
+constructCellXf :: FormattedCell -> State FormattingState (Maybe CellXf)
+constructCellXf FormattedCell{_formattedFormat=Format{..}} = do
+    mBorderId <- getId formattingBorders `mapM` _formatBorder
+    mFillId   <- getId formattingFills   `mapM` _formatFill
+    mFontId   <- getId formattingFonts   `mapM` _formatFont
+    let mNumFmtId = fmap numberFormatId _formatNumberFormat
     let xf = CellXf {
-            _cellXfApplyAlignment    = apply _formattedAlignment
+            _cellXfApplyAlignment    = apply _formatAlignment
           , _cellXfApplyBorder       = apply mBorderId
           , _cellXfApplyFill         = apply mFillId
           , _cellXfApplyFont         = apply mFontId
-          , _cellXfApplyNumberFormat = apply _formattedNumberFormat
-          , _cellXfApplyProtection   = apply _formattedProtection
+          , _cellXfApplyNumberFormat = apply _formatNumberFormat
+          , _cellXfApplyProtection   = apply _formatProtection
           , _cellXfBorderId          = mBorderId
           , _cellXfFillId            = mFillId
           , _cellXfFontId            = mFontId
           , _cellXfNumFmtId          = mNumFmtId
-          , _cellXfPivotButton       = _formattedPivotButton
-          , _cellXfQuotePrefix       = _formattedQuotePrefix
+          , _cellXfPivotButton       = _formatPivotButton
+          , _cellXfQuotePrefix       = _formatQuotePrefix
           , _cellXfId                = Nothing -- TODO
-          , _cellXfAlignment         = _formattedAlignment
-          , _cellXfProtection        = _formattedProtection
+          , _cellXfAlignment         = _formatAlignment
+          , _cellXfProtection        = _formatProtection
           }
     return $ if xf == def then Nothing else Just xf
   where
