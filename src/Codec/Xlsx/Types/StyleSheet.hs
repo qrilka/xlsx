@@ -1,7 +1,7 @@
-{-# LANGUAGE CPP                #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 -- | Support for writing (but not reading) style sheets
 module Codec.Xlsx.Types.StyleSheet (
     -- * The main two types
@@ -17,7 +17,9 @@ module Codec.Xlsx.Types.StyleSheet (
   , Fill(..)
   , FillPattern(..)
   , Font(..)
-  , NumberFormat(..), numberFormatId, idToStdNumberFormat
+  , NumberFormat(..), stdNumberFormatId, idToStdNumberFormat, firstUserNumFmtId
+  , ImpliedNumberFormat (..)
+  , NumFmt
   , Protection(..)
     -- * Supporting enumerations
   , CellHorizontalAlignment(..)
@@ -36,6 +38,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , styleSheetFills
   , styleSheetCellXfs
   , styleSheetDxfs
+  , styleSheetNumFmts
     -- ** CellXf
   , cellXfApplyAlignment
   , cellXfApplyBorder
@@ -116,20 +119,22 @@ module Codec.Xlsx.Types.StyleSheet (
   , protectionLocked
   ) where
 
-import Control.Lens hiding ((.=), element)
-import Data.Default
-import Data.Maybe (catMaybes)
-import Data.Text (Text)
-import Text.XML
-import Text.XML.Cursor
-import qualified Data.Map as Map
+import           Control.Lens               hiding (element, (.=))
+import           Data.Default
+import           Data.Map.Strict            (Map)
+import qualified Data.Map.Strict            as M
+import           Data.Maybe                 (catMaybes)
+import           Data.Text                  (Text)
+import           Text.XML
+import           Text.XML.Cursor
+
 
 #if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
+import           Control.Applicative
 #endif
 
-import Codec.Xlsx.Writer.Internal
-import Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Writer.Internal
 
 {-------------------------------------------------------------------------------
   The main types
@@ -164,14 +169,15 @@ import Codec.Xlsx.Parser.Internal
 -- * 'Codec.Xlsx.Types.renderStyleSheet' to translate a 'StyleSheet' to 'Styles'
 -- * 'Codec.Xlsx.Formatted.formatted' for a higher level interface.
 -- * 'Codec.Xlsx.Types.parseStyleSheet' to translate a raw 'StyleSheet' into 'Styles'
-data StyleSheet = StyleSheet {
-    -- | This element contains borders formatting information, specifying all
+data StyleSheet = StyleSheet
+    { _styleSheetBorders :: [Border]
+    -- ^ This element contains borders formatting information, specifying all
     -- border definitions for all cells in the workbook.
     --
     -- Section 18.8.5, "borders (Borders)" (p. 1760)
-    _styleSheetBorders :: [Border]
 
-    -- | Cell formats
+    , _styleSheetCellXfs :: [CellXf]
+    -- ^ Cell formats
     --
     -- This element contains the master formatting records (xf) which define the
     -- formatting applied to cells in this workbook. These records are the
@@ -179,22 +185,22 @@ data StyleSheet = StyleSheet {
     -- Sheet Part reference the xf records by zero-based index.
     --
     -- Section 18.8.10, "cellXfs (Cell Formats)" (p. 1764)
-  , _styleSheetCellXfs :: [CellXf]
 
-    -- | This element defines the cell fills portion of the Styles part,
+    , _styleSheetFills   :: [Fill]
+    -- ^ This element defines the cell fills portion of the Styles part,
     -- consisting of a sequence of fill records. A cell fill consists of a
     -- background color, foreground color, and pattern to be applied across the
     -- cell.
     --
     -- Section 18.8.21, "fills (Fills)" (p. 1768)
-  , _styleSheetFills :: [Fill]
 
-    -- | This element contains all font definitions for this workbook.
+    , _styleSheetFonts   :: [Font]
+    -- ^ This element contains all font definitions for this workbook.
     --
     -- Section 18.8.23 "fonts (Fonts)" (p. 1769)
-  , _styleSheetFonts :: [Font]
 
-    -- | Differential formatting
+    , _styleSheetDxfs    :: [Dxf]
+    -- ^ Differential formatting
     --
     -- This element contains the master differential formatting records (dxf's)
     -- which define formatting for all non-cell formatting in this workbook.
@@ -206,9 +212,14 @@ data StyleSheet = StyleSheet {
     -- present on the object using the dxf record.
     --
     -- Section 18.8.15, "dxfs (Formats)" (p. 1765)
-  , _styleSheetDxfs :: [Dxf]
-  }
-  deriving (Show, Eq, Ord)
+
+    , _styleSheetNumFmts :: Map Int NumFmt
+    -- ^ Number formats
+    --
+    -- This element contains custom number formats defined in this style sheet
+    --
+    -- Section 18.8.31, "numFmts (Number Formats)" (p. 1784)
+    } deriving (Eq, Ord, Show)
 
 -- | Cell formatting
 --
@@ -218,19 +229,19 @@ data StyleSheet = StyleSheet {
 data CellXf = CellXf {
     -- | A boolean value indicating whether the alignment formatting specified
     -- for this xf should be applied.
-    _cellXfApplyAlignment :: Maybe Bool
+    _cellXfApplyAlignment    :: Maybe Bool
 
     -- | A boolean value indicating whether the border formatting specified for
     -- this xf should be applied.
-  , _cellXfApplyBorder :: Maybe Bool
+  , _cellXfApplyBorder       :: Maybe Bool
 
     -- | A boolean value indicating whether the fill formatting specified for
     -- this xf should be applied.
-  , _cellXfApplyFill :: Maybe Bool
+  , _cellXfApplyFill         :: Maybe Bool
 
     -- | A boolean value indicating whether the font formatting specified for
     -- this xf should be applied.
-  , _cellXfApplyFont :: Maybe Bool
+  , _cellXfApplyFont         :: Maybe Bool
 
     -- | A boolean value indicating whether the number formatting specified for
     -- this xf should be applied.
@@ -238,23 +249,23 @@ data CellXf = CellXf {
 
     -- | A boolean value indicating whether the protection formatting specified
     -- for this xf should be applied.
-  , _cellXfApplyProtection :: Maybe Bool
+  , _cellXfApplyProtection   :: Maybe Bool
 
     -- | Zero-based index of the border record used by this cell format.
     --
     -- (18.18.2, p. 2437).
-  , _cellXfBorderId :: Maybe Int
+  , _cellXfBorderId          :: Maybe Int
 
     -- | Zero-based index of the fill record used by this cell format.
     --
     -- (18.18.30, p. 2455)
-  , _cellXfFillId :: Maybe Int
+  , _cellXfFillId            :: Maybe Int
 
     -- | Zero-based index of the font record used by this cell format.
     --
     -- An integer that represents a zero based index into the `styleSheetFonts`
     -- collection in the style sheet (18.18.32, p. 2456).
-  , _cellXfFontId :: Maybe Int
+  , _cellXfFontId            :: Maybe Int
 
     -- | Id of the number format (numFmt) record used by this cell format.
     --
@@ -264,16 +275,16 @@ data CellXf = CellXf {
     -- number formats.
     --
     -- TODO: The numFmts part of the style sheet is currently not implemented.
-  , _cellXfNumFmtId :: Maybe Int
+  , _cellXfNumFmtId          :: Maybe Int
 
     -- | A boolean value indicating whether the cell rendering includes a pivot
     -- table dropdown button.
-  , _cellXfPivotButton :: Maybe Bool
+  , _cellXfPivotButton       :: Maybe Bool
 
     -- | A boolean value indicating whether the text string in a cell should be
     -- prefixed by a single quote mark (e.g., 'text). In these cases, the quote
     -- is not stored in the Shared Strings Part.
-  , _cellXfQuotePrefix :: Maybe Bool
+  , _cellXfQuotePrefix       :: Maybe Bool
 
     -- | For xf records contained in cellXfs this is the zero-based index of an
     -- xf record contained in cellStyleXfs corresponding to the cell style
@@ -284,17 +295,17 @@ data CellXf = CellXf {
     -- Used by xf records and cellStyle records to reference xf records defined
     -- in the cellStyleXfs collection. (18.18.10, p. 2442)
     -- TODO: the cellStyleXfs field of a style sheet not currently implemented.
-  , _cellXfId :: Maybe Int
+  , _cellXfId                :: Maybe Int
 
     -- | Formatting information pertaining to text alignment in cells. There are
     -- a variety of choices for how text is aligned both horizontally and
     -- vertically, as well as indentation settings, and so on.
-  , _cellXfAlignment :: Maybe Alignment
+  , _cellXfAlignment         :: Maybe Alignment
 
     -- | Contains protection properties associated with the cell. Each cell has
     -- protection properties that can be set. The cell protection properties do
     -- not take effect unless the sheet has been protected.
-  , _cellXfProtection :: Maybe Protection
+  , _cellXfProtection        :: Maybe Protection
   }
   deriving (Show, Eq, Ord)
 
@@ -307,12 +318,12 @@ data CellXf = CellXf {
 -- See 18.8.1 "alignment (Alignment)" (p. 1754)
 data Alignment = Alignment {
     -- | Specifies the type of horizontal alignment in cells.
-    _alignmentHorizontal :: Maybe CellHorizontalAlignment
+    _alignmentHorizontal      :: Maybe CellHorizontalAlignment
 
     -- | An integer value, where an increment of 1 represents 3 spaces.
     -- Indicates the number of spaces (of the normal style font) of indentation
     -- for text in a cell.
-  , _alignmentIndent :: Maybe Int
+  , _alignmentIndent          :: Maybe Int
 
     -- | A boolean value indicating if the cells justified or distributed
     -- alignment should be used on the last line of text. (This is typical for
@@ -322,28 +333,28 @@ data Alignment = Alignment {
     -- | An integer value indicating whether the reading order
     -- (bidirectionality) of the cell is leftto- right, right-to-left, or
     -- context dependent.
-  , _alignmentReadingOrder :: Maybe ReadingOrder
+  , _alignmentReadingOrder    :: Maybe ReadingOrder
 
     -- | An integer value (used only in a dxf element) to indicate the
     -- additional number of spaces of indentation to adjust for text in a cell.
-  , _alignmentRelativeIndent :: Maybe Int
+  , _alignmentRelativeIndent  :: Maybe Int
 
     -- | A boolean value indicating if the displayed text in the cell should be
     -- shrunk to fit the cell width. Not applicable when a cell contains
     -- multiple lines of text.
-  , _alignmentShrinkToFit :: Maybe Bool
+  , _alignmentShrinkToFit     :: Maybe Bool
 
     -- | Text rotation in cells. Expressed in degrees. Values range from 0 to
     -- 180. The first letter of the text is considered the center-point of the
     -- arc.
-  , _alignmentTextRotation :: Maybe Int
+  , _alignmentTextRotation    :: Maybe Int
 
     -- | Vertical alignment in cells.
-  , _alignmentVertical :: Maybe CellVerticalAlignment
+  , _alignmentVertical        :: Maybe CellVerticalAlignment
 
     -- | A boolean value indicating if the text in a cell should be line-wrapped
     -- within the cell.
-  , _alignmentWrapText :: Maybe Bool
+  , _alignmentWrapText        :: Maybe Bool
   }
   deriving (Show, Eq, Ord)
 
@@ -360,48 +371,48 @@ data Border = Border {
     -- | A boolean value indicating if the cell's diagonal border includes a
     -- diagonal line, starting at the bottom left corner of the cell and moving
     -- up to the top right corner of the cell.
-  , _borderDiagonalUp :: Maybe Bool
+  , _borderDiagonalUp   :: Maybe Bool
 
     -- | A boolean value indicating if left, right, top, and bottom borders
     -- should be applied only to outside borders of a cell range.
-  , _borderOutline :: Maybe Bool
+  , _borderOutline      :: Maybe Bool
 
     -- | Bottom border
-  , _borderBottom :: Maybe BorderStyle
+  , _borderBottom       :: Maybe BorderStyle
 
     -- | Diagonal
-  , _borderDiagonal :: Maybe BorderStyle
+  , _borderDiagonal     :: Maybe BorderStyle
 
     -- | Trailing edge border
     --
     -- See also 'borderRight'
-  , _borderEnd :: Maybe BorderStyle
+  , _borderEnd          :: Maybe BorderStyle
 
     -- | Horizontal inner borders
-  , _borderHorizontal :: Maybe BorderStyle
+  , _borderHorizontal   :: Maybe BorderStyle
 
     -- | Left border
     --
     -- NOTE: The spec does not formally list a 'left' border element, but the
     -- examples do mention 'left' and the scheme contains it too. See also 'borderStart'.
-  , _borderLeft :: Maybe BorderStyle
+  , _borderLeft         :: Maybe BorderStyle
 
     -- | Right border
     --
     -- NOTE: The spec does not formally list a 'right' border element, but the
     -- examples do mention 'right' and the scheme contains it too. See also 'borderEnd'.
-  , _borderRight :: Maybe BorderStyle
+  , _borderRight        :: Maybe BorderStyle
 
     -- | Leading edge border
     --
     -- See also 'borderLeft'
-  , _borderStart :: Maybe BorderStyle
+  , _borderStart        :: Maybe BorderStyle
 
     -- | Top border
-  , _borderTop :: Maybe BorderStyle
+  , _borderTop          :: Maybe BorderStyle
 
     -- | Vertical inner border
-  , _borderVertical :: Maybe BorderStyle
+  , _borderVertical     :: Maybe BorderStyle
   }
   deriving (Show, Eq, Ord)
 
@@ -429,12 +440,12 @@ data Color = Color {
     -- This simple type's contents have a length of exactly 8 hexadecimal
     -- digit(s); see "18.18.86 ST_UnsignedIntHex (Hex Unsigned Integer)" (p.
     -- 2511).
-  , _colorARGB :: Maybe Text
+  , _colorARGB      :: Maybe Text
 
     -- | A zero-based index into the <clrScheme> collection (20.1.6.2),
     -- referencing a particular <sysClr> or <srgbClr> value expressed in the
     -- Theme part.
-  , _colorTheme :: Maybe Int
+  , _colorTheme     :: Maybe Int
 
     -- | Specifies the tint value applied to the color.
     --
@@ -443,7 +454,7 @@ data Color = Color {
     --
     -- The tint value is stored as a double from -1.0 .. 1.0, where -1.0 means
     -- 100% darken and 1.0 means 100% lighten. Also, 0.0 means no change.
-  , _colorTint :: Maybe Double
+  , _colorTint      :: Maybe Double
   }
   deriving (Show, Eq, Ord)
 
@@ -478,7 +489,7 @@ data FillPattern = FillPattern {
 -- Section 18.2.22 "font (Font)" (p. 1769)
 data Font = Font {
     -- | Displays characters in bold face font style.
-    _fontBold :: Maybe Bool
+    _fontBold          :: Maybe Bool
 
     -- | This element defines the font character set of this font.
     --
@@ -499,33 +510,33 @@ data Font = Font {
     -- These are operating-system-dependent values.
     --
     -- Section 18.4.1 "charset (Character Set)" provides some example values.
-  , _fontCharset :: Maybe Int
+  , _fontCharset       :: Maybe Int
 
     -- | Color
-  , _fontColor :: Maybe Color
+  , _fontColor         :: Maybe Color
 
     -- | Macintosh compatibility setting. Represents special word/character
     -- rendering on Macintosh, when this flag is set. The effect is to condense
     -- the text (squeeze it together). SpreadsheetML applications are not
     -- required to render according to this flag.
-  , _fontCondense :: Maybe Bool
+  , _fontCondense      :: Maybe Bool
 
     -- | This element specifies a compatibility setting used for previous
     -- spreadsheet applications, resulting in special word/character rendering
     -- on those legacy applications, when this flag is set. The effect extends
     -- or stretches out the text. SpreadsheetML applications are not required to
     -- render according to this flag.
-  , _fontExtend :: Maybe Bool
+  , _fontExtend        :: Maybe Bool
 
     -- | The font family this font belongs to. A font family is a set of fonts
     -- having common stroke width and serif characteristics. This is system
     -- level font information. The font name overrides when there are
     -- conflicting values.
-  , _fontFamily :: Maybe FontFamily
+  , _fontFamily        :: Maybe FontFamily
 
     -- | Displays characters in italic font style. The italic style is defined
     -- by the font at a system level and is not specified by ECMA-376.
-  , _fontItalic :: Maybe Bool
+  , _fontItalic        :: Maybe Bool
 
     -- | This element specifies the face name of this font.
     --
@@ -534,11 +545,11 @@ data Font = Font {
     -- by that font, then another font should be substituted.
     --
     -- The string length for this attribute shall be 0 to 31 characters.
-  , _fontName :: Maybe Text
+  , _fontName          :: Maybe Text
 
     -- | This element displays only the inner and outer borders of each
     -- character. This is very similar to Bold in behavior.
-  , _fontOutline :: Maybe Bool
+  , _fontOutline       :: Maybe Bool
 
     -- | Defines the font scheme, if any, to which this font belongs. When a
     -- font definition is part of a theme definition, then the font is
@@ -547,13 +558,13 @@ data Font = Font {
     -- to use the new major or minor font definition for that theme. Usually
     -- major fonts are used for styles like headings, and minor fonts are used
     -- for body and paragraph text.
-  , _fontScheme :: Maybe FontScheme
+  , _fontScheme        :: Maybe FontScheme
 
     -- | Macintosh compatibility setting. Represents special word/character
     -- rendering on Macintosh, when this flag is set. The effect is to render a
     -- shadow behind, beneath and to the right of the text. SpreadsheetML
     -- applications are not required to render according to this flag.
-  , _fontShadow :: Maybe Bool
+  , _fontShadow        :: Maybe Bool
 
     -- | This element draws a strikethrough line through the horizontal middle
     -- of the text.
@@ -561,16 +572,16 @@ data Font = Font {
 
     -- | This element represents the point size (1/72 of an inch) of the Latin
     -- and East Asian text.
-  , _fontSize :: Maybe Double
+  , _fontSize          :: Maybe Double
 
     -- | This element represents the underline formatting style.
-  , _fontUnderline :: Maybe FontUnderline
+  , _fontUnderline     :: Maybe FontUnderline
 
     -- | This element adjusts the vertical position of the text relative to the
     -- text's default appearance for this run. It is used to get 'superscript'
     -- or 'subscript' texts, and shall reduce the font size (if a smaller size
     -- is available) accordingly.
-  , _fontVertAlign :: Maybe FontVerticalAlignment
+  , _fontVertAlign     :: Maybe FontVerticalAlignment
   }
   deriving (Show, Eq, Ord)
 
@@ -578,19 +589,31 @@ data Font = Font {
 --
 -- Section 18.8.14, "dxf (Formatting)" (p. 1765)
 data Dxf = Dxf
-    { _dxfFont         :: Maybe Font
+    { _dxfFont       :: Maybe Font
     -- TODO: numFmt
-    , _dxfFill         :: Maybe Fill
-    , _dxfAlignment    :: Maybe Alignment
-    , _dxfBorder       :: Maybe Border
-    , _dxfProtection   :: Maybe Protection
+    , _dxfFill       :: Maybe Fill
+    , _dxfAlignment  :: Maybe Alignment
+    , _dxfBorder     :: Maybe Border
+    , _dxfProtection :: Maybe Protection
     -- TODO: extList
     } deriving (Eq, Ord, Show)
 
--- Section 18.2.30 "font (Font)" (p. 1777)
--- Note: This only implements the predefined values for 18.2.30 "All Languages",
---       not the extended languages or custom ones from 18.2.31
-data NumberFormat =
+type NumFmt = Text
+
+-- | This element specifies number format properties which indicate
+-- how to format and render the numeric value of a cell.
+--
+-- Section 18.2.30 "numFmt (Number Format)" (p. 1777)
+data NumberFormat
+    = StdNumberFormat ImpliedNumberFormat
+    | UserNumberFormat NumFmt
+    deriving (Eq, Ord, Show)
+
+-- | Implied number formats
+--
+-- /Note:/ This only implements the predefined values for 18.2.30 "All Languages",
+-- other built-in format ids (with id < 'firstUserNumFmtId') are stored in 'NfOtherBuiltin'
+data ImpliedNumberFormat =
     NfGeneral                         -- ^> 0 General
   | NfZero                            -- ^> 1 0
   | Nf2Decimal                        -- ^> 2 0.00
@@ -619,39 +642,41 @@ data NumberFormat =
   | NfMmSs1Decimal                    -- ^> 47 mmss.0
   | NfExponent1Decimal                -- ^> 48 ##0.0E+0
   | NfTextPlaceHolder                 -- ^> 49 @
+  | NfOtherImplied Int                -- ^ other (non local-neutral?) built-in format (id < 164)
   deriving (Show, Eq, Ord)
 
-numberFormatId :: NumberFormat -> Int
-numberFormatId NfGeneral                         = 0 -- General
-numberFormatId NfZero                            = 1 -- 0
-numberFormatId Nf2Decimal                        = 2 -- 0.00
-numberFormatId NfMax3Decimal                     = 3 -- #,##0
-numberFormatId NfThousandSeparator2Decimal       = 4 -- #,##0.00
-numberFormatId NfPercent                         = 9 -- 0%
-numberFormatId NfPercent2Decimal                 = 10 -- 0.00%
-numberFormatId NfExponent2Decimal                = 11 -- 0.00E+00
-numberFormatId NfSingleSpacedFraction            = 12 -- # ?/?
-numberFormatId NfDoubleSpacedFraction            = 13 -- # ??/??
-numberFormatId NfMmDdYy                          = 14 -- mm-dd-yy
-numberFormatId NfDMmmYy                          = 15 -- d-mmm-yy
-numberFormatId NfDMmm                            = 16 -- d-mmm
-numberFormatId NfMmmYy                           = 17 -- mmm-yy
-numberFormatId NfHMm12Hr                         = 18 -- h:mm AM/PM
-numberFormatId NfHMmSs12Hr                       = 19 -- h:mm:ss AM/PM
-numberFormatId NfHMm                             = 20 -- h:mm
-numberFormatId NfHMmSs                           = 21 -- h:mm:ss
-numberFormatId NfMdyHMm                          = 22 -- m/d/yy h:mm
-numberFormatId NfThousandsNegativeParens         = 37 -- #,##0 ;(#,##0)
-numberFormatId NfThousandsNegativeRed            = 38 -- #,##0 ;[Red](#,##0)
-numberFormatId NfThousands2DecimalNegativeParens = 39 -- #,##0.00;(#,##0.00)
-numberFormatId NfTousands2DecimalNEgativeRed     = 40 -- #,##0.00;[Red](#,##0.00)
-numberFormatId NfMmSs                            = 45 -- mm:ss
-numberFormatId NfOptHMmSs                        = 46 -- [h]:mm:ss
-numberFormatId NfMmSs1Decimal                    = 47 -- mmss.0
-numberFormatId NfExponent1Decimal                = 48 -- ##0.0E+0
-numberFormatId NfTextPlaceHolder                 = 49 -- @
+stdNumberFormatId :: ImpliedNumberFormat -> Int
+stdNumberFormatId NfGeneral                         = 0 -- General
+stdNumberFormatId NfZero                            = 1 -- 0
+stdNumberFormatId Nf2Decimal                        = 2 -- 0.00
+stdNumberFormatId NfMax3Decimal                     = 3 -- #,##0
+stdNumberFormatId NfThousandSeparator2Decimal       = 4 -- #,##0.00
+stdNumberFormatId NfPercent                         = 9 -- 0%
+stdNumberFormatId NfPercent2Decimal                 = 10 -- 0.00%
+stdNumberFormatId NfExponent2Decimal                = 11 -- 0.00E+00
+stdNumberFormatId NfSingleSpacedFraction            = 12 -- # ?/?
+stdNumberFormatId NfDoubleSpacedFraction            = 13 -- # ??/??
+stdNumberFormatId NfMmDdYy                          = 14 -- mm-dd-yy
+stdNumberFormatId NfDMmmYy                          = 15 -- d-mmm-yy
+stdNumberFormatId NfDMmm                            = 16 -- d-mmm
+stdNumberFormatId NfMmmYy                           = 17 -- mmm-yy
+stdNumberFormatId NfHMm12Hr                         = 18 -- h:mm AM/PM
+stdNumberFormatId NfHMmSs12Hr                       = 19 -- h:mm:ss AM/PM
+stdNumberFormatId NfHMm                             = 20 -- h:mm
+stdNumberFormatId NfHMmSs                           = 21 -- h:mm:ss
+stdNumberFormatId NfMdyHMm                          = 22 -- m/d/yy h:mm
+stdNumberFormatId NfThousandsNegativeParens         = 37 -- #,##0 ;(#,##0)
+stdNumberFormatId NfThousandsNegativeRed            = 38 -- #,##0 ;[Red](#,##0)
+stdNumberFormatId NfThousands2DecimalNegativeParens = 39 -- #,##0.00;(#,##0.00)
+stdNumberFormatId NfTousands2DecimalNEgativeRed     = 40 -- #,##0.00;[Red](#,##0.00)
+stdNumberFormatId NfMmSs                            = 45 -- mm:ss
+stdNumberFormatId NfOptHMmSs                        = 46 -- [h]:mm:ss
+stdNumberFormatId NfMmSs1Decimal                    = 47 -- mmss.0
+stdNumberFormatId NfExponent1Decimal                = 48 -- ##0.0E+0
+stdNumberFormatId NfTextPlaceHolder                 = 49 -- @
+stdNumberFormatId (NfOtherImplied i)                = i
 
-idToStdNumberFormat :: Int -> Maybe NumberFormat
+idToStdNumberFormat :: Int -> Maybe ImpliedNumberFormat
 idToStdNumberFormat 0  = Just NfGeneral                         -- General
 idToStdNumberFormat 1  = Just NfZero                            -- 0
 idToStdNumberFormat 2  = Just Nf2Decimal                        -- 0.00
@@ -680,7 +705,10 @@ idToStdNumberFormat 46 = Just NfOptHMmSs                        -- [h]:mm:ss
 idToStdNumberFormat 47 = Just NfMmSs1Decimal                    -- mmss.0
 idToStdNumberFormat 48 = Just NfExponent1Decimal                -- ##0.0E+0
 idToStdNumberFormat 49 = Just NfTextPlaceHolder                 -- @
-idToStdNumberFormat _  = Nothing
+idToStdNumberFormat i  = if i < firstUserNumFmtId then Just (NfOtherImplied i) else Nothing
+
+firstUserNumFmtId :: Int
+firstUserNumFmtId = 164
 
 -- | Protection properties
 --
@@ -907,6 +935,7 @@ instance Default StyleSheet where
     , _styleSheetFills   = []
     , _styleSheetCellXfs = []
     , _styleSheetDxfs    = []
+    , _styleSheetNumFmts = M.empty
     }
 
 instance Default CellXf where
@@ -1035,7 +1064,7 @@ instance ToDocument StyleSheet where
 instance ToElement StyleSheet where
   toElement nm StyleSheet{..} = Element {
       elementName       = nm
-    , elementAttributes = Map.empty
+    , elementAttributes = M.empty
     , elementNodes      = map NodeElement $ [
          -- TODO: numFmts
          countedElementList "fonts"   $ map (toElement "font")   _styleSheetFonts
@@ -1060,7 +1089,7 @@ instance ToElement CellXf where
         , toElement "protection" <$> _cellXfProtection
           -- TODO: extLst
         ]
-    , elementAttributes = Map.fromList . catMaybes $ [
+    , elementAttributes = M.fromList . catMaybes $ [
           "numFmtId"          .=? _cellXfNumFmtId
         , "fontId"            .=? _cellXfFontId
         , "fillId"            .=? _cellXfFillId
@@ -1088,7 +1117,7 @@ instance ToElement Dxf where
                                         , toElement "border"     <$> _dxfBorder
                                         , toElement "protection" <$> _dxfProtection
                                         ]
-        , elementAttributes = Map.empty
+        , elementAttributes = M.empty
         }
 
 -- | See @CT_CellAlignment@, p. 4482
@@ -1096,7 +1125,7 @@ instance ToElement Alignment where
   toElement nm Alignment{..} = Element {
       elementName       = nm
     , elementNodes      = []
-    , elementAttributes = Map.fromList . catMaybes $ [
+    , elementAttributes = M.fromList . catMaybes $ [
           "horizontal"      .=? _alignmentHorizontal
         , "vertical"        .=? _alignmentVertical
         , "textRotation"    .=? _alignmentTextRotation
@@ -1113,7 +1142,7 @@ instance ToElement Alignment where
 instance ToElement Border where
   toElement nm Border{..} = Element {
       elementName       = nm
-    , elementAttributes = Map.fromList . catMaybes $ [
+    , elementAttributes = M.fromList . catMaybes $ [
           "diagonalUp"   .=? _borderDiagonalUp
         , "diagonalDown" .=? _borderDiagonalDown
         , "outline"      .=? _borderOutline
@@ -1135,7 +1164,7 @@ instance ToElement Border where
 instance ToElement BorderStyle where
   toElement nm BorderStyle{..} = Element {
       elementName       = nm
-    , elementAttributes = Map.fromList . catMaybes $ [
+    , elementAttributes = M.fromList . catMaybes $ [
           "style" .=? _borderStyleLine
         ]
     , elementNodes      = map NodeElement . catMaybes $ [
@@ -1148,7 +1177,7 @@ instance ToElement Color where
   toElement nm Color{..} = Element {
       elementName       = nm
     , elementNodes      = []
-    , elementAttributes = Map.fromList . catMaybes $ [
+    , elementAttributes = M.fromList . catMaybes $ [
           "auto"  .=? _colorAutomatic
         , "rgb"   .=? _colorARGB
         , "theme" .=? _colorTheme
@@ -1160,7 +1189,7 @@ instance ToElement Color where
 instance ToElement Fill where
   toElement nm Fill{..} = Element {
       elementName       = nm
-    , elementAttributes = Map.empty
+    , elementAttributes = M.empty
     , elementNodes      = map NodeElement . catMaybes $ [
           toElement "patternFill" <$> _fillPattern
         ]
@@ -1170,7 +1199,7 @@ instance ToElement Fill where
 instance ToElement FillPattern where
   toElement nm FillPattern{..} = Element {
       elementName       = nm
-    , elementAttributes = Map.fromList . catMaybes $ [
+    , elementAttributes = M.fromList . catMaybes $ [
           "patternType" .=? _fillPatternType
         ]
     , elementNodes      = map NodeElement . catMaybes $ [
@@ -1183,7 +1212,7 @@ instance ToElement FillPattern where
 instance ToElement Font where
   toElement nm Font{..} = Element {
       elementName       = nm
-    , elementAttributes = Map.empty -- all properties specified as child nodes
+    , elementAttributes = M.empty -- all properties specified as child nodes
     , elementNodes      = map NodeElement . catMaybes $ [
           elementValue "name"      <$> _fontName
         , elementValue "charset"   <$> _fontCharset
@@ -1208,7 +1237,7 @@ instance ToElement Protection where
   toElement nm Protection{..} = Element {
       elementName       = nm
     , elementNodes      = []
-    , elementAttributes = Map.fromList . catMaybes $ [
+    , elementAttributes = M.fromList . catMaybes $ [
           "locked" .=? _protectionLocked
         , "hidden" .=? _protectionHidden
         ]
@@ -1318,10 +1347,18 @@ instance FromCursor StyleSheet where
       _styleSheetCellXfs = cur $/ element (n"cellXfs") &/ element (n"xf") >=> fromCursor
          -- TODO: cellStyles
       _styleSheetDxfs = cur $/ element (n"dxfs") &/ element (n"dxf") >=> fromCursor
+      _styleSheetNumFmts = M.fromList $
+          cur $/ element (n"numFmts")&/ element (n"numFmt") >=> parseNumFmt
          -- TODO: tableStyles
          -- TODO: colors
          -- TODO: extLst
     return StyleSheet{..}
+
+parseNumFmt :: Cursor -> [(Int, NumFmt)]
+parseNumFmt c = do
+    fId <- decimal =<< attribute "numFmtId" c
+    code <- attribute "formatCode" c
+    return (fId, code)
 
 -- | See @CT_Font@, p. 4489
 instance FromCursor Font where

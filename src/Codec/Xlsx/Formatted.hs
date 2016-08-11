@@ -35,12 +35,13 @@ module Codec.Xlsx.Formatted (
 import           Control.Lens
 import           Control.Monad.State hiding (forM_, mapM)
 import           Data.Default
-import           Data.Foldable       (forM_)
+import           Data.Foldable       (asum, forM_)
 import           Data.Function       (on)
 import           Data.List           (foldl', groupBy, sortBy, sortBy)
 import           Data.Map            (Map)
 import qualified Data.Map            as M
 import           Data.Ord            (comparing)
+import           Data.Text           (Text)
 import           Data.Traversable    (mapM)
 import           Data.Tuple          (swap)
 import           Prelude             hiding (mapM)
@@ -57,6 +58,7 @@ data FormattingState = FormattingState {
   , _formattingCellXfs :: Map CellXf Int
   , _formattingFills   :: Map Fill   Int
   , _formattingFonts   :: Map Font   Int
+  , _formattingNumFmts :: Map Text   Int
   , _formattingMerges  :: [Range] -- ^ In reverse order
   }
 
@@ -64,11 +66,12 @@ makeLenses ''FormattingState
 
 stateFromStyleSheet :: StyleSheet -> FormattingState
 stateFromStyleSheet StyleSheet{..} = FormattingState{
-      _formattingBorders                = fromValueList _styleSheetBorders
-    , _formattingCellXfs                = fromValueList _styleSheetCellXfs
-    , _formattingFills                  = fromValueList _styleSheetFills
-    , _formattingFonts                  = fromValueList _styleSheetFonts
-    , _formattingMerges                 = []
+      _formattingBorders = fromValueList _styleSheetBorders
+    , _formattingCellXfs = fromValueList _styleSheetCellXfs
+    , _formattingFills   = fromValueList _styleSheetFills
+    , _formattingFonts   = fromValueList _styleSheetFonts
+    , _formattingNumFmts = M.empty
+    , _formattingMerges  = []
     }
 
 fromValueList :: Ord a => [a] -> Map a Int
@@ -83,14 +86,22 @@ updateStyleSheetFromState sSheet FormattingState{..} = sSheet
     , _styleSheetCellXfs = toValueList _formattingCellXfs
     , _styleSheetFills   = toValueList _formattingFills
     , _styleSheetFonts   = toValueList _formattingFonts
+    , _styleSheetNumFmts = M.fromList . map swap $ M.toList _formattingNumFmts
     }
 
 getId :: Ord a => Lens' FormattingState (Map a Int) -> a -> State FormattingState Int
-getId f v = do
+getId = getId' 0
+
+getId' :: Ord a
+       => Int
+       -> Lens' FormattingState (Map a Int)
+       -> a
+       -> State FormattingState Int
+getId' k f v = do
     aMap <- use f
     case M.lookup v aMap of
       Just anId -> return anId
-      Nothing  -> do let anId = M.size aMap
+      Nothing  -> do let anId = k + M.size aMap
                      f %= M.insert v anId
                      return anId
 
@@ -243,7 +254,7 @@ toFormattedCells m merges StyleSheet{..} = applyMerges $ M.map toFormattedCell m
                                 applied _cellXfApplyFill _cellXfFillId cellXf
         , _formatFont         = flip M.lookup fonts =<<
                                 applied _cellXfApplyFont _cellXfFontId cellXf
-        , _formatNumberFormat = idToStdNumberFormat =<<
+        , _formatNumberFormat = lookupNumFmt =<<
                                 applied _cellXfApplyNumberFormat _cellXfNumFmtId cellXf
         , _formatProtection   = _cellXfProtection  cellXf
         , _formatPivotButton  = _cellXfPivotButton cellXf
@@ -254,6 +265,9 @@ toFormattedCells m merges StyleSheet{..} = applyMerges $ M.map toFormattedCell m
     borders = idMapped _styleSheetBorders
     fills = idMapped _styleSheetFills
     fonts = idMapped _styleSheetFonts
+    lookupNumFmt fId = asum
+        [ StdNumberFormat <$> idToStdNumberFormat fId
+        , UserNumberFormat <$> M.lookup fId _styleSheetNumFmts]
     applied :: (CellXf -> Maybe Bool) -> (CellXf -> Maybe a) -> CellXf -> Maybe a
     applied applyProp prop cXf = do
         apply <- applyProp cXf
@@ -336,7 +350,7 @@ cellBlock (row, col) cell@FormattedCell{..} = (block, merge)
     border = _formatBorder _formattedFormat
 
     borderAt :: (Int, Int) -> Border
-    borderAt (row', col') = def 
+    borderAt (row', col') = def
       & borderTop    .~ do guard (row' == topRow)    ; _borderTop    =<< border
       & borderBottom .~ do guard (row' == bottomRow) ; _borderBottom =<< border
       & borderLeft   .~ do guard (col' == leftCol)   ; _borderLeft   =<< border
@@ -356,7 +370,10 @@ constructCellXf FormattedCell{_formattedFormat=Format{..}} = do
     mBorderId <- getId formattingBorders `mapM` _formatBorder
     mFillId   <- getId formattingFills   `mapM` _formatFill
     mFontId   <- getId formattingFonts   `mapM` _formatFont
-    let mNumFmtId = fmap numberFormatId _formatNumberFormat
+    let getFmtId :: Lens' FormattingState (Map Text Int) -> NumberFormat -> State FormattingState Int
+        getFmtId _ (StdNumberFormat  fmt) = return (stdNumberFormatId fmt)
+        getFmtId l (UserNumberFormat fmt) = getId' firstUserNumFmtId l fmt
+    mNumFmtId <- getFmtId formattingNumFmts `mapM` _formatNumberFormat
     let xf = CellXf {
             _cellXfApplyAlignment    = apply _formatAlignment
           , _cellXfApplyBorder       = apply mBorderId

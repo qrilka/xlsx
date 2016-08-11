@@ -29,6 +29,7 @@ import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.CommentTable
 import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 import           Codec.Xlsx.Types.Internal.SharedStringTable
+import           Codec.Xlsx.Types.StyleSheet
 import           Codec.Xlsx.Writer.Internal
 
 import           Diff
@@ -375,21 +376,29 @@ testCustomPropertiesXml = [r|
 testFormattedResult :: Formatted
 testFormattedResult = Formatted cm styleSheet merges
   where
-    cm = M.fromList [((1, 1), cell11),((1, 2), cell2)]
+    cm = M.fromList [ ((1, 1), cell11)
+                    , ((1, 2), cell12)
+                    , ((2, 5), cell25) ]
     cell11 = Cell
         { _cellStyle   = Just 1
         , _cellValue   = Just (CellText "text at A1")
         , _cellComment = Nothing
         , _cellFormula = Nothing }
-    cell2 = Cell
+    cell12 = Cell
         { _cellStyle   = Just 2
         , _cellValue   = Just (CellDouble 1.23)
         , _cellComment = Nothing
         , _cellFormula = Nothing }
+    cell25 = Cell
+        { _cellStyle   = Just 3
+        , _cellValue   = Just (CellDouble 1.23456)
+        , _cellComment = Nothing
+        , _cellFormula = Nothing }
     merges = []
     styleSheet =
-        minimalStyleSheet & styleSheetCellXfs %~ (++ [cellXf1, cellXf2])
+        minimalStyleSheet & styleSheetCellXfs %~ (++ [cellXf1, cellXf2, cellXf3])
                           & styleSheetFonts   %~ (++ [font1, font2])
+                          & styleSheetNumFmts .~ numFmts
     nextFontId = length (minimalStyleSheet ^. styleSheetFonts)
     cellXf1 = def
         { _cellXfApplyFont = Just True
@@ -398,10 +407,16 @@ testFormattedResult = Formatted cm styleSheet merges
         { _fontName = Just "Calibri"
         , _fontBold = Just True }
     cellXf2 = def
-        { _cellXfApplyFont = Just True
-        , _cellXfFontId    = Just (nextFontId + 1) }
+        { _cellXfApplyFont         = Just True
+        , _cellXfFontId            = Just (nextFontId + 1)
+        , _cellXfApplyNumberFormat = Just True
+        , _cellXfNumFmtId          = Just 164 }
     font2 = def
         { _fontItalic = Just True }
+    cellXf3 = def
+        { _cellXfApplyNumberFormat = Just True
+        , _cellXfNumFmtId          = Just 2 }
+    numFmts = M.fromList [(164, "0.0000")]
 
 testRunFormatted :: Formatted
 testRunFormatted = formatted formattedCellMap minimalStyleSheet
@@ -412,7 +427,10 @@ testRunFormatted = formatted formattedCellMap minimalStyleSheet
         at (1, 1) ?= (def & formattedCell . cellValue ?~ CellText "text at A1"
                           & formattedFormat . formatFont  ?~ font1)
         at (1, 2) ?= (def & formattedCell . cellValue ?~ CellDouble 1.23
-                          & formattedFormat . formatFont . non def . fontItalic ?~ True)
+                          & formattedFormat . formatFont . non def . fontItalic ?~ True
+                          & formattedFormat . formatNumberFormat ?~ UserNumberFormat "0.0000")
+        at (2, 5) ?= (def & formattedCell . cellValue ?~ CellDouble 1.23456
+                          & formattedFormat . formatNumberFormat ?~ StdNumberFormat Nf2Decimal)
 
 testCondFormattedResult :: CondFormatted
 testCondFormattedResult = CondFormatted styleSheet formattings
