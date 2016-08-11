@@ -428,7 +428,7 @@ testRunFormatted = formatted formattedCellMap minimalStyleSheet
                           & formattedFormat . formatFont  ?~ font1)
         at (1, 2) ?= (def & formattedCell . cellValue ?~ CellDouble 1.23
                           & formattedFormat . formatFont . non def . fontItalic ?~ True
-                          & formattedFormat . formatNumberFormat ?~ UserNumberFormat "0.0000")
+                          & formattedFormat . formatNumberFormat ?~ fmtDecimalsZeroes 4)
         at (2, 5) ?= (def & formattedCell . cellValue ?~ CellDouble 1.23456
                           & formattedFormat . formatNumberFormat ?~ StdNumberFormat Nf2Decimal)
 

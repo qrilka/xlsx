@@ -17,7 +17,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , Fill(..)
   , FillPattern(..)
   , Font(..)
-  , NumberFormat(..), stdNumberFormatId, idToStdNumberFormat, firstUserNumFmtId
+  , NumberFormat(..)
   , ImpliedNumberFormat (..)
   , NumFmt
   , Protection(..)
@@ -117,6 +117,13 @@ module Codec.Xlsx.Types.StyleSheet (
     -- ** Protection
   , protectionHidden
   , protectionLocked
+    -- * Helpers
+    -- ** Number formats
+  , fmtDecimals
+  , fmtDecimalsZeroes
+  , stdNumberFormatId
+  , idToStdNumberFormat
+  , firstUserNumFmtId
   ) where
 
 import           Control.Lens               hiding (element, (.=))
@@ -124,7 +131,9 @@ import           Data.Default
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as M
 import           Data.Maybe                 (catMaybes)
+import           Data.Monoid
 import           Data.Text                  (Text)
+import qualified Data.Text                  as T
 import           Text.XML
 import           Text.XML.Cursor
 
@@ -608,6 +617,19 @@ data NumberFormat
     = StdNumberFormat ImpliedNumberFormat
     | UserNumberFormat NumFmt
     deriving (Eq, Ord, Show)
+
+-- | Basic number format with predefined number of decimals
+-- as format code of number format in xlsx should be less than 255 characters
+-- number of decimals shouldn't be more than 253
+fmtDecimals :: Int -> NumberFormat
+fmtDecimals n = UserNumberFormat $ "0." <> T.replicate n "#"
+
+-- | Basic number format with predefined number of decimals.
+-- Works like 'fmtDecimals' with the only difference that extra zeroes are
+-- displayed when number of digits after the point is less than the number
+-- of digits specified in the format
+fmtDecimalsZeroes :: Int -> NumberFormat
+fmtDecimalsZeroes n = UserNumberFormat $ "0." <> T.replicate n "0"
 
 -- | Implied number formats
 --
