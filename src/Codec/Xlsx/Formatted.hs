@@ -47,6 +47,10 @@ import           Data.Tuple          (swap)
 import           Prelude             hiding (mapM)
 import           Safe                (headNote)
 
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative
+#endif
+
 import           Codec.Xlsx.Types
 
 {-------------------------------------------------------------------------------
