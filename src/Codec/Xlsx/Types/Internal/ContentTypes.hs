@@ -4,10 +4,12 @@
 module Codec.Xlsx.Types.Internal.ContentTypes where
 
 import           Control.Arrow
+import           Data.Foldable              (asum)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import           System.FilePath.Posix      (takeExtension)
 import           Text.XML
 import           Text.XML.Cursor
 
@@ -17,25 +19,45 @@ import           Control.Applicative
 
 import           Codec.Xlsx.Parser.Internal
 
+data CtDefault = CtDefault
+    { dfltExtension   :: FilePath
+    , dfltContentType :: Text
+    } deriving (Eq, Show)
+
 data Override = Override
     { ovrPartName    :: FilePath
     , ovrContentType :: Text
     } deriving (Eq, Show)
 
-newtype ContentTypes = ContentTypes
-    { ctTypes :: Map FilePath Text
+data ContentTypes = ContentTypes
+    { ctDefaults :: Map FilePath Text
+    , ctTypes    :: Map FilePath Text
     } deriving (Eq, Show)
 
 lookup :: FilePath -> ContentTypes -> Maybe Text
-lookup path = M.lookup path . ctTypes
+lookup path ContentTypes{..} =
+    asum [ flip M.lookup ctDefaults =<< ext, M.lookup path ctTypes ]
+  where
+    ext = case takeExtension path of
+        '.':e -> Just e
+        _     -> Nothing
 
 {-------------------------------------------------------------------------------
   Parsing
 -------------------------------------------------------------------------------}
 instance FromCursor ContentTypes where
     fromCursor cur = do
-        let items = cur $/ element (ct"Override") >=> fromCursor
-        return . ContentTypes . M.fromList $ map (ovrPartName &&& ovrContentType) items
+        let ds = M.fromList . map (dfltExtension &&& dfltContentType) $
+                 cur $/ element (ct"Default") >=> fromCursor
+            ts = M.fromList . map (ovrPartName &&& ovrContentType) $
+                 cur $/ element (ct"Override") >=> fromCursor
+        return (ContentTypes ds ts)
+
+instance FromCursor CtDefault where
+   fromCursor cur = do
+       dfltExtension <- T.unpack <$> attribute "Extension" cur
+       dfltContentType <- attribute "ContentType" cur
+       return CtDefault{..}
 
 instance FromCursor Override where
    fromCursor cur = do
