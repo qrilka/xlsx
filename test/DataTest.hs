@@ -44,7 +44,7 @@ main = defaultMain $
     , testCase "fromRows . toRows == id" $
         testCellMap1 @=? fromRows (toRows testCellMap1)
     , testCase "fromRight . parseStyleSheet . renderStyleSheet == id" $
-        testStyleSheet @=? fromRight (parseStyleSheet (renderStyleSheet  testStyleSheet))
+        testStyleSheet @==? fromRight (parseStyleSheet (renderStyleSheet  testStyleSheet))
     , testCase "correct shared strings parsing" $
         [testSharedStringTable] @=? testParsedSharedStringTables
     , testCase "correct shared strings parsing even when one of the shared strings entry is just <t/>" $
@@ -162,11 +162,19 @@ fromRight (Right b) = b
 
 testStyleSheet :: StyleSheet
 testStyleSheet = minimalStyleSheet & styleSheetDxfs .~ [dxf1, dxf2]
+                                   & styleSheetNumFmts .~ M.fromList [(164, "0.000")]
+                                   & styleSheetCellXfs %~ (++ [cellXf1, cellXf2])
   where
     dxf1 = def & dxfFont ?~ (def & fontBold ?~ True
                                  & fontSize ?~ 12)
     dxf2 = def & dxfFill ?~ (def & fillPattern ?~ (def & fillPatternBgColor ?~ red))
     red = def & colorARGB ?~ "FFFF0000"
+    cellXf1 = def
+        { _cellXfApplyNumberFormat = Just True
+        , _cellXfNumFmtId          = Just 2 }
+    cellXf2 = def
+        { _cellXfApplyNumberFormat = Just True
+        , _cellXfNumFmtId          = Just 164 }
 
 testSharedStringTable :: SharedStringTable
 testSharedStringTable = SharedStringTable $ V.fromList items

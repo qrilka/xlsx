@@ -44,6 +44,7 @@ Library
                    , Codec.Xlsx.Types.Internal.CommentTable
                    , Codec.Xlsx.Types.Internal.ContentTypes
                    , Codec.Xlsx.Types.Internal.CustomProperties
+                   , Codec.Xlsx.Types.Internal.NumFmtPair
                    , Codec.Xlsx.Types.Internal.Relationships
                    , Codec.Xlsx.Types.Internal.SharedStringTable
                    , Codec.Xlsx.Types.RichText

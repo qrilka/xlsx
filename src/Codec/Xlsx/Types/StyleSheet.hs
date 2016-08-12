@@ -126,14 +126,15 @@ module Codec.Xlsx.Types.StyleSheet (
   , firstUserNumFmtId
   ) where
 
-import           Control.Lens               hiding (element, (.=))
+import           Control.Lens                         hiding (element, elements,
+                                                       (.=))
 import           Data.Default
-import           Data.Map.Strict            (Map)
-import qualified Data.Map.Strict            as M
-import           Data.Maybe                 (catMaybes)
+import           Data.Map.Strict                      (Map)
+import qualified Data.Map.Strict                      as M
+import           Data.Maybe                           (catMaybes)
 import           Data.Monoid
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
+import           Data.Text                            (Text)
+import qualified Data.Text                            as T
 import           Text.XML
 import           Text.XML.Cursor
 
@@ -143,6 +144,7 @@ import           Control.Applicative
 #endif
 
 import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Types.Internal.NumFmtPair
 import           Codec.Xlsx.Writer.Internal
 
 {-------------------------------------------------------------------------------
@@ -169,7 +171,6 @@ import           Codec.Xlsx.Writer.Internal
 -- * cellStyleXfs
 -- * colors
 -- * extLst
--- * numFmts
 -- * tableStyles
 --
 -- NOTE: You will probably want to base your style sheet on 'minimalStyleSheet'.
@@ -283,7 +284,6 @@ data CellXf = CellXf {
     -- (18.18.47, p. 2468). See also 18.8.31 (p. 1784) for more information on
     -- number formats.
     --
-    -- TODO: The numFmts part of the style sheet is currently not implemented.
   , _cellXfNumFmtId          :: Maybe Int
 
     -- | A boolean value indicating whether the cell rendering includes a pivot
@@ -1084,23 +1084,21 @@ instance ToDocument StyleSheet where
 
 -- | See @CT_Stylesheet@, p. 4482
 instance ToElement StyleSheet where
-  toElement nm StyleSheet{..} = Element {
-      elementName       = nm
-    , elementAttributes = M.empty
-    , elementNodes      = map NodeElement $ [
-         -- TODO: numFmts
-         countedElementList "fonts"   $ map (toElement "font")   _styleSheetFonts
-       , countedElementList "fills"   $ map (toElement "fill")   _styleSheetFills
-       , countedElementList "borders" $ map (toElement "border") _styleSheetBorders
-         -- TODO: cellStyleXfs
-       , countedElementList "cellXfs" $ map (toElement "xf")     _styleSheetCellXfs
-         -- TODO: cellStyles
-       , countedElementList "dxfs"    $ map (toElement "dxf")    _styleSheetDxfs
-         -- TODO: tableStyles
-         -- TODO: colors
-         -- TODO: extLst
-       ]
-    }
+  toElement nm StyleSheet{..} = elementListSimple nm elements
+    where
+      elements = [ countedElementList "numFmts" $ map (toElement "numFmt") numFmts
+                 , countedElementList "fonts"   $ map (toElement "font")   _styleSheetFonts
+                 , countedElementList "fills"   $ map (toElement "fill")   _styleSheetFills
+                 , countedElementList "borders" $ map (toElement "border") _styleSheetBorders
+                   -- TODO: cellStyleXfs
+                 , countedElementList "cellXfs" $ map (toElement "xf")     _styleSheetCellXfs
+                 -- TODO: cellStyles
+                 , countedElementList "dxfs"    $ map (toElement "dxf")    _styleSheetDxfs
+                 -- TODO: tableStyles
+                 -- TODO: colors
+                 -- TODO: extLst
+                 ]
+      numFmts = map NumFmtPair $ M.toList _styleSheetNumFmts
 
 -- | See @CT_Xf@, p. 4486
 instance ToElement CellXf where
@@ -1361,7 +1359,6 @@ instance ToAttrVal ReadingOrder where
 instance FromCursor StyleSheet where
   fromCursor cur = do
     let
-      -- TODO: numFmts
       _styleSheetFonts = cur $/ element (n"fonts") &/ element (n"font") >=> fromCursor
       _styleSheetFills = cur $/ element (n"fills") &/ element (n"fill") >=> fromCursor
       _styleSheetBorders = cur $/ element (n"borders") &/ element (n"border") >=> fromCursor
@@ -1369,18 +1366,12 @@ instance FromCursor StyleSheet where
       _styleSheetCellXfs = cur $/ element (n"cellXfs") &/ element (n"xf") >=> fromCursor
          -- TODO: cellStyles
       _styleSheetDxfs = cur $/ element (n"dxfs") &/ element (n"dxf") >=> fromCursor
-      _styleSheetNumFmts = M.fromList $
-          cur $/ element (n"numFmts")&/ element (n"numFmt") >=> parseNumFmt
+      _styleSheetNumFmts = M.fromList . map unNumFmtPair $
+          cur $/ element (n"numFmts")&/ element (n"numFmt") >=> fromCursor
          -- TODO: tableStyles
          -- TODO: colors
          -- TODO: extLst
     return StyleSheet{..}
-
-parseNumFmt :: Cursor -> [(Int, NumFmt)]
-parseNumFmt c = do
-    fId <- decimal =<< attribute "numFmtId" c
-    code <- attribute "formatCode" c
-    return (fId, code)
 
 -- | See @CT_Font@, p. 4489
 instance FromCursor Font where
