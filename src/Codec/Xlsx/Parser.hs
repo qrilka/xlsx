@@ -188,7 +188,8 @@ xmlCursorRequired ar fname = do
 
 -- | Get shared string table
 getSharedStrings  :: Zip.Archive -> Parser SharedStringTable
-getSharedStrings x = head . fromCursor <$> xmlCursorRequired x "xl/sharedStrings.xml"
+getSharedStrings x = maybe sstEmpty (head . fromCursor) <$>
+                     xmlCursorOptional x "xl/sharedStrings.xml"
 
 getContentTypes :: Zip.Archive -> Parser ContentTypes
 getContentTypes x = head . fromCursor <$> xmlCursorRequired x "[Content_Types].xml"

@@ -7,6 +7,7 @@ module Codec.Xlsx.Types.Internal.SharedStringTable (
   , sstLookupText
   , sstLookupRich
   , sstItem
+  , sstEmpty
   ) where
 
 import           Control.Monad
@@ -47,6 +48,9 @@ newtype SharedStringTable = SharedStringTable {
     sstTable :: Vector XlsxText
   }
   deriving (Show, Eq, Ord)
+
+sstEmpty :: SharedStringTable
+sstEmpty = SharedStringTable V.empty
 
 {-------------------------------------------------------------------------------
   Rendering
