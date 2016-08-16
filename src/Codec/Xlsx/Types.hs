@@ -184,7 +184,7 @@ newtype Styles = Styles {unStyles :: L.ByteString}
 
 -- | Structured representation of Xlsx file (currently a subset of its contents)
 data Xlsx = Xlsx
-    { _xlSheets           :: Map Text Worksheet
+    { _xlSheets           :: [(Text, Worksheet)]
     , _xlStyles           :: Styles
     , _xlDefinedNames     :: DefinedNames
     , _xlCustomProperties :: Map Text Variant
@@ -217,7 +217,7 @@ newtype DefinedNames = DefinedNames [(Text, Maybe Text, Text)]
 makeLenses ''Xlsx
 
 instance Default Xlsx where
-    def = Xlsx M.empty emptyStyles def M.empty
+    def = Xlsx [] emptyStyles def M.empty
 
 instance Default DefinedNames where
     def = DefinedNames []

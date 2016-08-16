@@ -58,10 +58,10 @@ fromXlsx pt xlsx =
         "metadata/core-properties" $ coreXml utcTime "xlsxwriter"
       , FileData "docProps/app.xml"
         "application/vnd.openxmlformats-officedocument.extended-properties+xml"
-        "xtended-properties" $ appXml (xlsx ^. xlSheets)
+        "xtended-properties" $ appXml sheetNames
       , FileData "xl/workbook.xml"
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
-        "officeDocument" $ bookXml (xlsx ^. xlSheets) (xlsx ^. xlDefinedNames)
+        "officeDocument" $ bookXml sheetNames (xlsx ^. xlDefinedNames)
       , FileData "xl/styles.xml"
         "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"
         "styles" $ unStyles (xlsx ^. xlStyles)
@@ -90,7 +90,8 @@ fromXlsx pt xlsx =
                   [ ("custom-properties", "docProps/custom.xml") ])
     bookRelsXml = renderLBS def . toDocument $ bookRels sheetCount
     sheetFiles = concat $ zipWith3 singleSheetFiles [1..] sheetCells sheets
-    sheets = xlsx ^. xlSheets . to M.elems
+    sheetNames = xlsx ^. xlSheets . to (map fst)
+    sheets = xlsx ^. xlSheets . to (map snd)
     sheetCount = length sheets
     shared = sstConstruct sheets
     sheetCells = map (transformSheetData shared) sheets
@@ -195,25 +196,29 @@ coreXml created creator =
            , nEl (namespaced "cp" "lastModifiedBy") M.empty [NodeContent creator]
            ]
 
-appXml :: Map Text Worksheet -> L.ByteString
-appXml s = renderLBS def $ Document (Prologue [] Nothing []) root []
+appXml :: [Text] -> L.ByteString
+appXml sheetNames =
+    renderLBS def $ Document (Prologue [] Nothing []) root []
   where
-    nsAttrs = M.fromList [("xmlns:vt", "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes")]
+    sheetCount = length sheetNames
     root = Element (extPropNm "Properties") nsAttrs
            [ extPropEl "TotalTime" [NodeContent "0"]
            , extPropEl "HeadingPairs" [
-                            vTypeEl "vector" (M.fromList [("size", "2"), ("baseType", "variant")])
-                                        [ vTypeEl0 "variant"
-                                                       [vTypeEl0 "lpstr" [NodeContent "Worksheets"]]
-                                        , vTypeEl0 "variant"
-                                                       [vTypeEl0 "i4" [NodeContent $ txti $ M.size s]]
-                                        ]
-                           ]
+                   vTypeEl "vector" (M.fromList [ ("size", "2")
+                                                , ("baseType", "variant")])
+                       [ vTypeEl0 "variant"
+                           [vTypeEl0 "lpstr" [NodeContent "Worksheets"]]
+                       , vTypeEl0 "variant"
+                           [vTypeEl0 "i4" [NodeContent $ txti sheetCount]]
+                       ]
+                   ]
            , extPropEl "TitlesOfParts" [
-                            vTypeEl "vector" (M.fromList [("size", txti $ M.size s),("baseType","lpstr")]) $
-                                    map (vTypeEl0 "lpstr" . return . NodeContent) $ M.keys s
-                           ]
+                   vTypeEl "vector" (M.fromList [ ("size",     txti sheetCount)
+                                                , ("baseType", "lpstr")]) $
+                       map (vTypeEl0 "lpstr" . return . NodeContent) sheetNames
+                   ]
            ]
+    nsAttrs = M.fromList [("xmlns:vt", "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes")]
     extPropNm n = nm "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" n
     extPropEl n = nEl (extPropNm n) M.empty
     vTypeEl0 n = vTypeEl n M.empty
@@ -297,10 +302,10 @@ sheetXml ws rows nextRId = renderLBS def $ Document (Prologue [] Nothing []) roo
     cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
     cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
 
-bookXml :: Map Text Worksheet -> DefinedNames -> L.ByteString
-bookXml wss (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing []) root []
+bookXml :: [Text] -> DefinedNames -> L.ByteString
+bookXml sheetNames (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
-    numNames = [(txti i, name) | (i, name) <- zip [(1::Int)..] (M.keys wss)]
+    numNames = [(txti i, name) | (i, name) <- zip [(1::Int)..] sheetNames]
 
     -- The @bookViews@ element is not required according to the schema, but its
     -- absence can cause Excel to crash when opening the print preview
@@ -308,11 +313,14 @@ bookXml wss (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing
     -- to define a bookViews with a single empty @workbookView@ element
     -- (the @bookViews@ must contain at least one @wookbookView@).
     root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "workbook" M.empty
-           [nEl "bookViews" M.empty [nEl "workbookView" M.empty []]
-           ,nEl "sheets" M.empty $
-            map (\(n, name) -> nEl "sheet"
-                               (M.fromList [("name", name), ("sheetId", n), ("state", "visible"),
-                                            (rId, T.concat ["rId", n])]) []) numNames
+           [ nEl "bookViews" M.empty [nEl "workbookView" M.empty []]
+           , nEl "sheets" M.empty $
+               map (\(n, name) -> nEl "sheet"
+                       (M.fromList [ ("name", name)
+                                   , ("sheetId", n)
+                                   , ("state", "visible")
+                                   , (rId, "rId" <> n)]) [])
+               numNames
            ,nEl "definedNames" M.empty $ map (\(name, lsId, val) ->
               nEl "definedName" (definedName name lsId) [NodeContent val]) names
            ]
