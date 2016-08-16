@@ -13,7 +13,7 @@ module Codec.Xlsx.Parser
 
 import qualified Codec.Archive.Zip                           as Zip
 import           Control.Applicative
-import           Control.Arrow                               (left, (&&&))
+import           Control.Arrow                               (left)
 import           Control.Error.Safe                          (headErr)
 import           Control.Error.Util                          (note)
 import           Control.Lens                                hiding (element,
@@ -65,7 +65,9 @@ toXlsxEither bs = do
   sst <- getSharedStrings ar
   contentTypes <- getContentTypes ar
   (wfs, names) <- readWorkbook ar
-  sheets <- sequence . M.fromList $ map (wfName &&& extractSheet ar sst contentTypes) wfs
+  sheets <- forM wfs $ \wf -> do
+      sheet <- extractSheet ar sst contentTypes wf
+      return (wfName wf, sheet)
   CustomProperties customPropMap <- getCustomProperties ar
   return $ Xlsx sheets (getStyles ar) names customPropMap
 
