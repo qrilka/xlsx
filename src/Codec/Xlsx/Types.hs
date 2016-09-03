@@ -43,10 +43,6 @@ module Codec.Xlsx.Types (
     -- * Misc
     , simpleCellFormula
     , def
-    , int2col
-    , col2int
-    , mkCellRef
-    , fromCellRef
     , mkRange
     , fromRange
     , toRows
@@ -54,12 +50,10 @@ module Codec.Xlsx.Types (
     , module X
     ) where
 
-import           Control.Arrow
 import           Control.Exception                      (SomeException,
                                                          toException)
 import           Control.Lens.TH
 import qualified Data.ByteString.Lazy                   as L
-import           Data.Char
 import           Data.Default
 import           Data.Function                          (on)
 import           Data.List                              (groupBy)
@@ -72,7 +66,6 @@ import qualified Data.Text                              as T
 import           Text.XML                               (Element (..), parseLBS,
                                                          renderLBS)
 import           Text.XML.Cursor
-import           Safe                                   (fromJustNote)
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Comment               as X
@@ -248,23 +241,6 @@ parseStyleSheet (Styles bs) = parseLBS def bs >>= parseDoc
       [stylesheet] -> Right stylesheet
       _ -> Left . toException $ ParseException "Could not parse style sheets"
 
--- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
-int2col :: Int -> Text
-int2col = T.pack . reverse . map int2let . base26
-    where
-        int2let 0 = 'Z'
-        int2let x = chr $ (x - 1) + ord 'A'
-        base26  0 = []
-        base26  i = let i' = (i `mod` 26)
-                        i'' = if i' == 0 then 26 else i'
-                    in seq i' (i' : base26 ((i - i'') `div` 26))
-
--- | reverse to 'int2col'
-col2int :: Text -> Int
-col2int = T.foldl' (\i c -> i * 26 + let2int c) 0
-    where
-        let2int c = 1 + ord c - ord 'A'
-
 -- | converts cells mapped by (row, column) into rows which contain
 -- row index and cells as pairs of column indices and cell values
 toRows :: CellMap -> [(Int, [(Int, Cell)])]
@@ -280,21 +256,6 @@ fromRows :: [(Int, [(Int, Cell)])] -> CellMap
 fromRows rows = M.fromList $ concatMap mapRow rows
   where
     mapRow (r, cells) = map (\(c, v) -> ((r, c), v)) cells
-
--- | Render position in @(row, col)@ format to an Excel reference.
---
--- > mkCellRef (2, 4) == "D2"
-mkCellRef :: (Int, Int) -> CellRef
-mkCellRef (row, col) = T.concat [int2col col, T.pack (show row)]
-
--- | reverse to 'mkCellRef'
---
--- /Warning:/ the function isn't total and will throw an error if
--- incorrect value will get passed
-fromCellRef :: CellRef -> (Int, Int)
-fromCellRef t = col2int *** toInt $ T.span (not . isDigit) t
-  where
-    toInt = fromJustNote "non-integer row in cell reference" . decimal
 
 -- | Render range
 --

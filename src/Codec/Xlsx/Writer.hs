@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -13,10 +14,13 @@ import qualified Data.ByteString.Lazy                        as L
 import           Data.ByteString.Lazy.Char8                  ()
 import           Data.List                                   (foldl')
 import           Data.Map                                    (Map)
+import           Data.STRef
+import           Control.Monad.ST
 import qualified Data.Map                                    as M
 import           Data.Maybe
 import           Data.Monoid                                 ((<>))
 import           Data.Text                                   (Text)
+import Data.Tuple.Extra (fst3, snd3, thd3)
 import qualified Data.Text                                   as T
 import           Data.Time                                   (UTCTime)
 import           Data.Time.Clock.POSIX                       (POSIXTime, posixSecondsToUTCTime)
@@ -97,46 +101,112 @@ fromXlsx pt xlsx =
     sheetCells = map (transformSheetData shared) sheets
 
 singleSheetFiles :: Int -> Cells -> Worksheet -> [FileData]
-singleSheetFiles n cells ws = sheetFile:otherFiles
-  where
-    sheetFilePath = "xl/worksheets/sheet" <> show n <> ".xml"
-    sheetFile = FileData sheetFilePath
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
-        "worksheet" $
-        sheetXml ws cells drawingRId
-    drawingRId = if null commentsReferenced then 1 else 2
-    otherFiles = sheetRels ++ referencedFiles ++ extraFiles
-    referencedFiles = commentsReferenced ++ drawingReferenced
-    extraFiles = drawingExtra
-    commentsReferenced = commentsFiles n cells
-    sheetRels = if null referencedFiles
-                then []
-                else [ FileData ("xl/worksheets/_rels/sheet" <> show n <> ".xml.rels")
-                      "application/vnd.openxmlformats-package.relationships+xml"
-                       "relationships" sheetRelsXml ]
-    sheetRelsXml = renderLBS def . toDocument . Relationships.fromList $
-        [ relEntry i fdRelType (fdPath `relFrom` sheetFilePath)
-        | (i, FileData{..}) <- zip [1..] referencedFiles ]
-    (drawingReferenced, drawingExtra) = drawingFiles n (ws ^. wsDrawing)
+singleSheetFiles n cells ws = runST $ do
+    ref <- newSTRef 1
+    mCmntData <- genComments n cells ref
+    mDrawingData <- maybe (return Nothing) (fmap Just . genDrawing n ref) (ws ^. wsDrawing)
+    let sheetFilePath = "xl/worksheets/sheet" <> show n <> ".xml"
+        sheetFile = FileData sheetFilePath
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
+            "worksheet" $
+            sheetXml
+        nss = [ ("r", "http://schemas.openxmlformats.org/officeDocument/2006/relationships") ]
+        sheetXml= renderLBS def{rsNamespaces=nss} $ Document (Prologue [] Nothing []) root []
+        root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
+            elementListSimple "worksheet" rootEls
+        rootEls = catMaybes $
+            [ elementListSimple "sheetViews" . map (toElement "sheetView") <$> ws ^. wsSheetViews
+            , nonEmptyElListSimple "cols" . map cwEl $ ws ^. wsColumns
+            , Just . elementListSimple "sheetData" $ sheetDataXml cells (ws ^. wsRowPropertiesMap)
+            ] ++
+            map (Just . toElement "conditionalFormatting") cfPairs ++
+            [ nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
+            , toElement "pageSetup" <$> ws ^. wsPageSetup
+            , fst3 <$> mDrawingData
+            , fst <$> mCmntData
+            ]
+        cfPairs = map CfPair . M.toList $ ws ^. wsConditionalFormattings
+        cwEl cw = leafElement "col" [ ("min", txti $ cwMin cw)
+                                    , ("max", txti $ cwMax cw)
+                                    , ("width", txtd $ cwWidth cw)
+                                    , ("style", txti $ cwStyle cw)]
+        mergeE1 t = leafElement "mergeCell" [("ref", t)]
 
-commentsFiles :: Int -> Cells -> [FileData]
-commentsFiles n cells =
-    if null comments then [] else [commentsFile]
+        sheetRels = if null referencedFiles
+                    then []
+                    else [ FileData ("xl/worksheets/_rels/sheet" <> show n <> ".xml.rels")
+                           "application/vnd.openxmlformats-package.relationships+xml"
+                           "relationships" sheetRelsXml ]
+        sheetRelsXml = renderLBS def . toDocument . Relationships.fromList $
+            [ relEntry i fdRelType (fdPath `relFrom` sheetFilePath)
+            | (i, FileData{..}) <- referenced ]
+        referenced = fromMaybe [] (snd <$> mCmntData) ++
+                     catMaybes [ snd3 <$> mDrawingData ]
+        referencedFiles = map snd referenced
+        extraFiles = maybe [] thd3 mDrawingData
+        otherFiles = sheetRels ++ referencedFiles ++ extraFiles
+
+    return (sheetFile:otherFiles)
+
+sheetDataXml :: Cells -> Map Int RowProperties -> [Element]
+sheetDataXml rows rh = map rowEl rows
+  where
+    rowEl (r, cells) = elementList "row"
+                       (ht ++ s ++ [("r", txti r) ,("hidden", "false"), ("outlineLevel", "0"),
+                                    ("collapsed", "false"), ("customFormat", "true"),
+                                    ("customHeight", txtb hasHeight)])
+                       $ map (cellEl r) cells
+      where
+        (ht, hasHeight, s) = case M.lookup r rh of
+          Just (RowProps (Just h) (Just st)) -> ([("ht", txtd h)], True,[("s", txti st)])
+          Just (RowProps Nothing  (Just st)) -> ([], True, [("s", txti st)])
+          Just (RowProps (Just h) Nothing ) -> ([("ht", txtd h)], True,[])
+          _ -> ([], False,[])
+    cellEl r (icol, cell) =
+      elementList "c" (cellAttrs (mkCellRef (r, icol)) cell)
+              (catMaybes [ elementContent "v" . value <$> xlsxCellValue cell
+                         , toElement "f" <$> xlsxCellFormula cell
+                         ])
+    cellAttrs ref cell = cellStyleAttr cell ++ [("r", ref), ("t", xlsxCellType cell)]
+    cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
+    cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
+
+genComments :: Int -> Cells -> STRef s Int -> ST s (Maybe (Element, [ReferencedFileData]))
+genComments n cells ref =
+    if null comments
+    then do
+        return Nothing
+    else do
+        rId1 <- readSTRef ref
+        let rId2 = rId1 + 1
+        modifySTRef' ref (+2)
+        let el = refElement "legacyDrawing" rId2
+        return $ Just (el, [(rId1, commentsFile), (rId2, vmlDrawingFile)])
   where
     comments = concatMap (\(row, rowCells) -> mapMaybe (maybeCellComment row) rowCells) cells
     maybeCellComment row (col, cell) = do
         comment <- xlsxComment cell
         return (mkCellRef (row, col), comment)
+    commentTable = CommentTable.fromList comments
     commentsFile = FileData commentsPath
         "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"
         "comments"
         commentsBS
     commentsPath = "xl/comments" <> show n <> ".xml"
-    commentsBS = renderLBS def . toDocument $ CommentTable.fromList comments
+    commentsBS = renderLBS def $ toDocument commentTable
+    vmlDrawingFile = FileData vmlPath
+        "application/vnd.openxmlformats-officedocument.vmlDrawing"
+        "vmlDrawing"
+        vmlDrawingBS
+    vmlPath = "xl/drawings/vmlDrawing" <> show n <> ".vml"
+    vmlDrawingBS = CommentTable.renderShapes commentTable
 
-drawingFiles :: Int -> Maybe Drawing -> ([FileData], [FileData])
-drawingFiles _ Nothing = ([], [])
-drawingFiles n(Just dr) = ([drawingFile], referenced)
+genDrawing :: Int -> STRef s Int -> Drawing -> ST s (Element, ReferencedFileData, [FileData])
+genDrawing n ref dr = do
+    rId <- readSTRef ref
+    modifySTRef' ref (+1)
+    let el = refElement "drawing" rId
+    return (el, (rId, drawingFile), referenced)
   where
      drawingFilePath = "xl/drawings/drawing" <> show n <> ".xml"
      drawingFile = FileData drawingFilePath
@@ -170,11 +240,12 @@ drawingFiles n(Just dr) = ([drawingFile], referenced)
          [] -> []
          _  -> drawingRels:imageFiles
 
-
 data FileData = FileData { fdPath        :: FilePath
                          , fdContentType :: Text
                          , fdRelType     :: Text
                          , fdContents    :: L.ByteString }
+
+type ReferencedFileData = (Int, FileData)
 
 type Cells = [(Int, [(Int, XlsxCell)])]
 
@@ -257,51 +328,6 @@ transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
     transformValue (CellBool b) = XlsxBool b
     transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
 
-sheetXml :: Worksheet -> Cells -> Int -> L.ByteString
-sheetXml ws rows nextRId = renderLBS def $ Document (Prologue [] Nothing []) root []
-  where
-    cws = ws ^. wsColumns
-    rh = ws ^. wsRowPropertiesMap
-    merges = ws ^. wsMerges
-    sheetViews = ws ^. wsSheetViews
-    pageSetup = ws ^. wsPageSetup
-    drawing = ws ^. wsDrawing
-    cfPairs = map CfPair . M.toList $ ws ^. wsConditionalFormattings
-    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
-           Element "worksheet" M.empty $ catMaybes $
-           [ renderSheetViews <$> sheetViews,
-             nonEmptyNmEl "cols" M.empty $  map cwEl cws,
-             justNmEl "sheetData" M.empty $ map rowEl rows
-           ] ++
-           map (Just . NodeElement . toElement "conditionalFormatting") cfPairs ++
-           [ nonEmptyNmEl "mergeCells" M.empty $ map mergeE1 merges,
-             NodeElement . toElement "pageSetup" <$> pageSetup,
-             NodeElement . (\_ -> leafElement  "drawing" [ odr "id" .= ("rId" <> txti nextRId) ]) <$> drawing
-           ]
-    cType = xlsxCellType
-    cwEl cw = NodeElement $! Element "col" (M.fromList
-              [("min", txti $ cwMin cw), ("max", txti $ cwMax cw), ("width", txtd $ cwWidth cw), ("style", txti $ cwStyle cw)]) []
-    rowEl (r, cells) = nEl "row"
-                       (M.fromList (ht ++ s ++ [("r", txti r) ,("hidden", "false"), ("outlineLevel", "0"),
-                               ("collapsed", "false"), ("customFormat", "true"),
-                               ("customHeight", txtb hasHeight)]))
-                       $ map (cellEl r) cells
-      where
-        (ht, hasHeight, s) = case M.lookup r rh of
-          Just (RowProps (Just h) (Just st)) -> ([("ht", txtd h)], True,[("s", txti st)])
-          Just (RowProps Nothing  (Just st)) -> ([], True, [("s", txti st)])
-          Just (RowProps (Just h) Nothing ) -> ([("ht", txtd h)], True,[])
-          _ -> ([], False,[])
-    mergeE1 t = NodeElement $! Element "mergeCell" (M.fromList [("ref",t)]) []
-    cellEl r (icol, cell) =
-      nEl "c" (M.fromList (cellAttrs (mkCellRef (r, icol)) cell))
-              (catMaybes [ (\v -> nEl "v" M.empty [NodeContent v]) .  value <$> xlsxCellValue cell
-                         , NodeElement . toElement "f" <$> xlsxCellFormula cell
-                         ])
-    cellAttrs ref cell = cellStyleAttr cell ++ [("r", ref), ("t", cType cell)]
-    cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
-    cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
-
 bookXml :: [Text] -> DefinedNames -> L.ByteString
 bookXml sheetNames (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
@@ -321,8 +347,8 @@ bookXml sheetNames (DefinedNames names) = renderLBS def $ Document (Prologue [] 
                                    , ("state", "visible")
                                    , (rId, "rId" <> n)]) [])
                numNames
-           ,nEl "definedNames" M.empty $ map (\(name, lsId, val) ->
-              nEl "definedName" (definedName name lsId) [NodeContent val]) names
+           , nEl "definedNames" M.empty $ map (\(name, lsId, val) ->
+               nEl "definedName" (definedName name lsId) [NodeContent val]) names
            ]
 
     rId = nm "http://schemas.openxmlformats.org/officeDocument/2006/relationships" "id"
@@ -373,16 +399,9 @@ nm ns n = Name
   , nameNamespace = Just ns
   , namePrefix = Nothing}
 
--- | Creates an element with the given name, attributes and children,
--- if there is at least one child. Otherwise returns `Nothing`.
-nonEmptyNmEl :: Name -> Map Name Text -> [Node] -> Maybe Node
-nonEmptyNmEl _ _ [] = Nothing
-nonEmptyNmEl name attrs nodes = justNmEl name attrs nodes
-
--- | Creates an element with the given name, attributes and children.
--- Always returns a node/`Just`.
-justNmEl :: Name -> Map Name Text -> [Node] -> Maybe Node
-justNmEl name attrs nodes = Just $ nEl name attrs nodes
-
 nEl :: Name -> Map Name Text -> [Node] -> Node
 nEl name attrs nodes = NodeElement $ Element name attrs nodes
+
+-- | Creates element holding reference to some linked file
+refElement :: Name -> Int -> Element
+refElement name rId = leafElement name [ odr "id" .= ("rId" <> txti rId) ]

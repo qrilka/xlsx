@@ -143,8 +143,8 @@ testCellMap2 = M.fromList [ ((1, 2), def & cellValue ?~ CellText "something here
                             )
                           ]
   where
-    comment1 = Comment (XlsxText "simple comment") "bob"
-    comment2 = Comment (XlsxRichText [rich1, rich2]) "alice"
+    comment1 = Comment (XlsxText "simple comment") "bob" True
+    comment2 = Comment (XlsxRichText [rich1, rich2]) "alice" False
     rich1 = def & richTextRunText.~ "Look ma!"
                 & richTextRunProperties ?~ (
                    def & runPropertiesBold ?~ True
@@ -200,8 +200,8 @@ testParsedSharedStringTablesWithEmpty :: [SharedStringTable]
 testParsedSharedStringTablesWithEmpty = fromCursor . fromDocument $ parseLBS_ def testStringsWithEmpty
 
 testCommentTable = CommentTable $ M.fromList
-    [ ("D4", Comment (XlsxRichText rich) "Bob")
-    , ("A2", Comment (XlsxText "Some comment here") "CBR") ]
+    [ ("D4", Comment (XlsxRichText rich) "Bob" True)
+    , ("A2", Comment (XlsxText "Some comment here") "CBR" True) ]
   where
     rich = [ RichTextRun
              { _richTextRunProperties =

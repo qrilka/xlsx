@@ -1,14 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Codec.Xlsx.Types.Common
        ( CellRef
+       , mkCellRef
+       , fromCellRef
        , SqRef (..)
        , XlsxText (..)
        , Formula (..)
+       , int2col
+       , col2int
        ) where
 
+import           Control.Arrow
+import           Data.Char
 import qualified Data.Map                   as Map
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import           Data.Tuple                 (swap)
+import           Safe                       (fromJustNote)
 import           Text.XML
 import           Text.XML.Cursor
 
@@ -16,10 +24,41 @@ import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.RichText
 import           Codec.Xlsx.Writer.Internal
 
+-- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
+int2col :: Int -> Text
+int2col = T.pack . reverse . map int2let . base26
+    where
+        int2let 0 = 'Z'
+        int2let x = chr $ (x - 1) + ord 'A'
+        base26  0 = []
+        base26  i = let i' = (i `mod` 26)
+                        i'' = if i' == 0 then 26 else i'
+                    in seq i' (i' : base26 ((i - i'') `div` 26))
+
+-- | reverse to 'int2col'
+col2int :: Text -> Int
+col2int = T.foldl' (\i c -> i * 26 + let2int c) 0
+    where
+        let2int c = 1 + ord c - ord 'A'
 
 -- | Excel cell reference (e.g. @E3@)
 -- See 18.18.62 @ST_Ref@ (p. 2482)
 type CellRef = Text
+
+-- | Render position in @(row, col)@ format to an Excel reference.
+--
+-- > mkCellRef (2, 4) == "D2"
+mkCellRef :: (Int, Int) -> CellRef
+mkCellRef (row, col) = T.concat [int2col col, T.pack (show row)]
+
+-- | reverse to 'mkCellRef'
+--
+-- /Warning:/ the function isn't total and will throw an error if
+-- incorrect value will get passed
+fromCellRef :: CellRef -> (Int, Int)
+fromCellRef t = swap $ col2int *** toInt $ T.span (not . isDigit) t
+  where
+    toInt = fromJustNote "non-integer row in cell reference" . decimal
 
 newtype SqRef = SqRef [CellRef]
     deriving (Eq, Ord, Show)

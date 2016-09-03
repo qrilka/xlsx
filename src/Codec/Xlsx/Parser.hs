@@ -1,5 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TupleSections             #-}
 
@@ -98,8 +99,10 @@ extractSheet ar sst contentTypes wf = do
   let commentsType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
       commentTarget :: Maybe FilePath
       commentTarget = relTarget <$> findRelByType commentsType sheetRels
+      legacyDrRId = cur $/ element (n"legacyDrawing") >=> fromAttribute (odr"id")
+      legacyDrPath = fmap relTarget . flip Relationships.lookup sheetRels  =<< listToMaybe legacyDrRId
 
-  commentsMap :: Maybe CommentTable <- maybe (Right Nothing) (getComments ar) commentTarget
+  commentsMap :: Maybe CommentTable <- maybe (Right Nothing) (getComments ar legacyDrPath) commentTarget
 
   -- Likewise, @pageSetup@ also occurs either 0 or 1 times
   let pageSetup = listToMaybe $ cur $/ element (n"pageSetup") >=> fromCursor
@@ -201,8 +204,26 @@ getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
   Nothing  -> Styles L.empty
   Just xml -> Styles xml
 
-getComments :: Zip.Archive -> FilePath -> Parser (Maybe CommentTable)
-getComments ar fp = (listToMaybe . fromCursor =<<) <$> xmlCursorOptional ar fp
+getComments :: Zip.Archive -> Maybe FilePath -> FilePath -> Parser (Maybe CommentTable)
+getComments ar drp fp = do
+    mCurComments <- xmlCursorOptional ar fp
+    mCurDr <- maybe (return Nothing) (xmlCursorOptional ar) drp
+    return (liftA2 hide (hidden <$> mCurDr) . listToMaybe . fromCursor =<< mCurComments)
+  where
+    hide refs (CommentTable m) = CommentTable $ foldl' hideComment m refs
+    hideComment m r = M.adjust (\c->c{_commentVisible = False}) r m
+    v nm = Name nm (Just "urn:schemas-microsoft-com:vml") Nothing
+    x nm = Name nm (Just "urn:schemas-microsoft-com:office:excel") Nothing
+    hidden :: Cursor -> [CellRef]
+    hidden cur = cur $/ checkElement visibleShape &/
+                 element (x"ClientData") >=> shapeCellRef
+    visibleShape Element{..} = elementName ==  (v"shape") &&
+        maybe False (any ("visibility:hidden"==) . T.split (==';')) (M.lookup "style" elementAttributes)
+    shapeCellRef :: Cursor -> [CellRef]
+    shapeCellRef c = do
+        r0 <- c $/ element (x"Row") &/ content >=> decimal
+        c0 <- c $/ element (x"Column") &/ content >=> decimal
+        return $ mkCellRef (r0 + 1, c0 + 1)
 
 getCustomProperties :: Zip.Archive -> Parser CustomProperties
 getCustomProperties ar = maybe CustomProperties.empty (head . fromCursor) <$> xmlCursorOptional ar "docProps/custom.xml"

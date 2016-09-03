@@ -12,6 +12,7 @@ module Codec.Xlsx.Writer.Internal (
   , countedElementList
   , elementList
   , elementListSimple
+  , nonEmptyElListSimple
   , leafElement
   , emptyElement
   , elementContent
@@ -85,6 +86,10 @@ elementList nm attrs els = Element {
 
 elementListSimple :: Name -> [Element] -> Element
 elementListSimple nm els = elementList nm [] els
+
+nonEmptyElListSimple :: Name -> [Element] -> Maybe Element
+nonEmptyElListSimple _  []  = Nothing
+nonEmptyElListSimple nm els = Just $ elementListSimple nm els
 
 leafElement :: Name -> [(Name, Text)] -> Element
 leafElement nm attrs = elementList nm attrs []

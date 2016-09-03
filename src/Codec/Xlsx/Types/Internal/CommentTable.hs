@@ -2,6 +2,9 @@
 {-# LANGUAGE RecordWildCards   #-}
 module Codec.Xlsx.Types.Internal.CommentTable where
 
+import           Data.ByteString.Lazy       (ByteString)
+import qualified Data.ByteString.Lazy       as LB
+import qualified Data.ByteString.Lazy.Char8 as LBC8
 import           Data.List.Extra            (nubOrd)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
@@ -66,4 +69,46 @@ parseComment authors cur = do
     txt <- cur $/ element (n"text") >=> fromCursor
     authorId <- cur $| attribute "authorId" >=> decimal
     let author = fromJustNote "authorId" $ M.lookup authorId authors
-    return (ref, Comment txt author)
+    return (ref, Comment txt author True)
+
+-- | helper to render comment baloons vml file,
+-- currently uses fixed shape
+renderShapes :: CommentTable -> ByteString
+renderShapes (CommentTable m) = LB.concat
+    [ "<xml xmlns:v=\"urn:schemas-microsoft-com:vml\" "
+    , "xmlns:o=\"urn:schemas-microsoft-com:office:office\" "
+    , "xmlns:x=\"urn:schemas-microsoft-com:office:excel\">"
+    , commentShapeType
+    , LB.concat commentShapes
+    , "</xml>"
+    ]
+  where
+    commentShapeType = LB.concat
+        [ "<v:shapetype id=\"baloon\" coordsize=\"21600,21600\" o:spt=\"202\" "
+        , "path=\"m,l,21600r21600,l21600,xe\">"
+        , "<v:stroke joinstyle=\"miter\"></v:stroke>"
+        , "<v:path gradientshapeok=\"t\" o:connecttype=\"rect\"></v:path>"
+        , "</v:shapetype>"
+        ]
+    commentShapes = [ commentShape (fromCellRef ref) (_commentVisible cmnt)
+                    | (ref, cmnt) <- M.toList m ]
+    commentShape (r, c) v = LB.concat
+        [ "<v:shape type=\"#baloon\" "
+        , "style=\"position:absolute;width:auto" -- ;width:108pt;height:59.25pt"
+        , if v then "" else ";visibility:hidden"
+        , "\" fillcolor=\"#ffffe1\" o:insetmode=\"auto\">"
+        , "<v:fill color2=\"#ffffe1\"></v:fill><v:shadow color=\"black\" obscured=\"t\"></v:shadow>"
+        , "<v:path o:connecttype=\"none\"></v:path><v:textbox style=\"mso-direction-alt:auto\">"
+        , "<div style=\"text-align:left\"></div></v:textbox>"
+        , "<x:ClientData ObjectType=\"Note\">"
+        , "<x:MoveWithCells></x:MoveWithCells><x:SizeWithCells></x:SizeWithCells>"
+        , "<x:Anchor>4, 15, 0, 7, 6, 31, 5, 1</x:Anchor><x:AutoFill>False</x:AutoFill>"
+        , "<x:Row>"
+        , LBC8.pack $ show (r - 1)
+        , "</x:Row>"
+        , "<x:Column>"
+        , LBC8.pack $ show (c - 1)
+        , "</x:Column>"
+        , "</x:ClientData>"
+        , "</v:shape>"
+        ]

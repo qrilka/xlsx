@@ -10,7 +10,6 @@ module Codec.Xlsx.Types.SheetViews (
   , SheetViewType(..)
   , PaneType(..)
   , PaneState(..)
-  , renderSheetViews
     -- * Lenses
     -- ** SheetView
   , sheetViewColorId
@@ -357,21 +356,6 @@ instance Default Pane where
 {-------------------------------------------------------------------------------
   Rendering
 -------------------------------------------------------------------------------}
-
--- | Render sheet views
---
--- The list should be non-empty to be conform to the spec.
---
--- See Section 18.3.1.88 "sheetViews (Sheet Views)" (p. 1704)
-renderSheetViews :: [SheetView] -> Node
-renderSheetViews views = NodeElement sheetViews
-  where
-    sheetViews :: Element
-    sheetViews = Element {
-        elementName       = "sheetViews"
-      , elementAttributes = Map.empty
-      , elementNodes      = map (NodeElement . toElement "sheetView") views
-      }
 
 -- | See @CT_SheetView@, p. 3913
 instance ToElement SheetView where
