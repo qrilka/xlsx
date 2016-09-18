@@ -1,3 +1,12 @@
+0.3.0
+-----
+* implemented number formats
+* fixed error of parsing "Default"s in content types (thanks Steve Bigham <steve.bigham@gmail.com> for reporting)
+* fixed parsing workbooks with no shared strings (thanks Steve Bigham <steve.bigham@gmail.com> for reporting)
+* changed the way sheets are stored to allow abitrary sheet order in a workbook
+* separated format information from other cell data in `FormattedCell`
+* implemented comment visibility (throught legacy vml drawings)
+
 0.2.4
 -----
 * added basic images support
