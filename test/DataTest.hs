@@ -46,17 +46,17 @@ main = defaultMain $
     , testCase "fromRight . parseStyleSheet . renderStyleSheet == id" $
         testStyleSheet @==? fromRight (parseStyleSheet (renderStyleSheet  testStyleSheet))
     , testCase "correct shared strings parsing" $
-        [testSharedStringTable] @=? testParsedSharedStringTables
+        [testSharedStringTable] @=? parseBS testStrings
     , testCase "correct shared strings parsing even when one of the shared strings entry is just <t/>" $
-        [testSharedStringTableWithEmpty] @=? testParsedSharedStringTablesWithEmpty
+        [testSharedStringTableWithEmpty] @=? parseBS testStringsWithEmpty
     , testCase "correct comments parsing" $
-        [testCommentTable] @=? testParsedComments
+        [testCommentTable] @=? parseBS testComments
     , testCase "correct drawing parsing" $
-        [testDrawing] @==? parseDrawing testDrawingFile
+        [testDrawing] @==? parseBS testDrawingFile
     , testCase "write . read == id for Drawings" $
-        [testDrawing] @==? parseDrawing testWrittenDrawing
+        [testDrawing] @==? parseBS testWrittenDrawing
     , testCase "correct custom properties parsing" $
-        [testCustomProperties] @==? testParsedCustomProperties
+        [testCustomProperties] @==? parseBS testCustomPropertiesXml
     , testCase "proper results from `formatted`" $
         testFormattedResult @==? testRunFormatted
     , testCase "formatted . toFormattedCells = id" $ do
@@ -70,6 +70,9 @@ main = defaultMain $
     , testCase "toXlsxEither: invalid format" $
         Left InvalidZipArchive @==? toXlsxEither "this is not a valid XLSX file"
     ]
+
+parseBS :: FromCursor a => ByteString -> [a]
+parseBS = fromCursor . fromDocument . parseLBS_ def
 
 testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties
@@ -193,12 +196,6 @@ testSharedStringTableWithEmpty :: SharedStringTable
 testSharedStringTableWithEmpty =
   SharedStringTable $ V.fromList [XlsxText ""]
 
-testParsedSharedStringTables ::[SharedStringTable]
-testParsedSharedStringTables = fromCursor . fromDocument $ parseLBS_ def testStrings
-
-testParsedSharedStringTablesWithEmpty :: [SharedStringTable]
-testParsedSharedStringTablesWithEmpty = fromCursor . fromDocument $ parseLBS_ def testStringsWithEmpty
-
 testCommentTable = CommentTable $ M.fromList
     [ ("D4", Comment (XlsxRichText rich) "Bob" True)
     , ("A2", Comment (XlsxText "Some comment here") "CBR" True) ]
@@ -219,9 +216,6 @@ testCommentTable = CommentTable $ M.fromList
                           & runPropertiesScheme ?~ FontSchemeMinor
                           & runPropertiesSize ?~ 8.0
              , _richTextRunText = "Why such high expense?"}]
-
-testParsedComments ::[CommentTable]
-testParsedComments = fromCursor . fromDocument $ parseLBS_ def testComments
 
 testStrings :: ByteString
 testStrings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
@@ -308,9 +302,6 @@ testDrawing = Drawing [ anchor ]
         , _trExtents = Just (PositiveSize2D (PositiveCoordinate 10074240)
                                             (PositiveCoordinate 5402520)) }
 
-parseDrawing :: ByteString -> [UnresolvedDrawing]
-parseDrawing bs = fromCursor . fromDocument $ parseLBS_ def bs
-
 testDrawingFile :: ByteString
 testDrawingFile = [r|
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -347,9 +338,6 @@ testCustomProperties = CustomProperties.fromList
     , ("bool", VtBool False)
     , ("prop333", VtInt 1)
     , ("decimal", VtDecimal 1.234) ]
-
-testParsedCustomProperties ::[CustomProperties]
-testParsedCustomProperties = fromCursor . fromDocument $ parseLBS_ def testCustomPropertiesXml
 
 testCustomPropertiesXml :: ByteString
 testCustomPropertiesXml = [r|
