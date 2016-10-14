@@ -236,12 +236,26 @@ getDrawing ar contentTypes fp = do
     anchors <- forM (unresolved ^. xdrAnchors) $ resolveFileInfo drawingRels
     return $ Drawing anchors
   where
-    resolveFileInfo :: Relationships -> Anchor RefId -> Parser (Anchor FileInfo)
-    resolveFileInfo rels uAnch = case uAnch ^. anchObject of
-        pic@Picture{} -> do
-            let mRefId = pic ^. picBlipFill . bfpImageInfo
-            mFI <- lookupFI rels mRefId
-            return uAnch{ _anchObject = pic & picBlipFill . bfpImageInfo .~ mFI }
+    resolveFileInfo :: Relationships -> Anchor RefId RefId -> Parser (Anchor FileInfo ChartSpace)
+    resolveFileInfo rels uAnch =
+      case uAnch ^. anchObject of
+        Picture {..} -> do
+          let mRefId = _picBlipFill ^. bfpImageInfo
+          mFI <- lookupFI rels mRefId
+          let pic' =
+                Picture
+                { _picMacro = _picMacro
+                , _picPublished = _picPublished
+                , _picNonVisual = _picNonVisual
+                , _picBlipFill = (_picBlipFill & bfpImageInfo .~ mFI)
+                , _picShapeProperties = _picShapeProperties
+                }
+          return uAnch {_anchObject = pic'}
+        Graphic nv rId tr -> do
+          chartPath <-
+            relTarget <$> note (InvalidRef fp rId) (Relationships.lookup rId rels)
+          chart <- readChart ar chartPath
+          return uAnch {_anchObject = Graphic nv chart tr}
     lookupFI _ Nothing = return Nothing
     lookupFI rels (Just rId) = do
         path <- relTarget <$> note (InvalidRef fp rId) (Relationships.lookup rId rels)
@@ -251,6 +265,9 @@ getDrawing ar contentTypes fp = do
         return . Just $ FileInfo (stripMediaPrefix path) contentType contents
     stripMediaPrefix :: FilePath -> FilePath
     stripMediaPrefix p = fromMaybe p $ stripPrefix "xl/media/" p
+
+readChart :: Zip.Archive -> FilePath -> Parser ChartSpace
+readChart ar path = head . fromCursor <$> xmlCursorRequired ar path
 
 -- | readWorkbook pulls the names of the sheets and the defined names
 readWorkbook :: Zip.Archive -> Parser ([WorksheetFile], DefinedNames)

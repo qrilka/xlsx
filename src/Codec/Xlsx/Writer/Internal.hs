@@ -7,6 +7,7 @@ module Codec.Xlsx.Writer.Internal (
     ToDocument(..)
   , documentFromElement
   , documentFromNsElement
+  , documentFromNsPrefElement
     -- * Rendering elements
   , ToElement(..)
   , countedElementList
@@ -54,11 +55,16 @@ class ToDocument a where
   toDocument :: a -> Document
 
 documentFromElement :: Text -> Element -> Document
-documentFromElement comment e = documentFromNsElement comment mainNamespace e
+documentFromElement comment e =
+  documentFromNsElement comment mainNamespace e
 
 documentFromNsElement :: Text -> Text -> Element -> Document
-documentFromNsElement comment ns e = Document {
-      documentRoot     = addNS ns e
+documentFromNsElement comment ns e =
+  documentFromNsPrefElement comment ns Nothing e
+
+documentFromNsPrefElement :: Text -> Text -> Maybe Text -> Element -> Document
+documentFromNsPrefElement comment ns prefix e = Document {
+      documentRoot     = addNS ns prefix e
     , documentEpilogue = []
     , documentPrologue = Prologue {
           prologueBefore  = [MiscComment comment]
@@ -161,8 +167,8 @@ setAttr nm a el@Element{..} = el{ elementAttributes = attrs' }
 -- | Set the namespace for the entire document
 --
 -- This follows the same policy that the rest of the xlsx package uses.
-addNS :: Text -> Element -> Element
-addNS ns Element{..} = Element{
+addNS :: Text -> Maybe Text -> Element -> Element
+addNS ns prefix Element{..} = Element{
       elementName       = goName elementName
     , elementAttributes = elementAttributes
     , elementNodes      = map goNode elementNodes
@@ -175,11 +181,11 @@ addNS ns Element{..} = Element{
         Nothing -> Name{
             nameLocalName = nameLocalName
           , nameNamespace = Just ns
-          , namePrefix    = Nothing
+          , namePrefix    = prefix
           }
 
     goNode :: Node -> Node
-    goNode (NodeElement e) = NodeElement $ addNS ns e
+    goNode (NodeElement e) = NodeElement $ addNS ns prefix e
     goNode n               = n
 
 -- | The main namespace for Excel

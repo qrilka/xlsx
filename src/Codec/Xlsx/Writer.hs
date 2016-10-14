@@ -112,7 +112,7 @@ singleSheetFiles n cells ws = runST $ do
             sheetXml
         nss = [ ("r", "http://schemas.openxmlformats.org/officeDocument/2006/relationships") ]
         sheetXml= renderLBS def{rsNamespaces=nss} $ Document (Prologue [] Nothing []) root []
-        root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $
+        root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" Nothing $
             elementListSimple "worksheet" rootEls
         rootEls = catMaybes $
             [ elementListSimple "sheetViews" . map (toElement "sheetView") <$> ws ^. wsSheetViews
@@ -217,28 +217,68 @@ genDrawing n ref dr = do
            , ("a",   "http://schemas.openxmlformats.org/drawingml/2006/main")
            , ("r",   "http://schemas.openxmlformats.org/officeDocument/2006/relationships") ]
      dr' = Drawing{ _xdrAnchors = reverse anchors' }
-     (anchors', images, _) = foldl' collectImage ([], [], 1) (dr ^. xdrAnchors)
-     collectImage :: ([Anchor RefId], [Maybe FileInfo], Int) -> Anchor FileInfo
-                  -> ([Anchor RefId], [Maybe FileInfo], Int)
-     collectImage (as, fis, i) anch0 =
+     (anchors', images, charts, _) = foldl' collectFile ([], [], [], 1) (dr ^. xdrAnchors)
+     collectFile :: ([Anchor RefId RefId], [Maybe (Int, FileInfo)], [(Int, ChartSpace)], Int)
+                 -> Anchor FileInfo ChartSpace
+                 -> ([Anchor RefId RefId], [Maybe (Int, FileInfo)], [(Int, ChartSpace)], Int)
+     collectFile (as, fis, chs, i) anch0 =
          case anch0 ^. anchObject of
-             pic@Picture{} ->
-                 let anch = anch0{_anchObject = pic & picBlipFill . bfpImageInfo ?~ RefId ("rId" <> txti i)}
-                     fi = pic ^. picBlipFill . bfpImageInfo
-                 in (anch:as, fi:fis, i + 1)
-     imageFiles = [ FileData ("xl/media/" <> _fiFilename)
-                    _fiContentType
-                    "image" _fiContents
-                  | FileInfo{..} <- reverse (catMaybes images) ]
-     drawingRels = FileData ("xl/drawings/_rels/drawing" <> show n <> ".xml.rels")
-                   "application/vnd.openxmlformats-package.relationships+xml"
-                   "relationships" drawingRelsXml
-     drawingRelsXml = renderLBS def . toDocument . Relationships.fromList $
-        [ relEntry i fdRelType (fdPath `relFrom` drawingFilePath)
-        | (i, FileData{..}) <- zip [1..] imageFiles ]
-     referenced = case images of
+           Picture {..} ->
+             let fi = (i,) <$> _picBlipFill ^. bfpImageInfo
+                 pic' =
+                   Picture
+                   { _picMacro = _picMacro
+                   , _picPublished = _picPublished
+                   , _picNonVisual = _picNonVisual
+                   , _picBlipFill =
+                       (_picBlipFill & bfpImageInfo ?~ RefId ("rId" <> txti i))
+                   , _picShapeProperties = _picShapeProperties
+                   }
+                 anch = anch0 {_anchObject = pic'}
+             in (anch : as, fi : fis, chs, i + 1)
+           Graphic nv ch tr ->
+             let gr' = Graphic nv (RefId ("rId" <> txti i)) tr
+                 anch = anch0 {_anchObject = gr'}
+             in (anch : as, fis, (i, ch) : chs, i + 1)
+     imageFiles =
+       [ ( i
+         , FileData ("xl/media/" <> _fiFilename) _fiContentType "image" _fiContents)
+       | (i, FileInfo {..}) <- reverse (catMaybes images)
+       ]
+
+     chartFiles =
+       [(i, genChart n k chart) | (k, (i, chart)) <- zip [1 ..] (reverse charts)]
+
+     innerFiles = imageFiles ++ chartFiles
+
+     drawingRels =
+       FileData
+         ("xl/drawings/_rels/drawing" <> show n <> ".xml.rels")
+         "application/vnd.openxmlformats-package.relationships+xml"
+         "relationships"
+         drawingRelsXml
+
+     drawingRelsXml =
+       renderLBS def . toDocument . Relationships.fromList $
+       map (refFileDataToRel drawingFilePath) innerFiles
+
+     referenced =
+       case innerFiles of
          [] -> []
-         _  -> drawingRels:imageFiles
+         _ -> drawingRels : (map snd innerFiles)
+
+genChart :: Int -> Int -> ChartSpace -> FileData
+genChart n i ch = FileData path contentType relType contents
+  where
+    path = "xl/charts/chart" <> show n <> "_" <> show i <> ".xml"
+    contentType =
+      "application/vnd.openxmlformats-officedocument.drawingml.chart+xml"
+    relType = "chart"
+    contents = renderLBS def {rsNamespaces = nss} $ toDocument ch
+    nss =
+      [ ("c", "http://schemas.openxmlformats.org/drawingml/2006/chart")
+      , ("a", "http://schemas.openxmlformats.org/drawingml/2006/main")
+      ]
 
 data FileData = FileData { fdPath        :: FilePath
                          , fdContentType :: Text
@@ -246,6 +286,10 @@ data FileData = FileData { fdPath        :: FilePath
                          , fdContents    :: L.ByteString }
 
 type ReferencedFileData = (Int, FileData)
+
+refFileDataToRel :: FilePath -> ReferencedFileData -> (RefId, Relationship)
+refFileDataToRel basePath (i, FileData {..}) =
+    relEntry i fdRelType (fdPath `relFrom` basePath)
 
 type Cells = [(Int, [(Int, XlsxCell)])]
 
@@ -338,18 +382,19 @@ bookXml sheetNames (DefinedNames names) = renderLBS def $ Document (Prologue [] 
     -- (see <https://phpexcel.codeplex.com/workitem/2935>). It suffices however
     -- to define a bookViews with a single empty @workbookView@ element
     -- (the @bookViews@ must contain at least one @wookbookView@).
-    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" $ Element "workbook" M.empty
-           [ nEl "bookViews" M.empty [nEl "workbookView" M.empty []]
-           , nEl "sheets" M.empty $
-               map (\(n, name) -> nEl "sheet"
-                       (M.fromList [ ("name", name)
-                                   , ("sheetId", n)
-                                   , ("state", "visible")
-                                   , (rId, "rId" <> n)]) [])
-               numNames
-           , nEl "definedNames" M.empty $ map (\(name, lsId, val) ->
-               nEl "definedName" (definedName name lsId) [NodeContent val]) names
-           ]
+    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" Nothing $
+           Element "workbook" M.empty
+             [ nEl "bookViews" M.empty [nEl "workbookView" M.empty []]
+             , nEl "sheets" M.empty $
+                 map (\(n, name) -> nEl "sheet"
+                         (M.fromList [ ("name", name)
+                                     , ("sheetId", n)
+                                     , ("state", "visible")
+                                     , (rId, "rId" <> n)]) [])
+                 numNames
+             , nEl "definedNames" M.empty $ map (\(name, lsId, val) ->
+                 nEl "definedName" (definedName name lsId) [NodeContent val]) names
+             ]
 
     rId = nm "http://schemas.openxmlformats.org/officeDocument/2006/relationships" "id"
 
@@ -373,7 +418,7 @@ bookRels n =  Relationships.fromList (sheetRels ++ [stylesRel, ssRel])
 contentTypesXml :: [FileData] -> L.ByteString
 contentTypesXml fds = renderLBS def $ Document (Prologue [] Nothing []) root []
   where
-    root = addNS "http://schemas.openxmlformats.org/package/2006/content-types" $
+    root = addNS "http://schemas.openxmlformats.org/package/2006/content-types" Nothing $
            Element "Types" M.empty $
            map (\fd -> nEl "Override" (M.fromList  [("PartName", T.concat ["/", T.pack $ fdPath fd]),
                                        ("ContentType", fdContentType fd)]) []) fds

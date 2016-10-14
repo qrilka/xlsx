@@ -71,7 +71,9 @@ import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Comment               as X
 import           Codec.Xlsx.Types.Common                as X
 import           Codec.Xlsx.Types.ConditionalFormatting as X
-import           Codec.Xlsx.Types.Drawing as X
+import           Codec.Xlsx.Types.Drawing               as X
+import           Codec.Xlsx.Types.Drawing.Chart         as X
+import           Codec.Xlsx.Types.Drawing.Common        as X
 import           Codec.Xlsx.Types.PageSetup             as X
 import           Codec.Xlsx.Types.RichText              as X
 import           Codec.Xlsx.Types.SheetViews            as X

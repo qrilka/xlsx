@@ -4,14 +4,16 @@
 module Codec.Xlsx.Parser.Internal
     ( ParseException(..)
     , n
+    , nodeElNameIs
     , FromCursor(..)
     , FromAttrVal(..)
     , fromAttribute
     , fromAttributeDef
     , maybeAttribute
+    , fromElementValue
     , maybeElementValue
     , maybeElementValueDef
-    , maybeBoolElemValue
+    , maybeBoolElementValue
     , maybeFromElement
     , readSuccess
     , readFailure
@@ -39,6 +41,10 @@ data ParseException = ParseException String
                     deriving (Show, Typeable)
 
 instance Exception ParseException
+
+nodeElNameIs :: Node -> Name -> Bool
+nodeElNameIs (NodeElement el) name = elementName el == name
+nodeElNameIs _ _                   = False
 
 class FromCursor a where
     fromCursor :: Cursor -> [a]
@@ -82,6 +88,10 @@ maybeAttribute name cursor =
       [attr] -> Just <$> runReader fromAttrVal attr
       _ -> [Nothing]
 
+fromElementValue :: FromAttrVal a => Name -> Cursor -> [a]
+fromElementValue name cursor =
+    cursor $/ element name >=> fromAttribute "val"
+
 maybeElementValue :: FromAttrVal a => Name -> Cursor -> [Maybe a]
 maybeElementValue name cursor =
   case cursor $/ element name of
@@ -94,8 +104,8 @@ maybeElementValueDef name defVal cursor =
     [cursor'] -> Just . fromMaybe defVal <$> maybeAttribute "val" cursor'
     _ -> [Nothing]
 
-maybeBoolElemValue :: Name -> Cursor -> [Maybe Bool]
-maybeBoolElemValue name cursor = maybeElementValueDef name True cursor
+maybeBoolElementValue :: Name -> Cursor -> [Maybe Bool]
+maybeBoolElementValue name cursor = maybeElementValueDef name True cursor
 
 maybeFromElement :: FromCursor a => Name -> Cursor -> [Maybe a]
 maybeFromElement name cursor = case cursor $/ element name of

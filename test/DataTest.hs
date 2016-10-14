@@ -1,10 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE QuasiQuotes       #-}
 module Main (main) where
 
 import           Control.Lens
 import           Control.Monad.State.Lazy
 import           Data.ByteString.Lazy                        (ByteString)
+import qualified Data.ByteString.Lazy as LB
 import           Data.Map                                    (Map)
 import qualified Data.Map                                    as M
 import           Data.Time.Clock.POSIX                       (POSIXTime)
@@ -39,7 +41,9 @@ main = defaultMain $
   testGroup "Tests"
     [ testProperty "col2int . int2col == id" $
         \(Positive i) -> i == col2int (int2col i)
-    , testCase "write . read == id" $
+    , testCase "write . read == id" $ do
+        let bs = fromXlsx testTime testXlsx
+        LB.writeFile "data-test.xlsx" bs
         testXlsx @==? toXlsx (fromXlsx testTime testXlsx)
     , testCase "fromRows . toRows == id" $
         testCellMap1 @=? fromRows (toRows testCellMap1)
@@ -55,6 +59,10 @@ main = defaultMain $
         [testDrawing] @==? parseBS testDrawingFile
     , testCase "write . read == id for Drawings" $
         [testDrawing] @==? parseBS testWrittenDrawing
+    , testCase "correct chart parsing" $
+        [testChartSpace] @==? parseBS testChartFile
+    , testCase "write . read == id for Charts" $
+        [testChartSpace] @==? parseBS testWrittenChartSpace
     , testCase "correct custom properties parsing" $
         [testCustomProperties] @==? parseBS testCustomPropertiesXml
     , testCase "proper results from `formatted`" $
@@ -82,8 +90,28 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
     sheet2 = def & wsCells .~ testCellMap2
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
-    drawing = Just $ testDrawing { _xdrAnchors = [pic] }
-    pic = head (testDrawing ^. xdrAnchors) & anchObject . picBlipFill . bfpImageInfo ?~ fileInfo
+    drawing = Just $ testDrawing { _xdrAnchors = map resolve $ _xdrAnchors testDrawing }
+    resolve :: Anchor RefId RefId -> Anchor FileInfo ChartSpace
+--    pic = head (testDrawing ^. xdrAnchors) & anchObject %~ setFI
+    resolve Anchor {..} =
+      let obj =
+            case _anchObject of
+              Picture {..} ->
+                let picBlipFill = (_picBlipFill & bfpImageInfo ?~ fileInfo)
+                in Picture
+                   { _picMacro = _picMacro
+                   , _picPublished = _picPublished
+                   , _picNonVisual = _picNonVisual
+                   , _picBlipFill = picBlipFill
+                   , _picShapeProperties = _picShapeProperties
+                   }
+              Graphic nv _ tr ->
+                Graphic nv testChartSpace tr
+      in Anchor
+         { _anchAnchoring = _anchAnchoring
+         , _anchObject = obj
+         , _anchClientData = _anchClientData
+         }
     fileInfo = FileInfo "dummy.png" "image/png" "fake contents"
     ranges = [mkRange (1,1) (1,2), mkRange (2,2) (10, 5)]
     minimalStyles = renderStyleSheet minimalStyleSheet
@@ -265,42 +293,96 @@ testComments = [r|
 </comments>
 |]
 
-testDrawing = Drawing [ anchor ]
+testDrawing :: UnresolvedDrawing
+testDrawing = Drawing [anchor1, anchor2]
   where
-    anchor = Anchor
-        { _anchAnchoring  = anchoring
-        , _anchObject     = pic
-        , _anchClientData = def }
-    anchoring = TwoCellAnchor
-        { tcaFrom   = unqMarker ( 0,      0) ( 0,     0)
-        , tcaTo     = unqMarker (12, 320760) (33, 38160)
-        , tcaEditAs = EditAsAbsolute }
-    pic = Picture
-        { _picMacro           = Nothing
-        , _picPublished       = False
-        , _picNonVisual       = nonVis
-        , _picBlipFill        = bfProps
-        , _picShapeProperties = shProps }
-    nonVis = PicNonVisual $ PicDrawingNonVisual
-        { _pdnvId          = 0
-        , _pdnvName        = "Picture 1"
-        , _pdnvDescription = Just ""
-        , _pdnvHidden      = False
-        , _pdnvTitle       = Nothing }
-    bfProps = BlipFillProperties
-        { _bfpImageInfo = Just (RefId "rId1")
-        , _bfpFillMode  = Just FillStretch }
-    shProps = ShapeProperties
-        { _spXfrm      = Just trnsfrm
-        , _spGeometry  = Just PresetGeometry
-        , _spOutline   = Just $ LineProperties (Just LineNoFill) }
-    trnsfrm = Transform2D
-        {  _trRot    = Angle 0
-        , _trFlipH   = False
-        , _trFlipV   = False
-        , _trOffset  = Just (unqPoint2D 0 0)
-        , _trExtents = Just (PositiveSize2D (PositiveCoordinate 10074240)
-                                            (PositiveCoordinate 5402520)) }
+    anchor1 =
+      Anchor
+      {_anchAnchoring = anchoring1, _anchObject = pic, _anchClientData = def}
+    anchoring1 =
+      TwoCellAnchor
+      { tcaFrom = unqMarker (0, 0) (0, 0)
+      , tcaTo = unqMarker (12, 320760) (33, 38160)
+      , tcaEditAs = EditAsAbsolute
+      }
+    pic =
+      Picture
+      { _picMacro = Nothing
+      , _picPublished = False
+      , _picNonVisual = nonVis1
+      , _picBlipFill = bfProps
+      , _picShapeProperties = shProps
+      }
+    nonVis1 =
+      PicNonVisual $
+      NonVisualDrawingProperties
+      { _nvdpId = 0
+      , _nvdpName = "Picture 1"
+      , _nvdpDescription = Just ""
+      , _nvdpHidden = False
+      , _nvdpTitle = Nothing
+      }
+    bfProps =
+      BlipFillProperties
+      {_bfpImageInfo = Just (RefId "rId1"), _bfpFillMode = Just FillStretch}
+    shProps =
+      ShapeProperties
+      { _spXfrm = Just trnsfrm
+      , _spGeometry = Just PresetGeometry
+      , _spFill = Nothing
+      , _spOutline = Just $ LineProperties (Just NoFill)
+      }
+    trnsfrm =
+      Transform2D
+      { _trRot = Angle 0
+      , _trFlipH = False
+      , _trFlipV = False
+      , _trOffset = Just (unqPoint2D 0 0)
+      , _trExtents =
+          Just
+            (PositiveSize2D
+               (PositiveCoordinate 10074240)
+               (PositiveCoordinate 5402520))
+      }
+    anchor2 =
+      Anchor
+      { _anchAnchoring = anchoring2
+      , _anchObject = graphic
+      , _anchClientData = def
+      }
+    anchoring2 =
+      TwoCellAnchor
+      { tcaFrom = unqMarker (0, 87840) (21, 131040)
+      , tcaTo = unqMarker (7, 580320) (38, 132480)
+      , tcaEditAs = EditAsOneCell
+      }
+    graphic =
+      Graphic
+      { _grNonVisual = nonVis2
+      , _grChartSpace = RefId "rId2"
+      , _grTransform = transform
+      }
+    nonVis2 = GraphNonVisual $
+      NonVisualDrawingProperties
+      { _nvdpId = 1
+      , _nvdpName = ""
+      , _nvdpDescription = Nothing
+      , _nvdpHidden = False
+      , _nvdpTitle = Nothing
+      }
+    transform =
+      Transform2D
+      { _trRot = Angle 0
+      , _trFlipH = False
+      , _trFlipV = False
+      , _trOffset = Just (unqPoint2D 0 0)
+      , _trExtents =
+          Just
+            (PositiveSize2D
+               (PositiveCoordinate 10074240)
+               (PositiveCoordinate 5402520))
+      }
+
 
 testDrawingFile :: ByteString
 testDrawingFile = [r|
@@ -323,6 +405,26 @@ testDrawingFile = [r|
         <a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:ln><a:noFill/></a:ln>
       </xdr:spPr>
     </xdr:pic>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
+  <xdr:twoCellAnchor editAs="oneCell">
+    <xdr:from>
+      <xdr:col>0</xdr:col><xdr:colOff>87840</xdr:colOff>
+      <xdr:row>21</xdr:row><xdr:rowOff>131040</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>7</xdr:col><xdr:colOff>580320</xdr:colOff>
+      <xdr:row>38</xdr:row><xdr:rowOff>132480</xdr:rowOff>
+    </xdr:to>
+    <xdr:graphicFrame>
+      <xdr:nvGraphicFramePr><xdr:cNvPr id="1" name=""/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>
+      <xdr:xfrm><a:off x="0" y="0"/><a:ext cx="10074240" cy="5402520"/></xdr:xfrm>
+      <a:graphic>
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+          <c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rId2"/>
+        </a:graphicData>
+      </a:graphic>
+    </xdr:graphicFrame>
     <xdr:clientData/>
   </xdr:twoCellAnchor>
 </xdr:wsDr>
@@ -479,3 +581,93 @@ testRunCondFormatted = conditionallyFormatted condFmts minimalStyleSheet
         at "B2:B3"  ?= [cfRule1, cfRule2]
         at "C3:E10" ?= [cfRule1]
         at "F1:G10" ?= [cfRule3]
+
+testChartFile :: ByteString
+testChartFile = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<c:chart>
+<c:title>
+ <c:tx><c:rich><a:bodyPr rot="0" anchor="b"/><a:p><a:r><a:t>Line chart title</a:t></a:r></a:p></c:rich></c:tx>
+</c:title>
+<c:plotArea>
+<c:lineChart>
+<c:grouping val="standard"/>
+<c:ser>
+  <c:idx val="0"/><c:order val="0"/>
+  <c:tx><c:strRef><c:f>Sheet1!$A$1</c:f></c:strRef></c:tx>
+  <c:marker><c:symbol val="none"/></c:marker>
+  <c:val><c:numRef><c:f>Sheet1!$B$1:$D$1</c:f></c:numRef></c:val>
+  <c:smooth val="0"/>
+</c:ser>
+<c:ser>
+  <c:idx val="1"/><c:order val="1"/>
+  <c:tx><c:strRef><c:f>Sheet1!$A$2</c:f></c:strRef></c:tx>
+  <c:marker><c:symbol val="none"/></c:marker>
+  <c:val><c:numRef><c:f>Sheet1!$B$2:$D$2</c:f></c:numRef></c:val>
+  <c:smooth val="0"/>
+</c:ser>
+<c:marker val="0"/>
+<c:smooth val="0"/>
+</c:lineChart>
+</c:plotArea>
+<c:plotVisOnly val="1"/>
+<c:dispBlanksAs val="gap"/>
+</c:chart>
+</c:chartSpace>
+|]
+
+testChartSpace :: ChartSpace
+testChartSpace =
+  ChartSpace
+  { _chspTitle = Just $ ChartTitle titleBody
+  , _chspCharts = charts
+  , _chspLegend = Nothing
+  , _chspPlotVisOnly = Just True
+  , _chspDispBlanksAs = Just DispBlanksAsGap
+  }
+  where
+    titleBody =
+      TextBody
+      { _txbdRotation = Angle 0
+      , _txbdSpcFirstLastPara = False
+      , _txbdVertOverflow = TextVertOverflow
+      , _txbdVertical = TextVerticalHorz
+      , _txbdWrap = TextWrapSquare
+      , _txbdAnchor = TextAnchoringBottom
+      , _txbdAnchorCenter = False
+      , _txbdParagraphs =
+          [TextParagraph Nothing [RegularRun Nothing "Line chart title"]]
+      }
+    charts =
+      [ LineChart
+        { _lnchGrouping = StandardGrouping
+        , _lnchSeries = series
+        , _lnchMarker = Just False
+        , _lnchSmooth = Just False
+        }
+      ]
+    series =
+      [ LineSeries
+        { _lnserShared = Series . Just $ Formula "Sheet1!$A$1"
+        , _lnserMarker = Just markerNone
+        , _lnserDataLblProps = Nothing
+        , _lnserVal = Just $ Formula "Sheet1!$B$1:$D$1"
+        , _lnserSmooth = Just False
+        }
+      , LineSeries
+        { _lnserShared = Series . Just $ Formula "Sheet1!$A$2"
+        , _lnserMarker = Just markerNone
+        , _lnserDataLblProps = Nothing
+        , _lnserVal = Just $ Formula "Sheet1!$B$2:$D$2"
+        , _lnserSmooth = Just False
+        }
+      ]
+    markerNone =
+      DataMarker {_dmrkSymbol = Just DataMarkerNone, _dmrkSize = Nothing}
+
+testWrittenChartSpace :: ByteString
+testWrittenChartSpace = renderLBS def{rsNamespaces=nss} $ toDocument testChartSpace
+  where
+    nss = [ ("c", "http://schemas.openxmlformats.org/drawingml/2006/chart")
+          , ("a", "http://schemas.openxmlformats.org/drawingml/2006/main") ]
