@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings  #-}
 module Codec.Xlsx.Parser.Internal
     ( ParseException(..)
-    , n
+    , n_
     , nodeElNameIs
     , FromCursor(..)
     , FromAttrVal(..)
@@ -131,11 +131,11 @@ runReader reader t = case reader t of
   _ -> []
 
 -- | Add sml namespace to name
-n :: Text -> Name
-n x = Name
+n_ :: Text -> Name
+n_ x = Name
   { nameLocalName = x
   , nameNamespace = Just "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-  , namePrefix = Nothing
+  , namePrefix = Just "n"
   }
 
 decimal :: (Monad m, Integral a) => Text -> m a

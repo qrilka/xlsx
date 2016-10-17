@@ -58,15 +58,15 @@ instance ToElement CommentTable where
 
 instance FromCursor CommentTable where
   fromCursor cur = do
-    let authorNames = cur $/ element (n"authors") &/ element (n"author") &/ content
+    let authorNames = cur $/ element (n_ "authors") &/ element (n_ "author") &/ content
         authors = M.fromList $ zip [0..] authorNames
-        items = cur $/ element (n"commentList") &/ element (n"comment") >=> parseComment authors
+        items = cur $/ element (n_ "commentList") &/ element (n_ "comment") >=> parseComment authors
     return . CommentTable $ M.fromList items
 
 parseComment :: Map Int Text -> Cursor -> [(CellRef, Comment)]
 parseComment authors cur = do
     ref <- cur $| attribute "ref"
-    txt <- cur $/ element (n"text") >=> fromCursor
+    txt <- cur $/ element (n_ "text") >=> fromCursor
     authorId <- cur $| attribute "authorId" >=> decimal
     let author = fromJustNote "authorId" $ M.lookup authorId authors
     return (ref, Comment txt author True)

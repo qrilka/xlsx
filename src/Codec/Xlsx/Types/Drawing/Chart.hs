@@ -8,7 +8,7 @@ import           Data.Text                         (Text)
 import           Text.XML
 import           Text.XML.Cursor
 
-import           Codec.Xlsx.Parser.Internal hiding (n)
+import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Common
 import           Codec.Xlsx.Types.Drawing.Common
 import           Codec.Xlsx.Writer.Internal

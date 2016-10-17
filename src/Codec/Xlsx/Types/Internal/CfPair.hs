@@ -21,7 +21,7 @@ newtype CfPair = CfPair
 instance FromCursor CfPair where
     fromCursor cur = do
         sqref <- fromAttribute "sqref" cur
-        let cfRules = cur $/ element (n"cfRule") >=> fromCursor
+        let cfRules = cur $/ element (n_ "cfRule") >=> fromCursor
         return $ CfPair (sqref, cfRules)
 
 instance ToElement CfPair where

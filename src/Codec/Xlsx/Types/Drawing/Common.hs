@@ -13,7 +13,7 @@ import qualified Data.Text.Read             as T
 import           Text.XML
 import           Text.XML.Cursor
 
-import           Codec.Xlsx.Parser.Internal hiding (n)
+import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Writer.Internal
 
 -- | This simple type represents an angle in 60,000ths of a degree.

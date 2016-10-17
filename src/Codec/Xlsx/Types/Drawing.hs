@@ -23,7 +23,7 @@ import           Text.XML.Cursor
 import           Control.Applicative
 #endif
 
-import           Codec.Xlsx.Parser.Internal              hiding (n)
+import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Drawing.Common
 import           Codec.Xlsx.Types.Drawing.Chart
 import           Codec.Xlsx.Types.Internal

@@ -9,7 +9,7 @@ import qualified Data.Text.Encoding         as T
 import           Text.XML
 import           Text.XML.Cursor
 
-import           Codec.Xlsx.Parser.Internal hiding (n)
+import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Writer.Internal
 
 data Variant

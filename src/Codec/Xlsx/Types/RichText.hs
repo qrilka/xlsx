@@ -255,28 +255,28 @@ instance ToElement RunProperties where
 -- | See @CT_RElt@, p. 3903
 instance FromCursor RichTextRun where
   fromCursor cur = do
-    _richTextRunText <- cur $/ element (n"t") &/ content
-    _richTextRunProperties <- maybeFromElement (n"rPr") cur
+    _richTextRunText <- cur $/ element (n_ "t") &/ content
+    _richTextRunProperties <- maybeFromElement (n_ "rPr") cur
     return RichTextRun{..}
 
 -- | See @CT_RPrElt@, p. 3903
 instance FromCursor RunProperties where
   fromCursor cur = do
-    _runPropertiesFont          <- maybeElementValue (n"rFont") cur
-    _runPropertiesCharset       <- maybeElementValue (n"charset") cur
-    _runPropertiesFontFamily    <- maybeElementValue (n"family") cur
-    _runPropertiesBold          <- maybeElementValue (n"b") cur
-    _runPropertiesItalic        <- maybeElementValue (n"i") cur
-    _runPropertiesStrikeThrough <- maybeElementValue (n"strike") cur
-    _runPropertiesOutline       <- maybeElementValue (n"outline") cur
-    _runPropertiesShadow        <- maybeElementValue (n"shadow") cur
-    _runPropertiesCondense      <- maybeElementValue (n"condense") cur
-    _runPropertiesExtend        <- maybeElementValue (n"extend") cur
-    _runPropertiesColor         <- maybeFromElement  (n"color") cur
-    _runPropertiesSize          <- maybeElementValue (n"sz") cur
-    _runPropertiesUnderline     <- maybeElementValue (n"u") cur
-    _runPropertiesVertAlign     <- maybeElementValue (n"vertAlign") cur
-    _runPropertiesScheme        <- maybeElementValue (n"scheme") cur
+    _runPropertiesFont          <- maybeElementValue (n_ "rFont") cur
+    _runPropertiesCharset       <- maybeElementValue (n_ "charset") cur
+    _runPropertiesFontFamily    <- maybeElementValue (n_ "family") cur
+    _runPropertiesBold          <- maybeElementValue (n_ "b") cur
+    _runPropertiesItalic        <- maybeElementValue (n_ "i") cur
+    _runPropertiesStrikeThrough <- maybeElementValue (n_ "strike") cur
+    _runPropertiesOutline       <- maybeElementValue (n_ "outline") cur
+    _runPropertiesShadow        <- maybeElementValue (n_ "shadow") cur
+    _runPropertiesCondense      <- maybeElementValue (n_ "condense") cur
+    _runPropertiesExtend        <- maybeElementValue (n_ "extend") cur
+    _runPropertiesColor         <- maybeFromElement  (n_ "color") cur
+    _runPropertiesSize          <- maybeElementValue (n_ "sz") cur
+    _runPropertiesUnderline     <- maybeElementValue (n_ "u") cur
+    _runPropertiesVertAlign     <- maybeElementValue (n_ "vertAlign") cur
+    _runPropertiesScheme        <- maybeElementValue (n_ "scheme") cur
     return RunProperties{..}
 
 {-------------------------------------------------------------------------------

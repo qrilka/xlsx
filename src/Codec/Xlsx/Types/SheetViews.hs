@@ -461,8 +461,8 @@ instance FromCursor SheetView where
     _sheetViewZoomScaleSheetLayoutView <- maybeAttribute "zoomScaleSheetLayoutView" cur
     _sheetViewZoomScalePageLayoutView  <- maybeAttribute "zoomScalePageLayoutView" cur
     _sheetViewWorkbookViewId           <- fromAttribute "workbookViewId" cur
-    let _sheetViewPane = listToMaybe $ cur $/ element (n"pane") >=> fromCursor
-        _sheetViewSelection = cur $/ element (n"selection") >=> fromCursor
+    let _sheetViewPane = listToMaybe $ cur $/ element (n_ "pane") >=> fromCursor
+        _sheetViewSelection = cur $/ element (n_ "selection") >=> fromCursor
     return SheetView{..}
 
 -- | See @CT_Pane@, p. 3913

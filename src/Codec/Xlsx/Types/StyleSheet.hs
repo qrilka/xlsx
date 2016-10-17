@@ -1359,15 +1359,15 @@ instance ToAttrVal ReadingOrder where
 instance FromCursor StyleSheet where
   fromCursor cur = do
     let
-      _styleSheetFonts = cur $/ element (n"fonts") &/ element (n"font") >=> fromCursor
-      _styleSheetFills = cur $/ element (n"fills") &/ element (n"fill") >=> fromCursor
-      _styleSheetBorders = cur $/ element (n"borders") &/ element (n"border") >=> fromCursor
+      _styleSheetFonts = cur $/ element (n_ "fonts") &/ element (n_ "font") >=> fromCursor
+      _styleSheetFills = cur $/ element (n_ "fills") &/ element (n_ "fill") >=> fromCursor
+      _styleSheetBorders = cur $/ element (n_ "borders") &/ element (n_ "border") >=> fromCursor
          -- TODO: cellStyleXfs
-      _styleSheetCellXfs = cur $/ element (n"cellXfs") &/ element (n"xf") >=> fromCursor
+      _styleSheetCellXfs = cur $/ element (n_ "cellXfs") &/ element (n_ "xf") >=> fromCursor
          -- TODO: cellStyles
-      _styleSheetDxfs = cur $/ element (n"dxfs") &/ element (n"dxf") >=> fromCursor
+      _styleSheetDxfs = cur $/ element (n_ "dxfs") &/ element (n_ "dxf") >=> fromCursor
       _styleSheetNumFmts = M.fromList . map unNumFmtPair $
-          cur $/ element (n"numFmts")&/ element (n"numFmt") >=> fromCursor
+          cur $/ element (n_ "numFmts")&/ element (n_ "numFmt") >=> fromCursor
          -- TODO: tableStyles
          -- TODO: colors
          -- TODO: extLst
@@ -1376,21 +1376,21 @@ instance FromCursor StyleSheet where
 -- | See @CT_Font@, p. 4489
 instance FromCursor Font where
   fromCursor cur = do
-    _fontName         <- maybeElementValue (n"name") cur
-    _fontCharset      <- maybeElementValue (n"charset") cur
-    _fontFamily       <- maybeElementValue (n"family") cur
-    _fontBold         <- maybeBoolElementValue (n"b") cur
-    _fontItalic       <- maybeBoolElementValue (n"i") cur
-    _fontStrikeThrough<- maybeBoolElementValue (n"strike") cur
-    _fontOutline      <- maybeBoolElementValue (n"outline") cur
-    _fontShadow       <- maybeBoolElementValue (n"shadow") cur
-    _fontCondense     <- maybeBoolElementValue (n"condense") cur
-    _fontExtend       <- maybeBoolElementValue (n"extend") cur
-    _fontColor        <- maybeFromElement  (n"color") cur
-    _fontSize         <- maybeElementValue (n"sz") cur
-    _fontUnderline    <- maybeElementValueDef (n"u") FontUnderlineSingle cur
-    _fontVertAlign    <- maybeElementValue (n"vertAlign") cur
-    _fontScheme       <- maybeElementValue (n"scheme") cur
+    _fontName         <- maybeElementValue (n_ "name") cur
+    _fontCharset      <- maybeElementValue (n_ "charset") cur
+    _fontFamily       <- maybeElementValue (n_ "family") cur
+    _fontBold         <- maybeBoolElementValue (n_ "b") cur
+    _fontItalic       <- maybeBoolElementValue (n_ "i") cur
+    _fontStrikeThrough<- maybeBoolElementValue (n_ "strike") cur
+    _fontOutline      <- maybeBoolElementValue (n_ "outline") cur
+    _fontShadow       <- maybeBoolElementValue (n_ "shadow") cur
+    _fontCondense     <- maybeBoolElementValue (n_ "condense") cur
+    _fontExtend       <- maybeBoolElementValue (n_ "extend") cur
+    _fontColor        <- maybeFromElement  (n_ "color") cur
+    _fontSize         <- maybeElementValue (n_ "sz") cur
+    _fontUnderline    <- maybeElementValueDef (n_ "u") FontUnderlineSingle cur
+    _fontVertAlign    <- maybeElementValue (n_ "vertAlign") cur
+    _fontScheme       <- maybeElementValue (n_ "scheme") cur
     return Font{..}
 
 -- | See 18.18.94 "ST_FontFamily (Font Family)" (p. 2517)
@@ -1436,15 +1436,15 @@ instance FromAttrVal FontScheme where
 -- | See @CT_Fill@, p. 4484
 instance FromCursor Fill where
   fromCursor cur = do
-    _fillPattern <- maybeFromElement (n"patternFill") cur
+    _fillPattern <- maybeFromElement (n_ "patternFill") cur
     return Fill{..}
 
 -- | See @CT_PatternFill@, p. 4484
 instance FromCursor FillPattern where
   fromCursor cur = do
     _fillPatternType <- maybeAttribute "patternType" cur
-    _fillPatternFgColor <- maybeFromElement (n"fgColor") cur
-    _fillPatternBgColor <- maybeFromElement (n"bgColor") cur
+    _fillPatternFgColor <- maybeFromElement (n_ "fgColor") cur
+    _fillPatternBgColor <- maybeFromElement (n_ "bgColor") cur
     return FillPattern{..}
 
 instance FromAttrVal PatternType where
@@ -1475,21 +1475,21 @@ instance FromCursor Border where
     _borderDiagonalUp   <- maybeAttribute "diagonalUp" cur
     _borderDiagonalDown <- maybeAttribute "diagonalDown" cur
     _borderOutline      <- maybeAttribute "outline" cur
-    _borderStart      <- maybeFromElement (n"start") cur
-    _borderEnd        <- maybeFromElement (n"end") cur
-    _borderLeft       <- maybeFromElement (n"left") cur
-    _borderRight      <- maybeFromElement (n"right") cur
-    _borderTop        <- maybeFromElement (n"top") cur
-    _borderBottom     <- maybeFromElement (n"bottom") cur
-    _borderDiagonal   <- maybeFromElement (n"diagonal") cur
-    _borderVertical   <- maybeFromElement (n"vertical") cur
-    _borderHorizontal <- maybeFromElement (n"horizontal") cur
+    _borderStart      <- maybeFromElement (n_ "start") cur
+    _borderEnd        <- maybeFromElement (n_ "end") cur
+    _borderLeft       <- maybeFromElement (n_ "left") cur
+    _borderRight      <- maybeFromElement (n_ "right") cur
+    _borderTop        <- maybeFromElement (n_ "top") cur
+    _borderBottom     <- maybeFromElement (n_ "bottom") cur
+    _borderDiagonal   <- maybeFromElement (n_ "diagonal") cur
+    _borderVertical   <- maybeFromElement (n_ "vertical") cur
+    _borderHorizontal <- maybeFromElement (n_ "horizontal") cur
     return Border{..}
 
 instance FromCursor BorderStyle where
   fromCursor cur = do
     _borderStyleLine  <- maybeAttribute "style" cur
-    _borderStyleColor <- maybeFromElement (n"color") cur
+    _borderStyleColor <- maybeFromElement (n_ "color") cur
     return BorderStyle{..}
 
 instance FromAttrVal LineStyle where
@@ -1512,8 +1512,8 @@ instance FromAttrVal LineStyle where
 -- | See @CT_Xf@, p. 4486
 instance FromCursor CellXf where
   fromCursor cur = do
-    _cellXfAlignment  <- maybeFromElement (n"alignment") cur
-    _cellXfProtection <- maybeFromElement (n"protection") cur
+    _cellXfAlignment  <- maybeFromElement (n_ "alignment") cur
+    _cellXfProtection <- maybeFromElement (n_ "protection") cur
     _cellXfNumFmtId          <- maybeAttribute "numFmtId" cur
     _cellXfFontId            <- maybeAttribute "fontId" cur
     _cellXfFillId            <- maybeAttribute "fillId" cur
@@ -1532,11 +1532,11 @@ instance FromCursor CellXf where
 -- | See @CT_Dxf@, p. 3937
 instance FromCursor Dxf where
     fromCursor cur = do
-      _dxfFont         <- maybeFromElement (n"font") cur
-      _dxfFill         <- maybeFromElement (n"fill") cur
-      _dxfAlignment    <- maybeFromElement (n"alignment") cur
-      _dxfBorder       <- maybeFromElement (n"border") cur
-      _dxfProtection   <- maybeFromElement (n"protection") cur
+      _dxfFont         <- maybeFromElement (n_ "font") cur
+      _dxfFill         <- maybeFromElement (n_ "fill") cur
+      _dxfAlignment    <- maybeFromElement (n_ "alignment") cur
+      _dxfBorder       <- maybeFromElement (n_ "border") cur
+      _dxfProtection   <- maybeFromElement (n_ "protection") cur
       return Dxf{..}
 
 -- | See @CT_CellAlignment@, p. 4482

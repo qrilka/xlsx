@@ -179,7 +179,7 @@ readCondition "beginsWith" cur       = do
     return $ BeginsWith txt
 readCondition "cellIs" cur           = do
     operator <- fromAttribute "operator" cur
-    let formulas = cur $/ element (n"formula") >=> fromCursor
+    let formulas = cur $/ element (n_ "formula") >=> fromCursor
     expr <- readOpExpression operator formulas
     return $ CellIs expr
 readCondition "containsBlanks" _     = return ContainsBlanks

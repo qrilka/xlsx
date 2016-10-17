@@ -91,7 +91,7 @@ extractSheet ar sst contentTypes wf = do
 
   -- The specification says the file should contain either 0 or 1 @sheetViews@
   -- (4th edition, section 18.3.1.88, p. 1704 and definition CT_Worksheet, p. 3910)
-  let  sheetViewList = cur $/ element (n"sheetViews") &/ element (n"sheetView") >=> fromCursor
+  let  sheetViewList = cur $/ element (n_ "sheetViews") &/ element (n_ "sheetView") >=> fromCursor
        sheetViews = case sheetViewList of
          []    -> Nothing
          views -> Just views
@@ -99,17 +99,17 @@ extractSheet ar sst contentTypes wf = do
   let commentsType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
       commentTarget :: Maybe FilePath
       commentTarget = relTarget <$> findRelByType commentsType sheetRels
-      legacyDrRId = cur $/ element (n"legacyDrawing") >=> fromAttribute (odr"id")
+      legacyDrRId = cur $/ element (n_ "legacyDrawing") >=> fromAttribute (odr"id")
       legacyDrPath = fmap relTarget . flip Relationships.lookup sheetRels  =<< listToMaybe legacyDrRId
 
   commentsMap :: Maybe CommentTable <- maybe (Right Nothing) (getComments ar legacyDrPath) commentTarget
 
   -- Likewise, @pageSetup@ also occurs either 0 or 1 times
-  let pageSetup = listToMaybe $ cur $/ element (n"pageSetup") >=> fromCursor
+  let pageSetup = listToMaybe $ cur $/ element (n_ "pageSetup") >=> fromCursor
 
-      cws = cur $/ element (n"cols") &/ element (n"col") >=> fromCursor
+      cws = cur $/ element (n_ "cols") &/ element (n_ "col") >=> fromCursor
 
-      (rowProps, cells) = collect $ cur $/ element (n"sheetData") &/ element (n"row") >=> parseRow
+      (rowProps, cells) = collect $ cur $/ element (n_ "sheetData") &/ element (n_ "row") >=> parseRow
       parseRow :: Cursor -> [(Int, Maybe RowProperties, [(Int, Int, Cell)])]
       parseRow c = do
         r <- c $| attribute "r" >=> decimal
@@ -120,15 +120,15 @@ extractSheet ar sst contentTypes wf = do
         let rp = if isNothing s && isNothing ht
                  then  Nothing
                  else  Just (RowProps ht s)
-        return (r, rp, c $/ element (n"c") >=> parseCell)
+        return (r, rp, c $/ element (n_ "c") >=> parseCell)
       parseCell :: Cursor -> [(Int, Int, Cell)]
       parseCell cell = do
         ref <- cell $| attribute "r"
         let
           s = listToMaybe $ cell $| attribute "s" >=> decimal
           t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
-          d = listToMaybe $ cell $/ element (n"v") &/ content >=> extractCellValue sst t
-          f = listToMaybe $ cell $/ element (n"f") >=> fromCursor
+          d = listToMaybe $ cell $/ element (n_ "v") &/ content >=> extractCellValue sst t
+          f = listToMaybe $ cell $/ element (n_ "f") >=> fromCursor
           (c, r) = T.span (>'9') ref
           comment = commentsMap >>= lookupComment ref
         return (int r, col2int c, Cell s d comment f)
@@ -139,14 +139,14 @@ extractSheet ar sst contentTypes wf = do
         (M.insert r h rowMap, foldr collectCell cellMap rowCells)
       collectCell (x, y, cd) = M.insert (x,y) cd
 
-      mDrawingId = listToMaybe $ cur $/ element (n"drawing") >=> fromAttribute (odr"id")
+      mDrawingId = listToMaybe $ cur $/ element (n_ "drawing") >=> fromAttribute (odr"id")
 
       merges = cur $/ parseMerges
       parseMerges :: Cursor -> [Text]
-      parseMerges = element (n"mergeCells") &/ element (n"mergeCell") >=> parseMerge
+      parseMerges = element (n_ "mergeCells") &/ element (n_ "mergeCell") >=> parseMerge
       parseMerge c = c $| attribute "ref"
 
-      condFormtattings = M.fromList . map unCfPair  $ cur $/ element (n"conditionalFormatting") >=> fromCursor
+      condFormtattings = M.fromList . map unCfPair  $ cur $/ element (n_ "conditionalFormatting") >=> fromCursor
 
   mDrawing <- case mDrawingId of
       Just dId -> do
@@ -282,9 +282,9 @@ readWorkbook ar = do
                                , T.concat $ c $/ content
                                )
 
-      names = cur $/ element (n"definedNames") &/ element (n"definedName") >=> mkDefinedName
+      names = cur $/ element (n_ "definedNames") &/ element (n_ "definedName") >=> mkDefinedName
   sheets <- sequence $
-    cur $/ element (n"sheets") &/ element (n"sheet") >=>
+    cur $/ element (n_ "sheets") &/ element (n_ "sheet") >=>
       liftA2 (worksheetFile wbPath wbRels) <$> attribute "name" <*> (attribute (odr"id") &| RefId)
   return (sheets, DefinedNames names)
 
