@@ -1,5 +1,6 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Codec.Xlsx.Types.Drawing.Common where
 
 import           Control.Arrow              (first)
@@ -12,6 +13,10 @@ import qualified Data.Text                  as T
 import qualified Data.Text.Read             as T
 import           Text.XML
 import           Text.XML.Cursor
+
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative
+#endif
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Writer.Internal
