@@ -38,6 +38,7 @@ Library
                    , Codec.Xlsx.Types.Comment
                    , Codec.Xlsx.Types.Common
                    , Codec.Xlsx.Types.ConditionalFormatting
+                   , Codec.Xlsx.Types.DataValidation
                    , Codec.Xlsx.Types.Drawing
                    , Codec.Xlsx.Types.Drawing.Chart
                    , Codec.Xlsx.Types.Drawing.Common

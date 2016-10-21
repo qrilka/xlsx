@@ -86,7 +86,7 @@ testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties
   where
     sheets = [("List1", sheet1), ("Another sheet", sheet2)]
-    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup cFormatting
+    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup cFormatting Nothing
     sheet2 = def & wsCells .~ testCellMap2
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]

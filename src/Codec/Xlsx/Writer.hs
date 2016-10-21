@@ -124,6 +124,9 @@ singleSheetFiles n cells ws = runST $ do
             , toElement "pageSetup" <$> ws ^. wsPageSetup
             , fst3 <$> mDrawingData
             , fst <$> mCmntData
+            ] ++
+            [ countedElementList "dataValidations" . map (toElement "dataValidation") <$>
+                ws ^. wsDataValidations
             ]
         cfPairs = map CfPair . M.toList $ ws ^. wsConditionalFormattings
         cwEl cw = leafElement "col" [ ("min", txti $ cwMin cw)
