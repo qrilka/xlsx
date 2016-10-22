@@ -92,7 +92,6 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
     cols = [ColumnsWidth 1 10 15 1]
     drawing = Just $ testDrawing { _xdrAnchors = map resolve $ _xdrAnchors testDrawing }
     resolve :: Anchor RefId RefId -> Anchor FileInfo ChartSpace
---    pic = head (testDrawing ^. xdrAnchors) & anchObject %~ setFI
     resolve Anchor {..} =
       let obj =
             case _anchObject of
