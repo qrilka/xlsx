@@ -45,8 +45,8 @@ instance ToElement CommentTable where
     where
       commentToEl (ref, Comment{..}) = Element
           { elementName = "comment"
-          , elementAttributes = M.fromList [ ("ref", ref)
-                                           , ("authorId", lookupAuthor _commentAuthor)]
+          , elementAttributes = M.fromList [ ("ref" .= ref)
+                                           , ("authorId" .= lookupAuthor _commentAuthor)]
           , elementNodes      = [NodeElement $ toElement "text" _commentText]
           }
       lookupAuthor a = fromJustNote "author lookup" $ M.lookup a authorIds
@@ -65,7 +65,7 @@ instance FromCursor CommentTable where
 
 parseComment :: Map Int Text -> Cursor -> [(CellRef, Comment)]
 parseComment authors cur = do
-    ref <- cur $| attribute "ref"
+    ref <- fromAttribute "ref" cur
     txt <- cur $/ element (n_ "text") >=> fromCursor
     authorId <- cur $| attribute "authorId" >=> decimal
     let author = fromJustNote "authorId" $ M.lookup authorId authors
@@ -90,7 +90,7 @@ renderShapes (CommentTable m) = LB.concat
         , "<v:path gradientshapeok=\"t\" o:connecttype=\"rect\"></v:path>"
         , "</v:shapetype>"
         ]
-    commentShapes = [ commentShape (fromCellRef ref) (_commentVisible cmnt)
+    commentShapes = [ commentShape (fromSingleCellRef ref) (_commentVisible cmnt)
                     | (ref, cmnt) <- M.toList m ]
     commentShape (r, c) v = LB.concat
         [ "<v:shape type=\"#baloon\" "

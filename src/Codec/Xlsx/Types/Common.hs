@@ -1,28 +1,33 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Codec.Xlsx.Types.Common
-       ( CellRef
-       , mkCellRef
-       , fromCellRef
-       , SqRef (..)
-       , XlsxText (..)
-       , Formula (..)
-       , int2col
-       , col2int
-       ) where
+  ( CellRef(..)
+  , singleCellRef
+  , fromSingleCellRef
+  , Range
+  , mkRange
+  , fromRange
+  , SqRef(..)
+  , XlsxText(..)
+  , Formula(..)
+  , CellValue(..)
+  , int2col
+  , col2int
+  ) where
 
-import           Control.Arrow
-import           Data.Char
-import qualified Data.Map                   as Map
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import           Data.Tuple                 (swap)
-import           Safe                       (fromJustNote)
-import           Text.XML
-import           Text.XML.Cursor
+import Control.Arrow
+import Data.Char
+import qualified Data.Map as Map
+import Data.Monoid ((<>))
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Tuple (swap)
+import Safe (fromJustNote)
+import Text.XML
+import Text.XML.Cursor
 
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.RichText
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.RichText
+import Codec.Xlsx.Writer.Internal
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
 int2col :: Int -> Text
@@ -41,25 +46,57 @@ col2int = T.foldl' (\i c -> i * 26 + let2int c) 0
     where
         let2int c = 1 + ord c - ord 'A'
 
--- | Excel cell reference (e.g. @E3@)
+-- | Excel cell or cell range reference (e.g. @E3@)
 -- See 18.18.62 @ST_Ref@ (p. 2482)
-type CellRef = Text
+newtype CellRef = CellRef
+  { unCellRef :: Text
+  } deriving (Eq, Ord, Show)
 
 -- | Render position in @(row, col)@ format to an Excel reference.
 --
 -- > mkCellRef (2, 4) == "D2"
-mkCellRef :: (Int, Int) -> CellRef
-mkCellRef (row, col) = T.concat [int2col col, T.pack (show row)]
+singleCellRef :: (Int, Int) -> CellRef
+singleCellRef = CellRef . singleCellRefRaw
+
+singleCellRefRaw :: (Int, Int) -> Text
+singleCellRefRaw (row, col) = T.concat [int2col col, T.pack (show row)]
 
 -- | reverse to 'mkCellRef'
 --
 -- /Warning:/ the function isn't total and will throw an error if
 -- incorrect value will get passed
-fromCellRef :: CellRef -> (Int, Int)
-fromCellRef t = swap $ col2int *** toInt $ T.span (not . isDigit) t
+fromSingleCellRef :: CellRef -> (Int, Int)
+fromSingleCellRef = fromSingleCellRefRaw . unCellRef
+
+fromSingleCellRefRaw :: Text -> (Int, Int)
+fromSingleCellRefRaw t =
+  swap $ col2int *** toInt $ T.span (not . isDigit) t
   where
     toInt = fromJustNote "non-integer row in cell reference" . decimal
 
+
+-- | Excel range (e.g. @D13:H14@), actually store as as 'CellRef' in
+-- xlsx
+type Range = CellRef
+
+-- | Render range
+--
+-- > mkRange (2, 4) (6, 8) == "D2:H6"
+mkRange :: (Int, Int) -> (Int, Int) -> Range
+mkRange fr to = CellRef $ T.concat [singleCellRefRaw fr, T.pack ":", singleCellRefRaw to]
+
+-- | reverse to 'mkRange'
+--
+-- /Warning:/ the function isn't total and will throw an error if
+-- incorrect value will get passed
+fromRange :: Range -> ((Int, Int), (Int, Int))
+fromRange r = case T.split (==':') (unCellRef r) of
+    [from, to] -> (fromSingleCellRefRaw from, fromSingleCellRefRaw to)
+    _ -> error $ "invalid range " <> show r
+
+-- | A sequence of cell references
+--
+-- See 18.18.76 "ST_Sqref (Reference Sequence)" (p.2488)
 newtype SqRef = SqRef [CellRef]
     deriving (Eq, Ord, Show)
 
@@ -91,6 +128,17 @@ data XlsxText = XlsxText Text
 newtype Formula = Formula {unFormula :: Text}
     deriving (Eq, Ord, Show)
 
+
+-- | Cell values include text, numbers and booleans,
+-- standard includes date format also but actually dates
+-- are represented by numbers with a date format assigned
+-- to a cell containing it
+data CellValue = CellText   Text
+               | CellDouble Double
+               | CellBool   Bool
+               | CellRich   [RichTextRun]
+               deriving (Eq, Show)
+
 {-------------------------------------------------------------------------------
   Parsing
 -------------------------------------------------------------------------------}
@@ -113,8 +161,13 @@ instance FromCursor XlsxText where
       _ ->
         fail "invalid item"
 
+instance FromAttrVal CellRef where
+  fromAttrVal = fmap (first CellRef) . fromAttrVal
+
 instance FromAttrVal SqRef where
-    fromAttrVal t = readSuccess (SqRef $ T.split (== ' ') t)
+  fromAttrVal t = do
+    rs <- mapM (fmap fst . fromAttrVal) $ T.split (== ' ') t
+    readSuccess $ SqRef rs
 
 -- | See @ST_Formula@, p. 3873
 instance FromCursor Formula where
@@ -135,10 +188,12 @@ instance ToElement XlsxText where
           XlsxRichText rich -> map (toElement "r") rich
     }
 
--- | A sequence of cell references, space delimited.
+instance ToAttrVal CellRef where
+  toAttrVal = toAttrVal . unCellRef
+
 -- See 18.18.76, "ST_Sqref (Reference Sequence)", p. 2488.
 instance ToAttrVal SqRef where
-    toAttrVal (SqRef refs) = T.intercalate " " refs
+  toAttrVal (SqRef refs) = T.intercalate " " $ map toAttrVal refs
 
 -- | See @ST_Formula@, p. 3873
 instance ToElement Formula where

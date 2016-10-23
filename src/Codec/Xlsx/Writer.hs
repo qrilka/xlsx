@@ -130,7 +130,7 @@ singleSheetFiles n cells ws = runST $ do
                                     , ("max", txti $ cwMax cw)
                                     , ("width", txtd $ cwWidth cw)
                                     , ("style", txti $ cwStyle cw)]
-        mergeE1 t = leafElement "mergeCell" [("ref", t)]
+        mergeE1 r = leafElement "mergeCell" [("ref" .= r)]
 
         sheetRels = if null referencedFiles
                     then []
@@ -163,11 +163,11 @@ sheetDataXml rows rh = map rowEl rows
           Just (RowProps (Just h) Nothing ) -> ([("ht", txtd h)], True,[])
           _ -> ([], False,[])
     cellEl r (icol, cell) =
-      elementList "c" (cellAttrs (mkCellRef (r, icol)) cell)
+      elementList "c" (cellAttrs (singleCellRef (r, icol)) cell)
               (catMaybes [ elementContent "v" . value <$> xlsxCellValue cell
                          , toElement "f" <$> xlsxCellFormula cell
                          ])
-    cellAttrs ref cell = cellStyleAttr cell ++ [("r", ref), ("t", xlsxCellType cell)]
+    cellAttrs ref cell = cellStyleAttr cell ++ [("r" .= ref), ("t" .= xlsxCellType cell)]
     cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
     cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
 
@@ -186,7 +186,7 @@ genComments n cells ref =
     comments = concatMap (\(row, rowCells) -> mapMaybe (maybeCellComment row) rowCells) cells
     maybeCellComment row (col, cell) = do
         comment <- xlsxComment cell
-        return (mkCellRef (row, col), comment)
+        return (singleCellRef (row, col), comment)
     commentTable = CommentTable.fromList comments
     commentsFile = FileData commentsPath
         "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"

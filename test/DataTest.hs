@@ -116,21 +116,22 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
     minimalStyles = renderStyleSheet minimalStyleSheet
     definedNames = DefinedNames [("SampleName", Nothing, "A10:A20")]
     sheetViews = Just [sheetView1, sheetView2]
-    sheetView1 = def & sheetViewRightToLeft .~ Just True
-                     & sheetViewTopLeftCell .~ Just "B5"
-    sheetView2 = def & sheetViewType .~ Just SheetViewTypePageBreakPreview
+    sheetView1 = def & sheetViewRightToLeft ?~ True
+                     & sheetViewTopLeftCell ?~ CellRef "B5"
+    sheetView2 = def & sheetViewType ?~ SheetViewTypePageBreakPreview
                      & sheetViewWorkbookViewId .~ 5
-                     & sheetViewSelection .~ [ def & selectionActiveCell .~ Just "C2"
-                                                   & selectionPane .~ Just PaneTypeBottomRight
-                                             , def & selectionActiveCellId .~ Just 1
-                                                   & selectionSqref ?~ SqRef ["A3:A10","B1:G3"]
+                     & sheetViewSelection .~ [ def & selectionActiveCell ?~ CellRef "C2"
+                                                   & selectionPane ?~ PaneTypeBottomRight
+                                             , def & selectionActiveCellId ?~ 1
+                                                   & selectionSqref ?~ SqRef [ CellRef "A3:A10"
+                                                                             , CellRef "B1:G3"]
                                              ]
-    pageSetup = Just $ def & pageSetupBlackAndWhite .~ Just True
-                           & pageSetupCopies .~ Just 2
-                           & pageSetupErrors .~ Just PrintErrorsDash
-                           & pageSetupPaperSize .~ Just PaperA4
+    pageSetup = Just $ def & pageSetupBlackAndWhite ?~  True
+                           & pageSetupCopies ?~ 2
+                           & pageSetupErrors ?~ PrintErrorsDash
+                           & pageSetupPaperSize ?~ PaperA4
     customProperties = M.fromList [("some_prop", VtInt 42)]
-    cFormatting = M.fromList [(SqRef ["A1:B3"], rules1), (SqRef ["C1:C10"], rules2)]
+    cFormatting = M.fromList [(SqRef [CellRef "A1:B3"], rules1), (SqRef [CellRef "C1:C10"], rules2)]
     cfRule c d = CfRule { _cfrCondition  = c
                         , _cfrDxfId      = Just d
                         , _cfrPriority   = topCfPriority
@@ -224,8 +225,8 @@ testSharedStringTableWithEmpty =
   SharedStringTable $ V.fromList [XlsxText ""]
 
 testCommentTable = CommentTable $ M.fromList
-    [ ("D4", Comment (XlsxRichText rich) "Bob" True)
-    , ("A2", Comment (XlsxText "Some comment here") "CBR" True) ]
+    [ (CellRef "D4", Comment (XlsxRichText rich) "Bob" True)
+    , (CellRef "A2", Comment (XlsxText "Some comment here") "CBR" True) ]
   where
     rich = [ RichTextRun
              { _richTextRunProperties =
@@ -537,9 +538,9 @@ testCondFormattedResult = CondFormatted styleSheet formattings
     dxfs = [ def & dxfFont ?~ (def & fontUnderline ?~ FontUnderlineSingle)
            , def & dxfFont ?~ (def & fontStrikeThrough ?~ True)
            , def & dxfFont ?~ (def & fontBold ?~ True) ]
-    formattings = M.fromList [ (SqRef ["A1:A2", "B2:B3"], [cfRule1, cfRule2])
-                             , (SqRef ["C3:E10"], [cfRule1])
-                             , (SqRef ["F1:G10"], [cfRule3]) ]
+    formattings = M.fromList [ (SqRef [CellRef "A1:A2", CellRef "B2:B3"], [cfRule1, cfRule2])
+                             , (SqRef [CellRef "C3:E10"], [cfRule1])
+                             , (SqRef [CellRef "F1:G10"], [cfRule3]) ]
     cfRule1 = CfRule
         { _cfrCondition  = ContainsBlanks
         , _cfrDxfId      = Just 0
@@ -576,10 +577,10 @@ testRunCondFormatted = conditionallyFormatted condFmts minimalStyleSheet
                           & condfmtDxf . dxfFont . non def . fontStrikeThrough ?~ True
             cfRule3 = def & condfmtCondition .~ CellIs (OpGreaterThan (Formula "A1"))
                           & condfmtDxf . dxfFont . non def . fontBold ?~ True
-        at "A1:A2"  ?= [cfRule1, cfRule2]
-        at "B2:B3"  ?= [cfRule1, cfRule2]
-        at "C3:E10" ?= [cfRule1]
-        at "F1:G10" ?= [cfRule3]
+        at (CellRef "A1:A2")  ?= [cfRule1, cfRule2]
+        at (CellRef "B2:B3")  ?= [cfRule1, cfRule2]
+        at (CellRef "C3:E10") ?= [cfRule1]
+        at (CellRef "F1:G10") ?= [cfRule3]
 
 testChartFile :: ByteString
 testChartFile = [r|

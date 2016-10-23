@@ -123,13 +123,13 @@ extractSheet ar sst contentTypes wf = do
         return (r, rp, c $/ element (n_ "c") >=> parseCell)
       parseCell :: Cursor -> [(Int, Int, Cell)]
       parseCell cell = do
-        ref <- cell $| attribute "r"
+        ref <- fromAttribute "r" cell
         let
           s = listToMaybe $ cell $| attribute "s" >=> decimal
           t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
           d = listToMaybe $ cell $/ element (n_ "v") &/ content >=> extractCellValue sst t
           f = listToMaybe $ cell $/ element (n_ "f") >=> fromCursor
-          (c, r) = T.span (>'9') ref
+          (c, r) = T.span (>'9') $ unCellRef ref
           comment = commentsMap >>= lookupComment ref
         return (int r, col2int c, Cell s d comment f)
       collect = foldr collectRow (M.empty, M.empty)
@@ -142,9 +142,8 @@ extractSheet ar sst contentTypes wf = do
       mDrawingId = listToMaybe $ cur $/ element (n_ "drawing") >=> fromAttribute (odr"id")
 
       merges = cur $/ parseMerges
-      parseMerges :: Cursor -> [Text]
-      parseMerges = element (n_ "mergeCells") &/ element (n_ "mergeCell") >=> parseMerge
-      parseMerge c = c $| attribute "ref"
+      parseMerges :: Cursor -> [Range]
+      parseMerges = element (n_ "mergeCells") &/ element (n_ "mergeCell") >=> fromAttribute "ref"
 
       condFormtattings = M.fromList . map unCfPair  $ cur $/ element (n_ "conditionalFormatting") >=> fromCursor
 
@@ -223,7 +222,7 @@ getComments ar drp fp = do
     shapeCellRef c = do
         r0 <- c $/ element (x"Row") &/ content >=> decimal
         c0 <- c $/ element (x"Column") &/ content >=> decimal
-        return $ mkCellRef (r0 + 1, c0 + 1)
+        return $ singleCellRef (r0 + 1, c0 + 1)
 
 getCustomProperties :: Zip.Archive -> Parser CustomProperties
 getCustomProperties ar = maybe CustomProperties.empty (head . fromCursor) <$> xmlCursorOptional ar "docProps/custom.xml"

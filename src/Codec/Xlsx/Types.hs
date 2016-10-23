@@ -15,7 +15,6 @@ module Codec.Xlsx.Types (
     , CellFormula(..)
     , Cell(..)
     , RowProperties (..)
-    , Range
     -- * Lenses
     -- ** Workbook
     , xlSheets
@@ -43,8 +42,6 @@ module Codec.Xlsx.Types (
     -- * Misc
     , simpleCellFormula
     , def
-    , mkRange
-    , fromRange
     , toRows
     , fromRows
     , module X
@@ -60,9 +57,7 @@ import           Data.List                              (groupBy)
 import           Data.Map                               (Map)
 import qualified Data.Map                               as M
 import           Data.Maybe                             (catMaybes)
-import           Data.Monoid                            ((<>))
 import           Data.Text                              (Text)
-import qualified Data.Text                              as T
 import           Text.XML                               (Element (..), parseLBS,
                                                          renderLBS)
 import           Text.XML.Cursor
@@ -80,16 +75,6 @@ import           Codec.Xlsx.Types.SheetViews            as X
 import           Codec.Xlsx.Types.StyleSheet            as X
 import           Codec.Xlsx.Types.Variant               as X
 import           Codec.Xlsx.Writer.Internal
-
--- | Cell values include text, numbers and booleans,
--- standard includes date format also but actually dates
--- are represented by numbers with a date format assigned
--- to a cell containing it
-data CellValue = CellText   Text
-               | CellDouble Double
-               | CellBool   Bool
-               | CellRich   [RichTextRun]
-               deriving (Eq, Show)
 
 -- | Formula for the cell.
 --
@@ -153,9 +138,6 @@ instance FromCursor ColumnsWidth where
       cwWidth <- rational =<< attribute "width" c
       cwStyle <- decimal =<< attribute "style" c
       return ColumnsWidth{..}
-
--- | Excel range (e.g. @D13:H14@)
-type Range = Text
 
 -- | Xlsx worksheet
 data Worksheet = Worksheet
@@ -258,21 +240,6 @@ fromRows :: [(Int, [(Int, Cell)])] -> CellMap
 fromRows rows = M.fromList $ concatMap mapRow rows
   where
     mapRow (r, cells) = map (\(c, v) -> ((r, c), v)) cells
-
--- | Render range
---
--- > mkRange (2, 4) (6, 8) == "D2:H6"
-mkRange :: (Int, Int) -> (Int, Int) -> Range
-mkRange fr to = T.concat [mkCellRef fr, T.pack ":", mkCellRef to]
-
--- | reverse to 'mkRange'
---
--- /Warning:/ the function isn't total and will throw an error if
--- incorrect value will get passed
-fromRange :: Range -> ((Int, Int), (Int, Int))
-fromRange t = case T.split (==':') t of
-    [from, to] -> (fromCellRef from, fromCellRef to)
-    _ -> error $ "invalid range " <> show t
 
 {-------------------------------------------------------------------------------
   Parsing
