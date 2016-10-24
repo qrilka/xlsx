@@ -148,6 +148,10 @@ extractSheet ar sst contentTypes wf = do
 
       condFormtattings = M.fromList . map unCfPair  $ cur $/ element (n_ "conditionalFormatting") >=> fromCursor
 
+      validations = case [ () | nd <- map node $ child cur, nodeElNameIs nd (n_ "dataValidations") ] of
+        [] -> Nothing
+        _  -> Just $ cur $/ element (n_ "dataValidations") >=> fromCursor
+
   mDrawing <- case mDrawingId of
       Just dId -> do
           rel <- note (InvalidRef filePath dId) $ Relationships.lookup dId sheetRels
@@ -155,7 +159,7 @@ extractSheet ar sst contentTypes wf = do
       Nothing  ->
           return Nothing
 
-  return $ Worksheet cws rowProps cells mDrawing merges sheetViews pageSetup condFormtattings Nothing
+  return $ Worksheet cws rowProps cells mDrawing merges sheetViews pageSetup condFormtattings validations
 
 extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
 extractCellValue sst "s" v =

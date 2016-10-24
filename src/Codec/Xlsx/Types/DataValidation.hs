@@ -1,17 +1,22 @@
-{-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE RecordWildCards           #-}
-{-# LANGUAGE TemplateHaskell           #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Codec.Xlsx.Types.DataValidation where
 
+import           Control.Applicative        ((<$>))
 import           Control.Lens.TH            (makeLenses)
+import           Control.Monad              ((>=>))
+import           Data.Char                  (isSpace)
 import           Data.Default
 import qualified Data.Map                   as M
 import           Data.Maybe                 (catMaybes)
 import           Data.Monoid                ((<>))
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
-import           Text.XML
+import           Text.XML                   (Node (..), Element (..))
+import           Text.XML.Cursor            (Cursor, ($/), element)
 
+import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Common
 import           Codec.Xlsx.Types.ConditionalFormatting
 import           Codec.Xlsx.Writer.Internal
@@ -56,6 +61,83 @@ instance Default DataValidation where
     def = DataValidation
       Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
       (SqRef []) Nothing
+
+{-------------------------------------------------------------------------------
+  Parsing
+-------------------------------------------------------------------------------}
+
+instance FromAttrVal ErrorStyle where
+    fromAttrVal "information" = readSuccess ErrorStyleInformation
+    fromAttrVal "stop"        = readSuccess ErrorStyleStop
+    fromAttrVal "warning"     = readSuccess ErrorStyleWarning
+    fromAttrVal t             = invalidText "ErrorStyle" t
+
+instance FromCursor DataValidation where
+    fromCursor cur = cur $/ element (n_ "dataValidation") >=> fromCur
+      where
+        fromCur c = do
+            _dvAllowBlank       <- maybeAttribute "allowBlank"       c
+            _dvError            <- maybeAttribute "error"            c
+            _dvErrorStyle       <- maybeAttribute "errorStyle"       c
+            _dvErrorTitle       <- maybeAttribute "errorTitle"       c
+            mop                 <- maybeAttribute "operator"         c
+            _dvPrompt           <- maybeAttribute "prompt"           c
+            _dvPromptTitle      <- maybeAttribute "promptTitle"      c
+            _dvShowDropDown     <- maybeAttribute "showDropDown"     c
+            _dvShowErrorMessage <- maybeAttribute "showErrorMessage" c
+            _dvShowInputMessage <- maybeAttribute "showInputMessage" c
+            _dvSqref            <- fromAttribute  "sqref"            c
+            mtype               <- maybeAttribute "type"             c
+            _dvValidationType   <- readValidation mop mtype          c
+            return DataValidation{..}
+
+readValidation :: Maybe Text -> Maybe Text -> Cursor -> [Maybe ValidationType]
+readValidation _ Nothing         _   = return $ Nothing
+readValidation _ (Just "none")   _   = return $ Just ValidationTypeNone
+readValidation _ (Just "custom") cur = do
+    f <- fromCursor cur
+    return $ Just $ ValidationTypeCustom f
+readValidation _ (Just "list") cur = do
+    f  <- cur $/ element (n_ "formula1") >=> fromCursor
+    as <- readListFormula f
+    return $ Just $ ValidationTypeList as
+readValidation (Just op) (Just ty) cur = do
+    opExp <- readOpExpression2 op cur
+    Just <$> readValidationTypeOpExp ty opExp
+readValidation _ _ _ = []
+
+readListFormula :: Formula -> [[Text]]
+readListFormula (Formula f) = catMaybes [readQuotedList f]
+  where
+    readQuotedList t
+        | Just t'  <- T.stripPrefix "\"" (T.dropAround isSpace t)
+        , Just t'' <- T.stripSuffix "\"" t'
+        = Just $ map (T.dropAround isSpace) $ T.splitOn "," t''
+        | otherwise = Nothing
+  -- This parser expects a comma-separated list surrounded by quotation marks.
+  -- Spaces around the quotation marks and commas are removed, but inner spaces
+  -- are kept.
+  --
+  -- The parser seems to be consistent with how Excel treats list formulas, but
+  -- I wasn't able to find a specification of the format.
+
+readOpExpression2 :: Text -> Cursor -> [OperatorExpression]
+readOpExpression2 op cur
+    | op `elem` ["between", "notBetween"] = do
+        f1 <- cur $/ element (n_ "formula1") >=> fromCursor
+        f2 <- cur $/ element (n_ "formula2") >=> fromCursor
+        readOpExpression op [f1,f2]
+readOpExpression2 op cur = do
+    f <- cur $/ element (n_ "formula1") >=> fromCursor
+    readOpExpression op [f]
+
+readValidationTypeOpExp :: Text -> OperatorExpression -> [ValidationType]
+readValidationTypeOpExp "date"       oe = return $ ValidationTypeDate       oe
+readValidationTypeOpExp "decimal"    oe = return $ ValidationTypeDecimal    oe
+readValidationTypeOpExp "textLength" oe = return $ ValidationTypeTextLength oe
+readValidationTypeOpExp "time"       oe = return $ ValidationTypeTime       oe
+readValidationTypeOpExp "whole"      oe = return $ ValidationTypeWhole      oe
+readValidationTypeOpExp _ _             = []
 
 {-------------------------------------------------------------------------------
   Rendering

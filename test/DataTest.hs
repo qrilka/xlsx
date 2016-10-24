@@ -86,7 +86,8 @@ testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties
   where
     sheets = [("List1", sheet1), ("Another sheet", sheet2)]
-    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup cFormatting Nothing
+    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup
+                       cFormatting (Just validations)
     sheet2 = def & wsCells .~ testCellMap2
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
@@ -671,3 +672,47 @@ testWrittenChartSpace = renderLBS def{rsNamespaces=nss} $ toDocument testChartSp
   where
     nss = [ ("c", "http://schemas.openxmlformats.org/drawingml/2006/chart")
           , ("a", "http://schemas.openxmlformats.org/drawingml/2006/main") ]
+
+validations :: [DataValidation]
+validations =
+    [ def {_dvSqref = SqRef ["A1"]}  -- Required field
+    , def
+        { _dvAllowBlank       = Just True
+        , _dvError            = Just "incorrect data"
+        , _dvErrorStyle       = Just ErrorStyleInformation
+        , _dvErrorTitle       = Just "error title"
+        , _dvPrompt           = Just "enter data"
+        , _dvPromptTitle      = Just "prompt title"
+        , _dvShowDropDown     = Just True
+        , _dvShowErrorMessage = Just True
+        , _dvShowInputMessage = Just True
+        , _dvSqref            = SqRef ["A1","B2:C3"]
+        , _dvValidationType   = Just $ ValidationTypeList ["aaaa","bbbb","cccc"]
+        }
+    , def
+        { _dvAllowBlank       = Just False
+        , _dvError            = Just "aaa"
+        , _dvErrorStyle       = Just ErrorStyleWarning
+        , _dvErrorTitle       = Just "bbb"
+        , _dvPrompt           = Just "ccc"
+        , _dvPromptTitle      = Just "ddd"
+        , _dvShowDropDown     = Just False
+        , _dvShowErrorMessage = Just False
+        , _dvShowInputMessage = Just False
+        , _dvSqref            = SqRef ["A6","I2"]
+        , _dvValidationType   = Just $ ValidationTypeDecimal $ OpGreaterThan $ Formula "10"
+        }
+    , def
+        { _dvAllowBlank       = Just False
+        , _dvError            = Just "aaa"
+        , _dvErrorStyle       = Just ErrorStyleStop
+        , _dvErrorTitle       = Just "bbb"
+        , _dvPrompt           = Just "ccc"
+        , _dvPromptTitle      = Just "ddd"
+        , _dvShowDropDown     = Just False
+        , _dvShowErrorMessage = Just False
+        , _dvShowInputMessage = Just False
+        , _dvSqref            = SqRef ["A7"]
+        , _dvValidationType   = Just $ ValidationTypeWhole $ OpNotBetween (Formula "10") (Formula "12")
+        }
+    ]

@@ -15,6 +15,7 @@ module Codec.Xlsx.Types.ConditionalFormatting
     , cfrStopIfTrue
     -- * Misc
     , topCfPriority
+    , readOpExpression
     , viewOperatorExpression
     ) where
 
