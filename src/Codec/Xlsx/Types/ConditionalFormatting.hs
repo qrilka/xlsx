@@ -15,8 +15,6 @@ module Codec.Xlsx.Types.ConditionalFormatting
     , cfrStopIfTrue
     -- * Misc
     , topCfPriority
-    , readOpExpression
-    , viewOperatorExpression
     ) where
 
 import           Control.Lens               (makeLenses)
@@ -267,24 +265,19 @@ conditionData (EndsWith t)           = ("endsWith", M.fromList [ "text" .= t], [
 conditionData (Expression formula)   = ("expression", M.empty, [formulaNode formula])
 conditionData (InTimePeriod period)  = ("timePeriod", M.fromList [ "timePeriod" .= period ], [])
 
-viewOperatorExpression :: OperatorExpression -> (Text, Maybe Formula, Maybe Formula)
-viewOperatorExpression (OpBeginsWith f)          = ("beginsWith",         Just f,  Nothing)
-viewOperatorExpression (OpBetween f1 f2)         = ("between",            Just f1, Just f2)
-viewOperatorExpression (OpContainsText f)        = ("containsText",       Just f,  Nothing)
-viewOperatorExpression (OpEndsWith f)            = ("endsWith",           Just f,  Nothing)
-viewOperatorExpression (OpEqual f)               = ("equal",              Just f,  Nothing)
-viewOperatorExpression (OpGreaterThan f)         = ("greaterThan",        Just f,  Nothing)
-viewOperatorExpression (OpGreaterThanOrEqual f)  = ("greaterThanOrEqual", Just f,  Nothing)
-viewOperatorExpression (OpLessThan f)            = ("lessThan",           Just f,  Nothing)
-viewOperatorExpression (OpLessThanOrEqual f)     = ("lessThanOrEqual",    Just f,  Nothing)
-viewOperatorExpression (OpNotBetween f1 f2)      = ("notBetween",         Just f1, Just f2)
-viewOperatorExpression (OpNotContains f)         = ("notContains",        Just f,  Nothing)
-viewOperatorExpression (OpNotEqual f)            = ("notEqual",           Just f,  Nothing)
-
 operatorExpressionData :: OperatorExpression -> (Text, [Node])
-operatorExpressionData oe = (op, map formulaNode $ catMaybes [f1,f2])
-  where
-    (op,f1,f2) = viewOperatorExpression oe
+operatorExpressionData (OpBeginsWith f)          = ("beginsWith", [formulaNode f])
+operatorExpressionData (OpBetween f1 f2)         = ("between", [formulaNode f1, formulaNode f2])
+operatorExpressionData (OpContainsText f)        = ("containsText", [formulaNode f])
+operatorExpressionData (OpEndsWith f)            = ("endsWith", [formulaNode f])
+operatorExpressionData (OpEqual f)               = ("equal", [formulaNode f])
+operatorExpressionData (OpGreaterThan f)         = ("greaterThan", [formulaNode f])
+operatorExpressionData (OpGreaterThanOrEqual f)  = ("greaterThanOrEqual", [formulaNode f])
+operatorExpressionData (OpLessThan f)            = ("lessThan", [formulaNode f])
+operatorExpressionData (OpLessThanOrEqual f)     = ("lessThanOrEqual", [formulaNode f])
+operatorExpressionData (OpNotBetween f1 f2)      = ("notBetween", [formulaNode f1, formulaNode f2])
+operatorExpressionData (OpNotContains f)         = ("notContains", [formulaNode f])
+operatorExpressionData (OpNotEqual f)            = ("notEqual", [formulaNode  f])
 
 formulaNode :: Formula -> Node
 formulaNode = NodeElement . toElement "formula"

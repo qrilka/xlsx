@@ -700,7 +700,7 @@ validations = M.fromList
         , _dvShowDropDown     = Just False
         , _dvShowErrorMessage = Just False
         , _dvShowInputMessage = Just False
-        , _dvValidationType   = Just $ ValidationTypeDecimal $ OpGreaterThan $ Formula "10"
+        , _dvValidationType   = Just $ ValidationTypeDecimal $ ValGreaterThan $ Formula "10"
         }
       )
     , ( SqRef ["A7"], def
@@ -713,7 +713,7 @@ validations = M.fromList
         , _dvShowDropDown     = Just False
         , _dvShowErrorMessage = Just False
         , _dvShowInputMessage = Just False
-        , _dvValidationType   = Just $ ValidationTypeWhole $ OpNotBetween (Formula "10") (Formula "12")
+        , _dvValidationType   = Just $ ValidationTypeWhole $ ValNotBetween (Formula "10") (Formula "12")
         }
       )
     ]

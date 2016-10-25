@@ -18,19 +18,30 @@ import           Text.XML.Cursor            (Cursor, ($/), element)
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Common
-import           Codec.Xlsx.Types.ConditionalFormatting
 import           Codec.Xlsx.Writer.Internal
+
+-- See 18.18.20 "ST_DataValidationOperator (Data Validation Operator)" (p. 2439/2449)
+data ValidationExpression
+    = ValBetween Formula Formula    -- ^ "Between" operator
+    | ValEqual Formula              -- ^ "Equal to" operator
+    | ValGreaterThan Formula        -- ^ "Greater than" operator
+    | ValGreaterThanOrEqual Formula -- ^ "Greater than or equal to" operator
+    | ValLessThan Formula           -- ^ "Less than" operator
+    | ValLessThanOrEqual Formula    -- ^ "Less than or equal to" operator
+    | ValNotBetween Formula Formula -- ^ "Not between" operator
+    | ValNotEqual Formula           -- ^ "Not equal to" operator
+    deriving (Eq, Show)
 
 -- See 18.18.21 "ST_DataValidationType (Data Validation Type)" (p. 2440/2450)
 data ValidationType
     = ValidationTypeNone
     | ValidationTypeCustom     Formula
-    | ValidationTypeDate       OperatorExpression
-    | ValidationTypeDecimal    OperatorExpression
+    | ValidationTypeDate       ValidationExpression
+    | ValidationTypeDecimal    ValidationExpression
     | ValidationTypeList       [Text]
-    | ValidationTypeTextLength OperatorExpression
-    | ValidationTypeTime       OperatorExpression
-    | ValidationTypeWhole      OperatorExpression
+    | ValidationTypeTextLength ValidationExpression
+    | ValidationTypeTime       ValidationExpression
+    | ValidationTypeWhole      ValidationExpression
     deriving (Eq, Show)
 
 -- See 18.18.18 "ST_DataValidationErrorStyle (Data Validation Error Styles)" (p. 2438/2448)
@@ -116,23 +127,34 @@ readListFormula (Formula f) = catMaybes [readQuotedList f]
   -- The parser seems to be consistent with how Excel treats list formulas, but
   -- I wasn't able to find a specification of the format.
 
-readOpExpression2 :: Text -> Cursor -> [OperatorExpression]
+readOpExpression2 :: Text -> Cursor -> [ValidationExpression]
 readOpExpression2 op cur
     | op `elem` ["between", "notBetween"] = do
         f1 <- cur $/ element (n_ "formula1") >=> fromCursor
         f2 <- cur $/ element (n_ "formula2") >=> fromCursor
-        readOpExpression op [f1,f2]
+        readValExpression op [f1,f2]
 readOpExpression2 op cur = do
     f <- cur $/ element (n_ "formula1") >=> fromCursor
-    readOpExpression op [f]
+    readValExpression op [f]
 
-readValidationTypeOpExp :: Text -> OperatorExpression -> [ValidationType]
+readValidationTypeOpExp :: Text -> ValidationExpression -> [ValidationType]
 readValidationTypeOpExp "date"       oe = return $ ValidationTypeDate       oe
 readValidationTypeOpExp "decimal"    oe = return $ ValidationTypeDecimal    oe
 readValidationTypeOpExp "textLength" oe = return $ ValidationTypeTextLength oe
 readValidationTypeOpExp "time"       oe = return $ ValidationTypeTime       oe
 readValidationTypeOpExp "whole"      oe = return $ ValidationTypeWhole      oe
 readValidationTypeOpExp _ _             = []
+
+readValExpression :: Text -> [Formula] -> [ValidationExpression]
+readValExpression "between" [f1, f2]       = [ValBetween f1 f2]
+readValExpression "equal" [f]              = [ValEqual f]
+readValExpression "greaterThan" [f]        = [ValGreaterThan f]
+readValExpression "greaterThanOrEqual" [f] = [ValGreaterThanOrEqual f]
+readValExpression "lessThan" [f]           = [ValLessThan f]
+readValExpression "lessThanOrEqual" [f]    = [ValLessThanOrEqual f]
+readValExpression "notBetween" [f1, f2]    = [ValNotBetween f1 f2]
+readValExpression "notEqual" [f]           = [ValNotEqual f]
+readValExpression _ _                      = []
 
 {-------------------------------------------------------------------------------
   Rendering
@@ -175,7 +197,7 @@ instance ToElement DataValidation where
             ]
         }
       where
-        opExp (o,f1',f2') = (Just o, f1', f2')
+        opExp (o,f1',f2') = (Just o, Just f1', f2')
 
         op    :: Maybe Text
         f1,f2 :: Maybe Formula
@@ -184,11 +206,22 @@ instance ToElement DataValidation where
             Just t  -> case t of
               ValidationTypeNone         -> (Nothing, Nothing, Nothing)
               ValidationTypeCustom f     -> (Nothing, Just f, Nothing)
-              ValidationTypeDate f       -> opExp $ viewOperatorExpression f
-              ValidationTypeDecimal f    -> opExp $ viewOperatorExpression f
-              ValidationTypeTextLength f -> opExp $ viewOperatorExpression f
-              ValidationTypeTime f       -> opExp $ viewOperatorExpression f
-              ValidationTypeWhole f      -> opExp $ viewOperatorExpression f
+              ValidationTypeDate f       -> opExp $ viewValidationExpression f
+              ValidationTypeDecimal f    -> opExp $ viewValidationExpression f
+              ValidationTypeTextLength f -> opExp $ viewValidationExpression f
+              ValidationTypeTime f       -> opExp $ viewValidationExpression f
+              ValidationTypeWhole f      -> opExp $ viewValidationExpression f
               ValidationTypeList as      ->
                 let f = Formula $ "\"" <> T.intercalate "," as <> "\""
                 in  (Nothing, Just f, Nothing)
+
+viewValidationExpression :: ValidationExpression -> (Text, Formula, Maybe Formula)
+viewValidationExpression (ValBetween f1 f2)         = ("between",            f1, Just f2)
+viewValidationExpression (ValEqual f)               = ("equal",              f,  Nothing)
+viewValidationExpression (ValGreaterThan f)         = ("greaterThan",        f,  Nothing)
+viewValidationExpression (ValGreaterThanOrEqual f)  = ("greaterThanOrEqual", f,  Nothing)
+viewValidationExpression (ValLessThan f)            = ("lessThan",           f,  Nothing)
+viewValidationExpression (ValLessThanOrEqual f)     = ("lessThanOrEqual",    f,  Nothing)
+viewValidationExpression (ValNotBetween f1 f2)      = ("notBetween",         f1, Just f2)
+viewValidationExpression (ValNotEqual f)            = ("notEqual",           f,  Nothing)
+
