@@ -44,6 +44,7 @@ import           Codec.Xlsx.Types.Internal.CfPair
 import           Codec.Xlsx.Types.Internal.CommentTable
 import           Codec.Xlsx.Types.Internal.ContentTypes      as ContentTypes
 import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
+import           Codec.Xlsx.Types.Internal.DvPair
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 
@@ -148,9 +149,7 @@ extractSheet ar sst contentTypes wf = do
 
       condFormtattings = M.fromList . map unCfPair  $ cur $/ element (n_ "conditionalFormatting") >=> fromCursor
 
-      validations = case [ () | nd <- map node $ child cur, nodeElNameIs nd (n_ "dataValidations") ] of
-        [] -> Nothing
-        _  -> Just $
+      validations = M.fromList . map unDvPair $
           ( ($/ element (n_ "dataValidations")) >=>
             ($/ element (n_ "dataValidation"))  >=>
             fromCursor

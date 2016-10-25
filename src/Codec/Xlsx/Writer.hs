@@ -42,6 +42,7 @@ import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.CfPair
 import qualified Codec.Xlsx.Types.Internal.CommentTable      as CommentTable
 import           Codec.Xlsx.Types.Internal.CustomProperties
+import           Codec.Xlsx.Types.Internal.DvPair
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships hiding (lookup)
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 import           Codec.Xlsx.Writer.Internal
@@ -120,14 +121,14 @@ singleSheetFiles n cells ws = runST $ do
             , Just . elementListSimple "sheetData" $ sheetDataXml cells (ws ^. wsRowPropertiesMap)
             ] ++
             map (Just . toElement "conditionalFormatting") cfPairs ++
-            [ nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
+            [ Just $ countedElementList "dataValidations" $ map (toElement "dataValidation") dvPairs
+            , nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
             , toElement "pageSetup" <$> ws ^. wsPageSetup
             , fst3 <$> mDrawingData
             , fst <$> mCmntData
-            , countedElementList "dataValidations" . map (toElement "dataValidation") <$>
-                ws ^. wsDataValidations
             ]
         cfPairs = map CfPair . M.toList $ ws ^. wsConditionalFormattings
+        dvPairs = map DvPair . M.toList $ ws ^. wsDataValidations
         cwEl cw = leafElement "col" [ ("min", txti $ cwMin cw)
                                     , ("max", txti $ cwMax cw)
                                     , ("width", txtd $ cwWidth cw)

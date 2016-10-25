@@ -51,7 +51,6 @@ data DataValidation = DataValidation
     , _dvShowDropDown     :: Maybe Bool
     , _dvShowErrorMessage :: Maybe Bool
     , _dvShowInputMessage :: Maybe Bool
-    , _dvSqref            :: SqRef
     , _dvValidationType   :: Maybe ValidationType
     } deriving (Eq, Show)
 
@@ -59,8 +58,7 @@ makeLenses ''DataValidation
 
 instance Default DataValidation where
     def = DataValidation
-      Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
-      (SqRef []) Nothing
+      Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 {-------------------------------------------------------------------------------
   Parsing
@@ -84,7 +82,6 @@ instance FromCursor DataValidation where
         _dvShowDropDown     <- maybeAttribute "showDropDown"     cur
         _dvShowErrorMessage <- maybeAttribute "showErrorMessage" cur
         _dvShowInputMessage <- maybeAttribute "showInputMessage" cur
-        _dvSqref            <- fromAttribute  "sqref"            cur
         mtype               <- maybeAttribute "type"             cur
         _dvValidationType   <- readValidationType mop mtype      cur
         return DataValidation{..}
@@ -160,18 +157,17 @@ instance ToElement DataValidation where
     toElement nm DataValidation{..} = Element
         { elementName       = nm
         , elementAttributes = M.fromList . catMaybes $
-            [        "allowBlank"       .=? _dvAllowBlank
-            ,        "error"            .=? _dvError
-            ,        "errorStyle"       .=? _dvErrorStyle
-            ,        "errorTitle"       .=? _dvErrorTitle
-            ,        "operator"         .=? op
-            ,        "prompt"           .=? _dvPrompt
-            ,        "promptTitle"      .=? _dvPromptTitle
-            ,        "showDropDown"     .=? _dvShowDropDown
-            ,        "showErrorMessage" .=? _dvShowErrorMessage
-            ,        "showInputMessage" .=? _dvShowInputMessage
-            , Just $ "sqref"            .=  _dvSqref
-            ,        "type"             .=? _dvValidationType
+            [ "allowBlank"       .=? _dvAllowBlank
+            , "error"            .=? _dvError
+            , "errorStyle"       .=? _dvErrorStyle
+            , "errorTitle"       .=? _dvErrorTitle
+            , "operator"         .=? op
+            , "prompt"           .=? _dvPrompt
+            , "promptTitle"      .=? _dvPromptTitle
+            , "showDropDown"     .=? _dvShowDropDown
+            , "showErrorMessage" .=? _dvShowErrorMessage
+            , "showInputMessage" .=? _dvShowInputMessage
+            , "type"             .=? _dvValidationType
             ]
         , elementNodes      = catMaybes
             [ fmap (NodeElement . toElement "formula1") f1

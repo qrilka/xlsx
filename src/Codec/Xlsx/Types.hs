@@ -169,13 +169,13 @@ data Worksheet = Worksheet
     , _wsSheetViews             :: Maybe [SheetView]
     , _wsPageSetup              :: Maybe PageSetup
     , _wsConditionalFormattings :: Map SqRef ConditionalFormatting
-    , _wsDataValidations        :: Maybe [DataValidation]
+    , _wsDataValidations        :: Map SqRef DataValidation
     } deriving (Eq, Show)
 
 makeLenses ''Worksheet
 
 instance Default Worksheet where
-    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty Nothing
+    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty M.empty
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)
