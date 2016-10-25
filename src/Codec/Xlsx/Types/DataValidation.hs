@@ -73,38 +73,36 @@ instance FromAttrVal ErrorStyle where
     fromAttrVal t             = invalidText "ErrorStyle" t
 
 instance FromCursor DataValidation where
-    fromCursor cur = cur $/ element (n_ "dataValidation") >=> fromCur
-      where
-        fromCur c = do
-            _dvAllowBlank       <- maybeAttribute "allowBlank"       c
-            _dvError            <- maybeAttribute "error"            c
-            _dvErrorStyle       <- maybeAttribute "errorStyle"       c
-            _dvErrorTitle       <- maybeAttribute "errorTitle"       c
-            mop                 <- maybeAttribute "operator"         c
-            _dvPrompt           <- maybeAttribute "prompt"           c
-            _dvPromptTitle      <- maybeAttribute "promptTitle"      c
-            _dvShowDropDown     <- maybeAttribute "showDropDown"     c
-            _dvShowErrorMessage <- maybeAttribute "showErrorMessage" c
-            _dvShowInputMessage <- maybeAttribute "showInputMessage" c
-            _dvSqref            <- fromAttribute  "sqref"            c
-            mtype               <- maybeAttribute "type"             c
-            _dvValidationType   <- readValidation mop mtype          c
-            return DataValidation{..}
+    fromCursor cur = do
+        _dvAllowBlank       <- maybeAttribute "allowBlank"       cur
+        _dvError            <- maybeAttribute "error"            cur
+        _dvErrorStyle       <- maybeAttribute "errorStyle"       cur
+        _dvErrorTitle       <- maybeAttribute "errorTitle"       cur
+        mop                 <- maybeAttribute "operator"         cur
+        _dvPrompt           <- maybeAttribute "prompt"           cur
+        _dvPromptTitle      <- maybeAttribute "promptTitle"      cur
+        _dvShowDropDown     <- maybeAttribute "showDropDown"     cur
+        _dvShowErrorMessage <- maybeAttribute "showErrorMessage" cur
+        _dvShowInputMessage <- maybeAttribute "showInputMessage" cur
+        _dvSqref            <- fromAttribute  "sqref"            cur
+        mtype               <- maybeAttribute "type"             cur
+        _dvValidationType   <- readValidationType mop mtype      cur
+        return DataValidation{..}
 
-readValidation :: Maybe Text -> Maybe Text -> Cursor -> [Maybe ValidationType]
-readValidation _ Nothing         _   = return $ Nothing
-readValidation _ (Just "none")   _   = return $ Just ValidationTypeNone
-readValidation _ (Just "custom") cur = do
+readValidationType :: Maybe Text -> Maybe Text -> Cursor -> [Maybe ValidationType]
+readValidationType _ Nothing         _   = return $ Nothing
+readValidationType _ (Just "none")   _   = return $ Just ValidationTypeNone
+readValidationType _ (Just "custom") cur = do
     f <- fromCursor cur
     return $ Just $ ValidationTypeCustom f
-readValidation _ (Just "list") cur = do
+readValidationType _ (Just "list") cur = do
     f  <- cur $/ element (n_ "formula1") >=> fromCursor
     as <- readListFormula f
     return $ Just $ ValidationTypeList as
-readValidation (Just op) (Just ty) cur = do
+readValidationType (Just op) (Just ty) cur = do
     opExp <- readOpExpression2 op cur
     Just <$> readValidationTypeOpExp ty opExp
-readValidation _ _ _ = []
+readValidationType _ _ _ = []
 
 readListFormula :: Formula -> [[Text]]
 readListFormula (Formula f) = catMaybes [readQuotedList f]

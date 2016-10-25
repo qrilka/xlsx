@@ -150,7 +150,11 @@ extractSheet ar sst contentTypes wf = do
 
       validations = case [ () | nd <- map node $ child cur, nodeElNameIs nd (n_ "dataValidations") ] of
         [] -> Nothing
-        _  -> Just $ cur $/ element (n_ "dataValidations") >=> fromCursor
+        _  -> Just $
+          ( ($/ element (n_ "dataValidations")) >=>
+            ($/ element (n_ "dataValidation"))  >=>
+            fromCursor
+          ) cur
 
   mDrawing <- case mDrawingId of
       Just dId -> do
