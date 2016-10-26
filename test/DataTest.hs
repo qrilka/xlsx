@@ -86,7 +86,8 @@ testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties
   where
     sheets = [("List1", sheet1), ("Another sheet", sheet2)]
-    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup cFormatting
+    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup
+                       cFormatting validations
     sheet2 = def & wsCells .~ testCellMap2
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
@@ -671,3 +672,48 @@ testWrittenChartSpace = renderLBS def{rsNamespaces=nss} $ toDocument testChartSp
   where
     nss = [ ("c", "http://schemas.openxmlformats.org/drawingml/2006/chart")
           , ("a", "http://schemas.openxmlformats.org/drawingml/2006/main") ]
+
+validations :: Map SqRef DataValidation
+validations = M.fromList
+    [ ( SqRef ["A1"], def
+      )
+      , ( SqRef ["A1","B2:C3"], def
+        { _dvAllowBlank       = True
+        , _dvError            = Just "incorrect data"
+        , _dvErrorStyle       = ErrorStyleInformation
+        , _dvErrorTitle       = Just "error title"
+        , _dvPrompt           = Just "enter data"
+        , _dvPromptTitle      = Just "prompt title"
+        , _dvShowDropDown     = True
+        , _dvShowErrorMessage = True
+        , _dvShowInputMessage = True
+        , _dvValidationType   = ValidationTypeList ["aaaa","bbbb","cccc"]
+        }
+      )
+    , ( SqRef ["A6","I2"], def
+        { _dvAllowBlank       = False
+        , _dvError            = Just "aaa"
+        , _dvErrorStyle       = ErrorStyleWarning
+        , _dvErrorTitle       = Just "bbb"
+        , _dvPrompt           = Just "ccc"
+        , _dvPromptTitle      = Just "ddd"
+        , _dvShowDropDown     = False
+        , _dvShowErrorMessage = False
+        , _dvShowInputMessage = False
+        , _dvValidationType   = ValidationTypeDecimal $ ValGreaterThan $ Formula "10"
+        }
+      )
+    , ( SqRef ["A7"], def
+        { _dvAllowBlank       = False
+        , _dvError            = Just "aaa"
+        , _dvErrorStyle       = ErrorStyleStop
+        , _dvErrorTitle       = Just "bbb"
+        , _dvPrompt           = Just "ccc"
+        , _dvPromptTitle      = Just "ddd"
+        , _dvShowDropDown     = False
+        , _dvShowErrorMessage = False
+        , _dvShowInputMessage = False
+        , _dvValidationType   = ValidationTypeWhole $ ValNotBetween (Formula "10") (Formula "12")
+        }
+      )
+    ]
