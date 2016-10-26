@@ -678,42 +678,42 @@ validations = M.fromList
     [ ( SqRef ["A1"], def
       )
       , ( SqRef ["A1","B2:C3"], def
-        { _dvAllowBlank       = Just True
+        { _dvAllowBlank       = True
         , _dvError            = Just "incorrect data"
-        , _dvErrorStyle       = Just ErrorStyleInformation
+        , _dvErrorStyle       = ErrorStyleInformation
         , _dvErrorTitle       = Just "error title"
         , _dvPrompt           = Just "enter data"
         , _dvPromptTitle      = Just "prompt title"
-        , _dvShowDropDown     = Just True
-        , _dvShowErrorMessage = Just True
-        , _dvShowInputMessage = Just True
-        , _dvValidationType   = Just $ ValidationTypeList ["aaaa","bbbb","cccc"]
+        , _dvShowDropDown     = True
+        , _dvShowErrorMessage = True
+        , _dvShowInputMessage = True
+        , _dvValidationType   = ValidationTypeList ["aaaa","bbbb","cccc"]
         }
       )
     , ( SqRef ["A6","I2"], def
-        { _dvAllowBlank       = Just False
+        { _dvAllowBlank       = False
         , _dvError            = Just "aaa"
-        , _dvErrorStyle       = Just ErrorStyleWarning
+        , _dvErrorStyle       = ErrorStyleWarning
         , _dvErrorTitle       = Just "bbb"
         , _dvPrompt           = Just "ccc"
         , _dvPromptTitle      = Just "ddd"
-        , _dvShowDropDown     = Just False
-        , _dvShowErrorMessage = Just False
-        , _dvShowInputMessage = Just False
-        , _dvValidationType   = Just $ ValidationTypeDecimal $ ValGreaterThan $ Formula "10"
+        , _dvShowDropDown     = False
+        , _dvShowErrorMessage = False
+        , _dvShowInputMessage = False
+        , _dvValidationType   = ValidationTypeDecimal $ ValGreaterThan $ Formula "10"
         }
       )
     , ( SqRef ["A7"], def
-        { _dvAllowBlank       = Just False
+        { _dvAllowBlank       = False
         , _dvError            = Just "aaa"
-        , _dvErrorStyle       = Just ErrorStyleStop
+        , _dvErrorStyle       = ErrorStyleStop
         , _dvErrorTitle       = Just "bbb"
         , _dvPrompt           = Just "ccc"
         , _dvPromptTitle      = Just "ddd"
-        , _dvShowDropDown     = Just False
-        , _dvShowErrorMessage = Just False
-        , _dvShowInputMessage = Just False
-        , _dvValidationType   = Just $ ValidationTypeWhole $ ValNotBetween (Formula "10") (Formula "12")
+        , _dvShowDropDown     = False
+        , _dvShowErrorMessage = False
+        , _dvShowInputMessage = False
+        , _dvValidationType   = ValidationTypeWhole $ ValNotBetween (Formula "10") (Formula "12")
         }
       )
     ]

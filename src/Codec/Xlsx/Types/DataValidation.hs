@@ -3,7 +3,6 @@
 {-# LANGUAGE TemplateHaskell   #-}
 module Codec.Xlsx.Types.DataValidation where
 
-import           Control.Applicative        ((<$>))
 import           Control.Lens.TH            (makeLenses)
 import           Control.Monad              ((>=>))
 import           Data.Char                  (isSpace)
@@ -53,23 +52,23 @@ data ErrorStyle
 
 -- See 18.3.1.32 "dataValidation (Data Validation)" (p. 1614/1624)
 data DataValidation = DataValidation
-    { _dvAllowBlank       :: Maybe Bool
+    { _dvAllowBlank       :: Bool
     , _dvError            :: Maybe Text
-    , _dvErrorStyle       :: Maybe ErrorStyle
+    , _dvErrorStyle       :: ErrorStyle
     , _dvErrorTitle       :: Maybe Text
     , _dvPrompt           :: Maybe Text
     , _dvPromptTitle      :: Maybe Text
-    , _dvShowDropDown     :: Maybe Bool
-    , _dvShowErrorMessage :: Maybe Bool
-    , _dvShowInputMessage :: Maybe Bool
-    , _dvValidationType   :: Maybe ValidationType
+    , _dvShowDropDown     :: Bool
+    , _dvShowErrorMessage :: Bool
+    , _dvShowInputMessage :: Bool
+    , _dvValidationType   :: ValidationType
     } deriving (Eq, Show)
 
 makeLenses ''DataValidation
 
 instance Default DataValidation where
     def = DataValidation
-      Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+      False Nothing ErrorStyleStop Nothing Nothing Nothing False False False ValidationTypeNone
 
 {-------------------------------------------------------------------------------
   Parsing
@@ -83,34 +82,32 @@ instance FromAttrVal ErrorStyle where
 
 instance FromCursor DataValidation where
     fromCursor cur = do
-        _dvAllowBlank       <- maybeAttribute "allowBlank"       cur
-        _dvError            <- maybeAttribute "error"            cur
-        _dvErrorStyle       <- maybeAttribute "errorStyle"       cur
-        _dvErrorTitle       <- maybeAttribute "errorTitle"       cur
-        mop                 <- maybeAttribute "operator"         cur
-        _dvPrompt           <- maybeAttribute "prompt"           cur
-        _dvPromptTitle      <- maybeAttribute "promptTitle"      cur
-        _dvShowDropDown     <- maybeAttribute "showDropDown"     cur
-        _dvShowErrorMessage <- maybeAttribute "showErrorMessage" cur
-        _dvShowInputMessage <- maybeAttribute "showInputMessage" cur
-        mtype               <- maybeAttribute "type"             cur
-        _dvValidationType   <- readValidationType mop mtype      cur
+        _dvAllowBlank       <- fromAttributeDef "allowBlank"       False          cur
+        _dvError            <- maybeAttribute   "error"                           cur
+        _dvErrorStyle       <- fromAttributeDef "errorStyle"       ErrorStyleStop cur
+        _dvErrorTitle       <- maybeAttribute   "errorTitle"                      cur
+        mop                 <- fromAttributeDef "operator"         "between"      cur
+        _dvPrompt           <- maybeAttribute   "prompt"                          cur
+        _dvPromptTitle      <- maybeAttribute   "promptTitle"                     cur
+        _dvShowDropDown     <- fromAttributeDef "showDropDown"     False          cur
+        _dvShowErrorMessage <- fromAttributeDef "showErrorMessage" False          cur
+        _dvShowInputMessage <- fromAttributeDef "showInputMessage" False          cur
+        mtype               <- fromAttributeDef "type"             "none"         cur
+        _dvValidationType   <- readValidationType mop mtype                       cur
         return DataValidation{..}
 
-readValidationType :: Maybe Text -> Maybe Text -> Cursor -> [Maybe ValidationType]
-readValidationType _ Nothing         _   = return $ Nothing
-readValidationType _ (Just "none")   _   = return $ Just ValidationTypeNone
-readValidationType _ (Just "custom") cur = do
+readValidationType :: Text -> Text -> Cursor -> [ValidationType]
+readValidationType _ "none"   _   = return ValidationTypeNone
+readValidationType _ "custom" cur = do
     f <- fromCursor cur
-    return $ Just $ ValidationTypeCustom f
-readValidationType _ (Just "list") cur = do
+    return $ ValidationTypeCustom f
+readValidationType _ "list" cur = do
     f  <- cur $/ element (n_ "formula1") >=> fromCursor
     as <- readListFormula f
-    return $ Just $ ValidationTypeList as
-readValidationType (Just op) (Just ty) cur = do
+    return $ ValidationTypeList as
+readValidationType op ty cur = do
     opExp <- readOpExpression2 op cur
-    Just <$> readValidationTypeOpExp ty opExp
-readValidationType _ _ _ = []
+    readValidationTypeOpExp ty opExp
 
 readListFormula :: Formula -> [[Text]]
 readListFormula (Formula f) = catMaybes [readQuotedList f]
@@ -138,11 +135,11 @@ readOpExpression2 op cur = do
     readValExpression op [f]
 
 readValidationTypeOpExp :: Text -> ValidationExpression -> [ValidationType]
-readValidationTypeOpExp "date"       oe = return $ ValidationTypeDate       oe
-readValidationTypeOpExp "decimal"    oe = return $ ValidationTypeDecimal    oe
-readValidationTypeOpExp "textLength" oe = return $ ValidationTypeTextLength oe
-readValidationTypeOpExp "time"       oe = return $ ValidationTypeTime       oe
-readValidationTypeOpExp "whole"      oe = return $ ValidationTypeWhole      oe
+readValidationTypeOpExp "date"       oe = [ValidationTypeDate       oe]
+readValidationTypeOpExp "decimal"    oe = [ValidationTypeDecimal    oe]
+readValidationTypeOpExp "textLength" oe = [ValidationTypeTextLength oe]
+readValidationTypeOpExp "time"       oe = [ValidationTypeTime       oe]
+readValidationTypeOpExp "whole"      oe = [ValidationTypeWhole      oe]
 readValidationTypeOpExp _ _             = []
 
 readValExpression :: Text -> [Formula] -> [ValidationExpression]
@@ -179,17 +176,17 @@ instance ToElement DataValidation where
     toElement nm DataValidation{..} = Element
         { elementName       = nm
         , elementAttributes = M.fromList . catMaybes $
-            [ "allowBlank"       .=? _dvAllowBlank
-            , "error"            .=? _dvError
-            , "errorStyle"       .=? _dvErrorStyle
-            , "errorTitle"       .=? _dvErrorTitle
-            , "operator"         .=? op
-            , "prompt"           .=? _dvPrompt
-            , "promptTitle"      .=? _dvPromptTitle
-            , "showDropDown"     .=? _dvShowDropDown
-            , "showErrorMessage" .=? _dvShowErrorMessage
-            , "showInputMessage" .=? _dvShowInputMessage
-            , "type"             .=? _dvValidationType
+            [ Just $ "allowBlank"       .=  _dvAllowBlank
+            ,        "error"            .=? _dvError
+            , Just $ "errorStyle"       .=  _dvErrorStyle
+            ,        "errorTitle"       .=? _dvErrorTitle
+            ,        "operator"         .=? op
+            ,        "prompt"           .=? _dvPrompt
+            ,        "promptTitle"      .=? _dvPromptTitle
+            , Just $ "showDropDown"     .=  _dvShowDropDown
+            , Just $ "showErrorMessage" .=  _dvShowErrorMessage
+            , Just $ "showInputMessage" .=  _dvShowInputMessage
+            , Just $ "type"             .=  _dvValidationType
             ]
         , elementNodes      = catMaybes
             [ fmap (NodeElement . toElement "formula1") f1
@@ -202,18 +199,16 @@ instance ToElement DataValidation where
         op    :: Maybe Text
         f1,f2 :: Maybe Formula
         (op,f1,f2) = case _dvValidationType of
-            Nothing -> (Nothing, Nothing, Nothing)
-            Just t  -> case t of
-              ValidationTypeNone         -> (Nothing, Nothing, Nothing)
-              ValidationTypeCustom f     -> (Nothing, Just f, Nothing)
-              ValidationTypeDate f       -> opExp $ viewValidationExpression f
-              ValidationTypeDecimal f    -> opExp $ viewValidationExpression f
-              ValidationTypeTextLength f -> opExp $ viewValidationExpression f
-              ValidationTypeTime f       -> opExp $ viewValidationExpression f
-              ValidationTypeWhole f      -> opExp $ viewValidationExpression f
-              ValidationTypeList as      ->
-                let f = Formula $ "\"" <> T.intercalate "," as <> "\""
-                in  (Nothing, Just f, Nothing)
+          ValidationTypeNone         -> (Nothing, Nothing, Nothing)
+          ValidationTypeCustom f     -> (Nothing, Just f, Nothing)
+          ValidationTypeDate f       -> opExp $ viewValidationExpression f
+          ValidationTypeDecimal f    -> opExp $ viewValidationExpression f
+          ValidationTypeTextLength f -> opExp $ viewValidationExpression f
+          ValidationTypeTime f       -> opExp $ viewValidationExpression f
+          ValidationTypeWhole f      -> opExp $ viewValidationExpression f
+          ValidationTypeList as      ->
+            let f = Formula $ "\"" <> T.intercalate "," as <> "\""
+            in  (Nothing, Just f, Nothing)
 
 viewValidationExpression :: ValidationExpression -> (Text, Formula, Maybe Formula)
 viewValidationExpression (ValBetween f1 f2)         = ("between",            f1, Just f2)
