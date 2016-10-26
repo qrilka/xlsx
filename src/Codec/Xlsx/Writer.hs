@@ -121,8 +121,8 @@ singleSheetFiles n cells ws = runST $ do
             , Just . elementListSimple "sheetData" $ sheetDataXml cells (ws ^. wsRowPropertiesMap)
             ] ++
             map (Just . toElement "conditionalFormatting") cfPairs ++
-            [ Just $ countedElementList "dataValidations" $ map (toElement "dataValidation") dvPairs
-            , nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
+            [ nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
+            , Just $ countedElementList "dataValidations" $ map (toElement "dataValidation") dvPairs
             , toElement "pageSetup" <$> ws ^. wsPageSetup
             , fst3 <$> mDrawingData
             , fst <$> mCmntData

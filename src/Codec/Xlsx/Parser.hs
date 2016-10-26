@@ -150,10 +150,7 @@ extractSheet ar sst contentTypes wf = do
       condFormtattings = M.fromList . map unCfPair  $ cur $/ element (n_ "conditionalFormatting") >=> fromCursor
 
       validations = M.fromList . map unDvPair $
-          ( ($/ element (n_ "dataValidations")) >=>
-            ($/ element (n_ "dataValidation"))  >=>
-            fromCursor
-          ) cur
+          cur $/ element (n_ "dataValidations") &/ element (n_ "dataValidation") >=> fromCursor
 
   mDrawing <- case mDrawingId of
       Just dId -> do
