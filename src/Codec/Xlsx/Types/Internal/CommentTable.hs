@@ -58,7 +58,7 @@ instance ToElement CommentTable where
 
 instance FromCursor CommentTable where
   fromCursor cur = do
-    let authorNames = cur $/ element (n_ "authors") &/ element (n_ "author") &/ content
+    let authorNames = cur $/ element (n_ "authors") &/ element (n_ "author") >=> contentOrEmpty
         authors = M.fromList $ zip [0..] authorNames
         items = cur $/ element (n_ "commentList") &/ element (n_ "comment") >=> parseComment authors
     return . CommentTable $ M.fromList items

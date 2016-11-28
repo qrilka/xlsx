@@ -100,10 +100,6 @@ instance FromCursor XlsxText where
   fromCursor cur = do
     let
       ts = cur $/ element (n_ "t") >=> contentOrEmpty
-      contentOrEmpty c = case c $/ content of
-        [t] -> [t]
-        []  -> [""]
-        _   -> error "invalid item: more than one text nodes under <t>!"
       rs = cur $/ element (n_ "r") >=> fromCursor
     case (ts,rs) of
       ([t], []) ->
