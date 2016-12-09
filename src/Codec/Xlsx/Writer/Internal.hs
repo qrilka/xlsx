@@ -138,8 +138,8 @@ instance ToAttrVal Integer where toAttrVal = txti
 instance ToAttrVal Double  where toAttrVal = fromString . show
 
 instance ToAttrVal Bool where
-  toAttrVal True  = "true"
-  toAttrVal False = "false"
+  toAttrVal True  = "1"
+  toAttrVal False = "0"
 
 elementValue :: ToAttrVal a => Name -> a -> Element
 elementValue nm a = Element {
@@ -194,7 +194,8 @@ mainNamespace = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 
 
 txtd :: Double -> Text
-txtd = toStrict . toLazyText . realFloat
+txtd v | v - fromInteger (floor v) == 0 = toStrict . toLazyText $ formatRealFloat Generic (Just 0) v
+       | otherwise = toStrict . toLazyText $ realFloat v
 
 txtb :: Bool -> Text
 txtb = T.toLower . T.pack . show

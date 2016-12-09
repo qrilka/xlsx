@@ -154,7 +154,7 @@ extractSheet ar sst contentTypes wf = do
       Nothing  ->
           return Nothing
 
-  return $ Worksheet cws rowProps cells mDrawing merges sheetViews pageSetup condFormtattings
+  return $ Worksheet cws rowProps cells mDrawing merges sheetViews pageSetup condFormtattings []
 
 extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
 extractCellValue sst "s" v =

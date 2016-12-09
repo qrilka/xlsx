@@ -1,7 +1,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE RecordWildCards           #-}
-{-# LANGUAGE TemplateHaskell           #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types (
     -- * The main types
     Xlsx(..)
@@ -30,6 +30,7 @@ module Codec.Xlsx.Types (
     , wsSheetViews
     , wsPageSetup
     , wsConditionalFormattings
+    , wsPivotTables
     -- ** Cells
     , cellValue
     , cellStyle
@@ -70,6 +71,7 @@ import           Codec.Xlsx.Types.Drawing               as X
 import           Codec.Xlsx.Types.Drawing.Chart         as X
 import           Codec.Xlsx.Types.Drawing.Common        as X
 import           Codec.Xlsx.Types.PageSetup             as X
+import           Codec.Xlsx.Types.PivotTable            as X
 import           Codec.Xlsx.Types.RichText              as X
 import           Codec.Xlsx.Types.SheetViews            as X
 import           Codec.Xlsx.Types.StyleSheet            as X
@@ -141,20 +143,21 @@ instance FromCursor ColumnsWidth where
 
 -- | Xlsx worksheet
 data Worksheet = Worksheet
-    { _wsColumns                :: [ColumnsWidth]          -- ^ column widths
-    , _wsRowPropertiesMap       :: Map Int RowProperties   -- ^ custom row properties (height, style) map
-    , _wsCells                  :: CellMap                 -- ^ data mapped by (row, column) pairs
-    , _wsDrawing                :: Maybe Drawing           -- ^ SpreadsheetML Drawing
-    , _wsMerges                 :: [Range]                 -- ^ list of cell merges
-    , _wsSheetViews             :: Maybe [SheetView]
-    , _wsPageSetup              :: Maybe PageSetup
-    , _wsConditionalFormattings :: Map SqRef ConditionalFormatting
-    } deriving (Eq, Show)
+  { _wsColumns :: [ColumnsWidth] -- ^ column widths
+  , _wsRowPropertiesMap :: Map Int RowProperties -- ^ custom row properties (height, style) map
+  , _wsCells :: CellMap -- ^ data mapped by (row, column) pairs
+  , _wsDrawing :: Maybe Drawing -- ^ SpreadsheetML Drawing
+  , _wsMerges :: [Range] -- ^ list of cell merges
+  , _wsSheetViews :: Maybe [SheetView]
+  , _wsPageSetup :: Maybe PageSetup
+  , _wsConditionalFormattings :: Map SqRef ConditionalFormatting
+  , _wsPivotTables :: [PivotTable]
+  } deriving (Eq, Show)
 
 makeLenses ''Worksheet
 
 instance Default Worksheet where
-    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty
+    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty []
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)

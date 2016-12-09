@@ -49,6 +49,7 @@ Library
                    , Codec.Xlsx.Types.Internal.NumFmtPair
                    , Codec.Xlsx.Types.Internal.Relationships
                    , Codec.Xlsx.Types.Internal.SharedStringTable
+                   , Codec.Xlsx.Types.PivotTable
                    , Codec.Xlsx.Types.RichText
                    , Codec.Xlsx.Types.SheetViews
                    , Codec.Xlsx.Types.PageSetup
@@ -112,6 +113,7 @@ test-suite data-test
                , tasty
                , tasty-hunit
                , tasty-smallcheck
+               , text
                , time
                , vector
                , xlsx

@@ -15,13 +15,12 @@ module Codec.Xlsx.Types.Common
   ) where
 
 import Control.Arrow
+import Control.Monad (guard)
 import Data.Char
+import Data.Ix (inRange)
 import qualified Data.Map as Map
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Tuple (swap)
-import Safe (fromJustNote)
 import Text.XML
 import Text.XML.Cursor
 
@@ -62,18 +61,15 @@ singleCellRefRaw :: (Int, Int) -> Text
 singleCellRefRaw (row, col) = T.concat [int2col col, T.pack (show row)]
 
 -- | reverse to 'mkCellRef'
---
--- /Warning:/ the function isn't total and will throw an error if
--- incorrect value will get passed
-fromSingleCellRef :: CellRef -> (Int, Int)
+fromSingleCellRef :: CellRef -> Maybe (Int, Int)
 fromSingleCellRef = fromSingleCellRefRaw . unCellRef
 
-fromSingleCellRefRaw :: Text -> (Int, Int)
-fromSingleCellRefRaw t =
-  swap $ col2int *** toInt $ T.span (not . isDigit) t
-  where
-    toInt = fromJustNote "non-integer row in cell reference" . decimal
-
+fromSingleCellRefRaw :: Text -> Maybe (Int, Int)
+fromSingleCellRefRaw t = do
+  let (colT, rowT) = T.span (inRange ('A', 'Z')) t
+  guard $ not (T.null colT) && not (T.null rowT) && T.all isDigit rowT
+  row <- decimal rowT
+  return (row, col2int colT)
 
 -- | Excel range (e.g. @D13:H14@), actually store as as 'CellRef' in
 -- xlsx
@@ -86,13 +82,11 @@ mkRange :: (Int, Int) -> (Int, Int) -> Range
 mkRange fr to = CellRef $ T.concat [singleCellRefRaw fr, T.pack ":", singleCellRefRaw to]
 
 -- | reverse to 'mkRange'
---
--- /Warning:/ the function isn't total and will throw an error if
--- incorrect value will get passed
-fromRange :: Range -> ((Int, Int), (Int, Int))
-fromRange r = case T.split (==':') (unCellRef r) of
-    [from, to] -> (fromSingleCellRefRaw from, fromSingleCellRefRaw to)
-    _ -> error $ "invalid range " <> show r
+fromRange :: Range -> Maybe ((Int, Int), (Int, Int))
+fromRange r =
+  case T.split (== ':') (unCellRef r) of
+    [from, to] -> (,) <$> fromSingleCellRefRaw from <*> fromSingleCellRefRaw to
+    _ -> Nothing
 
 -- | A sequence of cell references
 --
@@ -133,11 +127,12 @@ newtype Formula = Formula {unFormula :: Text}
 -- standard includes date format also but actually dates
 -- are represented by numbers with a date format assigned
 -- to a cell containing it
-data CellValue = CellText   Text
-               | CellDouble Double
-               | CellBool   Bool
-               | CellRich   [RichTextRun]
-               deriving (Eq, Show)
+data CellValue
+  = CellText Text
+  | CellDouble Double
+  | CellBool Bool
+  | CellRich [RichTextRun]
+  deriving (Eq, Ord, Show)
 
 {-------------------------------------------------------------------------------
   Parsing

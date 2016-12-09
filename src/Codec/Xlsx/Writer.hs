@@ -1,7 +1,7 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE CPP               #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 -- | This module provides a function for serializing structured `Xlsx` into lazy bytestring
 module Codec.Xlsx.Writer
     ( fromXlsx
@@ -10,9 +10,10 @@ module Codec.Xlsx.Writer
 import qualified Codec.Archive.Zip                           as Zip
 import           Control.Arrow                               (second)
 import           Control.Lens                                hiding (transform, (.=))
+import           Control.Monad                               (forM)
 import qualified Data.ByteString.Lazy                        as L
 import           Data.ByteString.Lazy.Char8                  ()
-import           Data.List                                   (foldl')
+import           Data.List                                   (foldl', mapAccumL)
 import           Data.Map                                    (Map)
 import           Data.STRef
 import           Control.Monad.ST
@@ -55,25 +56,13 @@ fromXlsx pt xlsx =
     utcTime = posixSecondsToUTCTime pt
     entries = Zip.toEntry "[Content_Types].xml" t (contentTypesXml files) :
               map (\fd -> Zip.toEntry (fdPath fd) t (fdContents fd)) files
-    -- TODO: root files should be only core.xml, app.xml and workbook.xml
-    files = sheetFiles ++ customPropFiles ++
+    files = workbookFiles ++ customPropFiles ++
       [ FileData "docProps/core.xml"
         "application/vnd.openxmlformats-package.core-properties+xml"
         "metadata/core-properties" $ coreXml utcTime "xlsxwriter"
       , FileData "docProps/app.xml"
         "application/vnd.openxmlformats-officedocument.extended-properties+xml"
         "xtended-properties" $ appXml sheetNames
-      , FileData "xl/workbook.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
-        "officeDocument" $ bookXml sheetNames (xlsx ^. xlDefinedNames)
-      , FileData "xl/styles.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"
-        "styles" $ unStyles (xlsx ^. xlStyles)
-      , FileData "xl/sharedStrings.xml"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"
-        "sharedStrings" $ ssXml shared
-      , FileData "xl/_rels/workbook.xml.rels"
-        "application/vnd.openxmlformats-package.relationships+xml" "relationships" bookRelsXml
       , FileData "_rels/.rels" "application/vnd.openxmlformats-package.relationships+xml"
         "relationships" rootRelXml
       ]
@@ -82,7 +71,7 @@ fromXlsx pt xlsx =
         [ ("officeDocument", "xl/workbook.xml")
         , ("metadata/core-properties", "docProps/core.xml")
         , ("extended-properties", "docProps/app.xml") ]
-    rootRels = [ relEntry i typ trg
+    rootRels = [ relEntry (unsafeRefId i) typ trg
                | (i, (typ, trg)) <- zip [1..] rootFiles ]
     customProps = xlsx ^. xlCustomProperties
     (customPropFiles, customPropFileRels) = case M.null customProps of
@@ -92,19 +81,17 @@ fromXlsx pt xlsx =
                     "custom-properties"
                     (customPropsXml (CustomProperties customProps)) ],
                   [ ("custom-properties", "docProps/custom.xml") ])
-    bookRelsXml = renderLBS def . toDocument $ bookRels sheetCount
-    sheetFiles = concat $ zipWith3 singleSheetFiles [1..] sheetCells sheets
+    workbookFiles = bookFiles xlsx
     sheetNames = xlsx ^. xlSheets . to (map fst)
-    sheets = xlsx ^. xlSheets . to (map snd)
-    sheetCount = length sheets
-    shared = sstConstruct sheets
-    sheetCells = map (transformSheetData shared) sheets
 
-singleSheetFiles :: Int -> Cells -> Worksheet -> [FileData]
-singleSheetFiles n cells ws = runST $ do
+singleSheetFiles :: Int -> Cells -> [FileData] -> Worksheet -> (FileData, [FileData])
+singleSheetFiles n cells pivFileDatas ws = runST $ do
     ref <- newSTRef 1
     mCmntData <- genComments n cells ref
     mDrawingData <- maybe (return Nothing) (fmap Just . genDrawing n ref) (ws ^. wsDrawing)
+    pivRefs <- forM pivFileDatas $ \fd -> do
+      refId <- nextRefId ref
+      return (refId, fd)
     let sheetFilePath = "xl/worksheets/sheet" <> show n <> ".xml"
         sheetFile = FileData sheetFilePath
             "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
@@ -141,12 +128,22 @@ singleSheetFiles n cells ws = runST $ do
             [ relEntry i fdRelType (fdPath `relFrom` sheetFilePath)
             | (i, FileData{..}) <- referenced ]
         referenced = fromMaybe [] (snd <$> mCmntData) ++
-                     catMaybes [ snd3 <$> mDrawingData ]
+                     catMaybes [ snd3 <$> mDrawingData ] ++
+                     pivRefs
         referencedFiles = map snd referenced
         extraFiles = maybe [] thd3 mDrawingData
         otherFiles = sheetRels ++ referencedFiles ++ extraFiles
 
-    return (sheetFile:otherFiles)
+    return (sheetFile, otherFiles)
+
+nextRefId :: STRef s Int -> ST s RefId
+nextRefId r = do
+  num <- readSTRef r
+  modifySTRef' r (+1)
+  return (unsafeRefId num)
+
+unsafeRefId :: Int -> RefId
+unsafeRefId num = RefId $ "rId" <> txti num
 
 sheetDataXml :: Cells -> Map Int RowProperties -> [Element]
 sheetDataXml rows rh = map rowEl rows
@@ -177,9 +174,8 @@ genComments n cells ref =
     then do
         return Nothing
     else do
-        rId1 <- readSTRef ref
-        let rId2 = rId1 + 1
-        modifySTRef' ref (+2)
+        rId1 <- nextRefId ref
+        rId2 <- nextRefId ref
         let el = refElement "legacyDrawing" rId2
         return $ Just (el, [(rId1, commentsFile), (rId2, vmlDrawingFile)])
   where
@@ -203,69 +199,68 @@ genComments n cells ref =
 
 genDrawing :: Int -> STRef s Int -> Drawing -> ST s (Element, ReferencedFileData, [FileData])
 genDrawing n ref dr = do
-    rId <- readSTRef ref
-    modifySTRef' ref (+1)
-    let el = refElement "drawing" rId
-    return (el, (rId, drawingFile), referenced)
+  rId <- nextRefId ref
+  let el = refElement "drawing" rId
+  return (el, (rId, drawingFile), referenced)
   where
-     drawingFilePath = "xl/drawings/drawing" <> show n <> ".xml"
-     drawingFile = FileData drawingFilePath
-                            "application/vnd.openxmlformats-officedocument.drawing+xml"
-                            "drawing" drawingXml
-     drawingXml = renderLBS def{rsNamespaces=nss} $ toDocument dr'
-     nss = [ ("xdr", "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing")
-           , ("a",   "http://schemas.openxmlformats.org/drawingml/2006/main")
-           , ("r",   "http://schemas.openxmlformats.org/officeDocument/2006/relationships") ]
-     dr' = Drawing{ _xdrAnchors = reverse anchors' }
-     (anchors', images, charts, _) = foldl' collectFile ([], [], [], 1) (dr ^. xdrAnchors)
-     collectFile :: ([Anchor RefId RefId], [Maybe (Int, FileInfo)], [(Int, ChartSpace)], Int)
-                 -> Anchor FileInfo ChartSpace
-                 -> ([Anchor RefId RefId], [Maybe (Int, FileInfo)], [(Int, ChartSpace)], Int)
-     collectFile (as, fis, chs, i) anch0 =
-         case anch0 ^. anchObject of
-           Picture {..} ->
-             let fi = (i,) <$> _picBlipFill ^. bfpImageInfo
-                 pic' =
-                   Picture
-                   { _picMacro = _picMacro
-                   , _picPublished = _picPublished
-                   , _picNonVisual = _picNonVisual
-                   , _picBlipFill =
-                       (_picBlipFill & bfpImageInfo ?~ RefId ("rId" <> txti i))
-                   , _picShapeProperties = _picShapeProperties
-                   }
-                 anch = anch0 {_anchObject = pic'}
-             in (anch : as, fi : fis, chs, i + 1)
-           Graphic nv ch tr ->
-             let gr' = Graphic nv (RefId ("rId" <> txti i)) tr
-                 anch = anch0 {_anchObject = gr'}
-             in (anch : as, fis, (i, ch) : chs, i + 1)
-     imageFiles =
-       [ ( i
-         , FileData ("xl/media/" <> _fiFilename) _fiContentType "image" _fiContents)
-       | (i, FileInfo {..}) <- reverse (catMaybes images)
-       ]
+    drawingFilePath = "xl/drawings/drawing" <> show n <> ".xml"
+    drawingFile = FileData drawingFilePath (smlCT "drawing") "drawing" drawingXml
+    drawingXml = renderLBS def{rsNamespaces=nss} $ toDocument dr'
+    nss = [ ("xdr", "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing")
+          , ("a",   "http://schemas.openxmlformats.org/drawingml/2006/main")
+          , ("r",   "http://schemas.openxmlformats.org/officeDocument/2006/relationships") ]
+    dr' = Drawing{ _xdrAnchors = reverse anchors' }
+    (anchors', images, charts, _) = foldl' collectFile ([], [], [], 1) (dr ^. xdrAnchors)
+    collectFile :: ([Anchor RefId RefId], [Maybe (Int, FileInfo)], [(Int, ChartSpace)], Int)
+                -> Anchor FileInfo ChartSpace
+                -> ([Anchor RefId RefId], [Maybe (Int, FileInfo)], [(Int, ChartSpace)], Int)
+    collectFile (as, fis, chs, i) anch0 =
+        case anch0 ^. anchObject of
+          Picture {..} ->
+            let fi = (i,) <$> _picBlipFill ^. bfpImageInfo
+                pic' =
+                  Picture
+                  { _picMacro = _picMacro
+                  , _picPublished = _picPublished
+                  , _picNonVisual = _picNonVisual
+                  , _picBlipFill =
+                      (_picBlipFill & bfpImageInfo ?~ RefId ("rId" <> txti i))
+                  , _picShapeProperties = _picShapeProperties
+                  }
+                anch = anch0 {_anchObject = pic'}
+            in (anch : as, fi : fis, chs, i + 1)
+          Graphic nv ch tr ->
+            let gr' = Graphic nv (RefId ("rId" <> txti i)) tr
+                anch = anch0 {_anchObject = gr'}
+            in (anch : as, fis, (i, ch) : chs, i + 1)
+    imageFiles =
+      [ ( unsafeRefId i
+        , FileData ("xl/media/" <> _fiFilename) _fiContentType "image" _fiContents)
+      | (i, FileInfo {..}) <- reverse (catMaybes images)
+      ]
 
-     chartFiles =
-       [(i, genChart n k chart) | (k, (i, chart)) <- zip [1 ..] (reverse charts)]
+    chartFiles =
+      [ (unsafeRefId i, genChart n k chart)
+      | (k, (i, chart)) <- zip [1 ..] (reverse charts)
+      ]
 
-     innerFiles = imageFiles ++ chartFiles
+    innerFiles = imageFiles ++ chartFiles
 
-     drawingRels =
-       FileData
-         ("xl/drawings/_rels/drawing" <> show n <> ".xml.rels")
-         "application/vnd.openxmlformats-package.relationships+xml"
-         "relationships"
-         drawingRelsXml
+    drawingRels =
+      FileData
+        ("xl/drawings/_rels/drawing" <> show n <> ".xml.rels")
+        relsCT
+        "relationships"
+        drawingRelsXml
 
-     drawingRelsXml =
-       renderLBS def . toDocument . Relationships.fromList $
-       map (refFileDataToRel drawingFilePath) innerFiles
+    drawingRelsXml =
+      renderLBS def . toDocument . Relationships.fromList $
+      map (refFileDataToRel drawingFilePath) innerFiles
 
-     referenced =
-       case innerFiles of
-         [] -> []
-         _ -> drawingRels : (map snd innerFiles)
+    referenced =
+      case innerFiles of
+        [] -> []
+        _ -> drawingRels : (map snd innerFiles)
 
 genChart :: Int -> Int -> ChartSpace -> FileData
 genChart n i ch = FileData path contentType relType contents
@@ -280,12 +275,59 @@ genChart n i ch = FileData path contentType relType contents
       , ("a", "http://schemas.openxmlformats.org/drawingml/2006/main")
       ]
 
+newtype CacheId = CacheId
+  { unCacheId :: Int
+  }
+
+data PvGenerated = PvGenerated
+  { pvgCacheFiles :: [(CacheId, FileData)]
+  , pvgSheetTableFiles :: [[FileData]]
+  , pvgOthers :: [FileData]
+  }
+
+generatePivotFiles :: [[PivotTable]] -> PvGenerated
+generatePivotFiles tables = PvGenerated cacheFiles shTableFiles others
+  where
+    cacheFiles = [cacheFile | (cacheFile, _, _) <- flatRendered]
+    shTableFiles = map (map (\(_, tableFile, _) -> tableFile)) rendered
+    others = concat [other | (_, _, other) <- flatRendered]
+    firstCacheId = 1
+    flatRendered = concat rendered
+    (_, rendered) =
+      mapAccumL
+        (\c ts -> mapAccumL (\c' t -> (c' + 1, render c' t)) c ts)
+        firstCacheId
+        tables
+    render cacheIdRaw tbl =
+      let PivotTableFiles {..} = renderPivotTableFiles cacheIdRaw tbl
+          cacheId = CacheId cacheIdRaw
+          cacheIdStr = show cacheIdRaw
+          cachePath =
+            "xl/pivotCache/pivotCacheDefinition" <> cacheIdStr <> ".xml"
+          cacheFile =
+            FileData
+              cachePath
+              (smlCT "pivotCacheDefinition")
+              "pivotCacheDefinition"
+              pvtfCacheDefinition
+          renderRels = renderLBS def . toDocument . Relationships.fromList
+          tablePath = "xl/pivotTables/pivotTable" <> cacheIdStr <> ".xml"
+          tableFile =
+            FileData tablePath (smlCT "pivotTable") "pivotTable" pvtfTable
+          tableRels =
+            FileData
+              ("xl/pivotTables/_rels/pivotTable" <> cacheIdStr <> ".xml.rels")
+              relsCT
+              "relationships" $
+            renderRels [refFileDataToRel tablePath (unsafeRefId 1, cacheFile)]
+      in ((cacheId, cacheFile), tableFile, [tableRels])
+
 data FileData = FileData { fdPath        :: FilePath
                          , fdContentType :: Text
                          , fdRelType     :: Text
                          , fdContents    :: L.ByteString }
 
-type ReferencedFileData = (Int, FileData)
+type ReferencedFileData = (RefId, FileData)
 
 refFileDataToRel :: FilePath -> ReferencedFileData -> (RefId, Relationship)
 refFileDataToRel basePath (i, FileData {..}) =
@@ -372,48 +414,98 @@ transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
     transformValue (CellBool b) = XlsxBool b
     transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
 
-bookXml :: [Text] -> DefinedNames -> L.ByteString
-bookXml sheetNames (DefinedNames names) = renderLBS def $ Document (Prologue [] Nothing []) root []
-  where
-    numNames = [(txti i, name) | (i, name) <- zip [(1::Int)..] sheetNames]
+bookFiles :: Xlsx -> [FileData]
+bookFiles xlsx = runST $ do
+  ref <- newSTRef 1
+  ssRId <- nextRefId ref
+  let sheets = xlsx ^. xlSheets . to (map snd)
+      shared = sstConstruct sheets
+      sharedStrings =
+        (ssRId, FileData "xl/sharedStrings.xml" (smlCT "sharedStrings") "sharedStrings" $
+              ssXml shared)
+  stRId <- nextRefId ref
+  let style =
+        (stRId, FileData "xl/styles.xml" (smlCT "styles") "styles" $
+              unStyles (xlsx ^. xlStyles))
+  let PvGenerated
+        {pvgCacheFiles=cacheIdFiles,
+         pvgOthers=pivotOtherFiles,
+         pvgSheetTableFiles=sheetPivotTables} =
+        generatePivotFiles (xlsx ^. xlSheets . to (map (^. _2 . wsPivotTables)))
+      sheetCells = map (transformSheetData shared) sheets
+      sheetInputs = zip3 sheetCells sheetPivotTables sheets
+  allSheetFiles <- forM (zip [1..] sheetInputs) $ \(i, (cells, pvTables, sheet)) -> do
+    rId <- nextRefId ref
+    let (sheetFile, others) = singleSheetFiles i cells pvTables sheet
+    return ((rId, sheetFile), others)
+  let sheetFiles = map fst allSheetFiles
+      sheetNameByRId = zip (map fst sheetFiles) (xlsx ^. xlSheets . to (map fst))
+      sheetOthers = concatMap snd allSheetFiles
+  cacheRefFDsById <- forM cacheIdFiles $ \(cacheId, fd) -> do
+      refId <- nextRefId ref
+      return (cacheId, (refId, fd))
+  let cacheRefsById = [ (cId, rId) | (cId, (rId, _)) <- cacheRefFDsById ]
+      cacheRefs = map snd cacheRefFDsById
+      bookFile = FileData "xl/workbook.xml" (smlCT "sheet.main") "officeDocument" $
+                 bookXml sheetNameByRId (xlsx ^. xlDefinedNames) cacheRefsById
+      rels = FileData "xl/_rels/workbook.xml.rels"
+             "application/vnd.openxmlformats-package.relationships+xml"
+             "relationships" relsXml
+      relsXml = renderLBS def . toDocument . Relationships.fromList $
+            [ relEntry i fdRelType (fdPath `relFrom` "xl/workbook.xml")
+            | (i, FileData{..}) <- referenced ]
+      referenced = sharedStrings:style:sheetFiles ++ cacheRefs
+      otherFiles = concat [rels:(map snd referenced), pivotOtherFiles, sheetOthers]
+  return $ bookFile:otherFiles
 
+bookXml :: [(RefId, Text)]
+        -> DefinedNames
+        -> [(CacheId, RefId)]
+        -> L.ByteString
+bookXml rIdNames (DefinedNames names) cacheIdRefs =
+  renderLBS def $ Document (Prologue [] Nothing []) root []
+  where
     -- The @bookViews@ element is not required according to the schema, but its
     -- absence can cause Excel to crash when opening the print preview
     -- (see <https://phpexcel.codeplex.com/workitem/2935>). It suffices however
     -- to define a bookViews with a single empty @workbookView@ element
     -- (the @bookViews@ must contain at least one @wookbookView@).
-    root = addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" Nothing $
-           Element "workbook" M.empty
-             [ nEl "bookViews" M.empty [nEl "workbookView" M.empty []]
-             , nEl "sheets" M.empty $
-                 map (\(n, name) -> nEl "sheet"
-                         (M.fromList [ ("name", name)
-                                     , ("sheetId", n)
-                                     , ("state", "visible")
-                                     , (rId, "rId" <> n)]) [])
-                 numNames
-             , nEl "definedNames" M.empty $ map (\(name, lsId, val) ->
-                 nEl "definedName" (definedName name lsId) [NodeContent val]) names
-             ]
-
-    rId = nm "http://schemas.openxmlformats.org/officeDocument/2006/relationships" "id"
-
+    root =
+      addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" Nothing $
+      Element
+        "workbook"
+        M.empty
+        [ nEl "bookViews" M.empty [nEl "workbookView" M.empty []]
+        , nEl "sheets" M.empty $
+          map
+            (\(i, (rId, name)) ->
+               NodeElement $ leafElement "sheet"
+                    [ "name" .= name
+                    , "sheetId" .= i
+                    , (odr "id") .= rId
+                    ]
+            )
+            (zip [(1::Int)..] rIdNames)
+        , nEl "definedNames" M.empty $
+          map
+            (\(name, lsId, val) ->
+               nEl "definedName" (definedName name lsId) [NodeContent val])
+            names
+        , NodeElement . elementListSimple "pivotCaches" $
+          map pivotCacheEl cacheIdRefs
+        ]
+    pivotCacheEl (cId, refId) =
+      leafElement "pivotCache" ["cacheId" .= unCacheId cId, (odr "id") .= refId]
     definedName :: Text -> Maybe Text -> Map Name Text
-    definedName name Nothing     = M.fromList [("name", name)]
-    definedName name (Just lsId) = M.fromList [("name", name), ("localSheetId", lsId)]
+    definedName name Nothing = M.fromList [("name", name)]
+    definedName name (Just lsId) =
+      M.fromList [("name", name), ("localSheetId", lsId)]
 
 ssXml :: SharedStringTable -> L.ByteString
 ssXml = renderLBS def . toDocument
 
 customPropsXml :: CustomProperties -> L.ByteString
 customPropsXml = renderLBS def . toDocument
-
-bookRels :: Int -> Relationships
-bookRels n =  Relationships.fromList (sheetRels ++ [stylesRel, ssRel])
-  where
-    sheetRels = [relEntry i "worksheet" ("worksheets/sheet" <> show i <> ".xml") | i <- [1..n]]
-    stylesRel = relEntry (n + 1) "styles" "styles.xml"
-    ssRel = relEntry (n + 2) "sharedStrings" "sharedStrings.xml"
 
 contentTypesXml :: [FileData] -> L.ByteString
 contentTypesXml fds = renderLBS def $ Document (Prologue [] Nothing []) root []
@@ -448,5 +540,12 @@ nEl :: Name -> Map Name Text -> [Node] -> Node
 nEl name attrs nodes = NodeElement $ Element name attrs nodes
 
 -- | Creates element holding reference to some linked file
-refElement :: Name -> Int -> Element
-refElement name rId = leafElement name [ odr "id" .= ("rId" <> txti rId) ]
+refElement :: Name -> RefId -> Element
+refElement name rId = leafElement name [ odr "id" .= rId ]
+
+smlCT :: Text -> Text
+smlCT t =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml." <> t <> "+xml"
+
+relsCT :: Text
+relsCT = "application/vnd.openxmlformats-package.relationships+xml"
