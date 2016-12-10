@@ -703,24 +703,10 @@ testPivotTable =
         }
       ]
   , _pvtFields =
-      [ ( colorField
-        , PivotField $
-          map
-            Just
-            [CellText "Red", CellText "Red", CellText "Blue", CellText "Blue"])
-      , ( yearField
-        , PivotField $
-          map
-            Just
-            [CellDouble 2015, CellDouble 2016, CellDouble 2015, CellDouble 2016])
-      , ( priceField
-        , PivotField $
-          map
-            Just
-            [CellDouble 100, CellDouble 123, CellDouble 50, CellDouble 34.2])
-      , ( countField
-        , PivotField $
-          map Just [CellDouble 5, CellDouble 3, CellDouble 20, CellDouble 23])
+      [ colorField
+      , yearField
+      , priceField
+      , countField
       ]
   , _pvtRowGrandTotals = True
   , _pvtColumnGrandTotals = False
@@ -739,12 +725,12 @@ testPivotTableDefinition = [r|
   <pivotFields>
     <pivotField name="Color" axis="axisRow" showAll="0" outline="0">
       <items>
-        <item x="0"/><item x="1"/><item t="default"/>
+        <item t="default"/>
       </items>
     </pivotField>
     <pivotField name="Year" axis="axisCol" showAll="0" outline="0">
       <items>
-        <item x="0"/><item x="1"/><item t="default"/>
+        <item t="default"/>
       </items>
     </pivotField>
     <pivotField name="Price" dataField="1" showAll="0" outline="0"/>
@@ -769,31 +755,10 @@ testPivotCacheDefinition = [r|
     <worksheetSource ref="A1:D5" sheet="Sheet1"/>
   </cacheSource>
   <cacheFields>
-    <cacheField name="Color">
-      <sharedItems><s v="Blue"/><s v="Red"/></sharedItems>
-    </cacheField>
-    <cacheField name="Year">
-      <sharedItems containsSemiMixedTypes="0" containsString="0" containsNumber="1">
-        <n v="2015"/>
-        <n v="2016"/>
-      </sharedItems>
-    </cacheField>
-    <cacheField name="Price">
-      <sharedItems containsSemiMixedTypes="0" containsString="0" containsNumber="1">
-        <n v="34.2"/>
-        <n v="50"/>
-        <n v="100"/>
-        <n v="123"/>
-      </sharedItems>
-    </cacheField>
-    <cacheField name="Count">
-      <sharedItems containsSemiMixedTypes="0" containsString="0" containsNumber="1">
-        <n v="3"/>
-        <n v="5"/>
-        <n v="20"/>
-        <n v="23"/>
-      </sharedItems>
-    </cacheField>
+    <cacheField name="Color"/>
+    <cacheField name="Year"/>
+    <cacheField name="Price"/>
+    <cacheField name="Count"/>
   </cacheFields>
 </pivotCacheDefinition>
 |]
