@@ -81,7 +81,6 @@ main = defaultMain $
         Left InvalidZipArchive @==? toXlsxEither "this is not a valid XLSX file"
     , testCase "proper pivot table rendering" $ do
       let ptFiles = renderPivotTableFiles 3 testPivotTable
-      print $ pvtfCacheDefinition ptFiles
       parseLBS_ def (pvtfTable ptFiles) @==?
         stripContentSpaces (parseLBS_ def testPivotTableDefinition)
       parseLBS_ def (pvtfCacheDefinition ptFiles) @==?
