@@ -56,10 +56,10 @@ instance FromAttrVal Text where
     fromAttrVal = readSuccess
 
 instance FromAttrVal Int where
-    fromAttrVal = T.decimal
+    fromAttrVal = T.signed T.decimal
 
 instance FromAttrVal Integer where
-    fromAttrVal = T.decimal
+    fromAttrVal = T.signed T.decimal
 
 instance FromAttrVal Double where
     fromAttrVal = T.rational
@@ -139,7 +139,7 @@ n_ x = Name
   }
 
 decimal :: (Monad m, Integral a) => Text -> m a
-decimal t = case T.decimal t of
+decimal t = case T.signed T.decimal $ t of
   Right (d, leftover) | T.null leftover -> return d
   _ -> fail $ "invalid decimal" ++ show t
 

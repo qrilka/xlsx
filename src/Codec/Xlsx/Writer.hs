@@ -275,10 +275,6 @@ genChart n i ch = FileData path contentType relType contents
       , ("a", "http://schemas.openxmlformats.org/drawingml/2006/main")
       ]
 
-newtype CacheId = CacheId
-  { unCacheId :: Int
-  }
-
 data PvGenerated = PvGenerated
   { pvgCacheFiles :: [(CacheId, FileData)]
   , pvgSheetTableFiles :: [[FileData]]
@@ -494,8 +490,8 @@ bookXml rIdNames (DefinedNames names) cacheIdRefs =
         , NodeElement . elementListSimple "pivotCaches" $
           map pivotCacheEl cacheIdRefs
         ]
-    pivotCacheEl (cId, refId) =
-      leafElement "pivotCache" ["cacheId" .= unCacheId cId, (odr "id") .= refId]
+    pivotCacheEl (CacheId cId, refId) =
+      leafElement "pivotCache" ["cacheId" .= cId, (odr "id") .= refId]
     definedName :: Text -> Maybe Text -> Map Name Text
     definedName name Nothing = M.fromList [("name", name)]
     definedName name (Just lsId) =

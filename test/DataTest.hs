@@ -85,6 +85,19 @@ main = defaultMain $
         stripContentSpaces (parseLBS_ def testPivotTableDefinition)
       parseLBS_ def (pvtfCacheDefinition ptFiles) @==?
         stripContentSpaces (parseLBS_ def testPivotCacheDefinition)
+    , testCase "proper pivot table parsing" $ do
+      let sheetName = "Sheet1"
+          ref = CellRef "A1:D5"
+          fields =
+            [ PivotFieldName "Color"
+            , PivotFieldName "Year"
+            , PivotFieldName "Price"
+            , PivotFieldName "Count"
+            ]
+          forCacheId (CacheId 3) = Just (sheetName, ref, fields)
+          forCacheId _ = Nothing
+      Just (sheetName, ref, fields) @==? parseCache testPivotCacheDefinition
+      Just testPivotTable @==? parsePivotTable forCacheId testPivotTableDefinition
     ]
 
 parseBS :: FromCursor a => ByteString -> [a]
@@ -93,9 +106,18 @@ parseBS = fromCursor . fromDocument . parseLBS_ def
 testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties
   where
-    sheets = [("List1", sheet1), ("Another sheet", sheet2)]
+    sheets =
+      [("List1", sheet1), ("Another sheet", sheet2), ("with pivot table", pvSheet)]
     sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup cFormatting []
     sheet2 = def & wsCells .~ testCellMap2
+    pvSheet = sheetWithPvCells & wsPivotTables .~ [testPivotTable]
+    sheetWithPvCells = flip execState def $ do
+      forM_ (zip [1..] ["Color", "Year", "Price", "Count"]) $ \(c, n) ->
+        cellValueAt (1, c) ?= CellText n
+      cellValueAt (2, 1) ?= CellText "brown"
+      cellValueAt (2, 2) ?= CellDouble 2016
+      cellValueAt (2, 3) ?= CellDouble 12.34
+      cellValueAt (2, 4) ?= CellDouble 42
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
     drawing = Just $ testDrawing { _xdrAnchors = map resolve $ _xdrAnchors testDrawing }
@@ -684,7 +706,7 @@ testPivotTable :: PivotTable
 testPivotTable =
   PivotTable
   { _pvtName = "PivotTable1"
-  , _pvtDataCaption = Just "Values"
+  , _pvtDataCaption = "Values"
   , _pvtLocation = CellRef "A3:D12"
   , _pvtSrcRef = CellRef "A1:D5"
   , _pvtSrcSheet = "Sheet1"
@@ -703,13 +725,15 @@ testPivotTable =
         }
       ]
   , _pvtFields =
-      [ colorField
-      , yearField
-      , priceField
-      , countField
+      [ PivotFieldInfo colorField False
+      , PivotFieldInfo yearField True
+      , PivotFieldInfo priceField False
+      , PivotFieldInfo countField False
       ]
   , _pvtRowGrandTotals = True
   , _pvtColumnGrandTotals = False
+  , _pvtOutline = False
+  , _pvtOutlineData = False
   }
   where
     colorField = PivotFieldName "Color"
@@ -728,7 +752,7 @@ testPivotTableDefinition = [r|
         <item t="default"/>
       </items>
     </pivotField>
-    <pivotField name="Year" axis="axisCol" showAll="0" outline="0">
+    <pivotField name="Year" axis="axisCol" showAll="0" outline="1">
       <items>
         <item t="default"/>
       </items>
