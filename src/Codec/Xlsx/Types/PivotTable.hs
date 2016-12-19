@@ -9,15 +9,8 @@ module Codec.Xlsx.Types.PivotTable
   , ConsolidateFunction(..)
   ) where
 
-import Control.Applicative
 import Control.Arrow (first)
-import Data.ByteString.Lazy (ByteString)
-import qualified Data.Map as M
-import Data.Maybe (catMaybes, listToMaybe, maybeToList)
 import Data.Text (Text)
-import Safe (fromJustNote)
-import Text.XML
-import Text.XML.Cursor
 
 import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Parser.Internal
