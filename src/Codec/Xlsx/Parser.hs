@@ -45,6 +45,7 @@ import           Codec.Xlsx.Types.Internal.CfPair
 import           Codec.Xlsx.Types.Internal.CommentTable
 import           Codec.Xlsx.Types.Internal.ContentTypes      as ContentTypes
 import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
+import           Codec.Xlsx.Types.Internal.DvPair
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 import           Codec.Xlsx.Types.PivotTable.Internal
@@ -153,6 +154,9 @@ extractSheet ar sst contentTypes caches wf = do
 
       condFormtattings = M.fromList . map unCfPair  $ cur $/ element (n_ "conditionalFormatting") >=> fromCursor
 
+      validations = M.fromList . map unDvPair $
+          cur $/ element (n_ "dataValidations") &/ element (n_ "dataValidation") >=> fromCursor
+
   mDrawing <- case mDrawingId of
       Just dId -> do
           rel <- note (InvalidRef filePath dId) $ Relationships.lookup dId sheetRels
@@ -167,7 +171,7 @@ extractSheet ar sst contentTypes caches wf = do
     note (InconsistentXlsx $ "Bad pivot table in " <> T.pack ptPath) $
       parsePivotTable (flip Prelude.lookup caches) bs
 
-  return $ Worksheet cws rowProps cells mDrawing merges sheetViews pageSetup condFormtattings pTables
+  return $ Worksheet cws rowProps cells mDrawing merges sheetViews pageSetup condFormtattings validations pTables
 
 extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
 extractCellValue sst "s" v =

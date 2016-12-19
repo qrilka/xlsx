@@ -15,6 +15,7 @@ module Codec.Xlsx.Parser.Internal
     , maybeElementValueDef
     , maybeBoolElementValue
     , maybeFromElement
+    , contentOrEmpty
     , readSuccess
     , readFailure
     , invalidText
@@ -112,6 +113,12 @@ maybeFromElement name cursor = case cursor $/ element name of
   [cursor'] -> Just <$> fromCursor cursor'
   _ -> [Nothing]
 
+contentOrEmpty :: Cursor -> [Text]
+contentOrEmpty c =
+  case c $/ content of
+    [t] -> [t]
+    [] -> [""]
+    _ -> error "invalid item: more than one text node encountered"
 
 readSuccess :: a -> Either String (a, Text)
 readSuccess x = Right (x, T.empty)

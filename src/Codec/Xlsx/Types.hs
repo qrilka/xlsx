@@ -30,6 +30,7 @@ module Codec.Xlsx.Types (
     , wsSheetViews
     , wsPageSetup
     , wsConditionalFormattings
+    , wsDataValidations
     , wsPivotTables
     -- ** Cells
     , cellValue
@@ -67,6 +68,7 @@ import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.Comment               as X
 import           Codec.Xlsx.Types.Common                as X
 import           Codec.Xlsx.Types.ConditionalFormatting as X
+import           Codec.Xlsx.Types.DataValidation        as X
 import           Codec.Xlsx.Types.Drawing               as X
 import           Codec.Xlsx.Types.Drawing.Chart         as X
 import           Codec.Xlsx.Types.Drawing.Common        as X
@@ -151,13 +153,14 @@ data Worksheet = Worksheet
   , _wsSheetViews :: Maybe [SheetView]
   , _wsPageSetup :: Maybe PageSetup
   , _wsConditionalFormattings :: Map SqRef ConditionalFormatting
+  , _wsDataValidations :: Map SqRef DataValidation
   , _wsPivotTables :: [PivotTable]
   } deriving (Eq, Show)
 
 makeLenses ''Worksheet
 
 instance Default Worksheet where
-    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty []
+    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty M.empty []
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)

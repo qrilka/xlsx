@@ -43,6 +43,7 @@ import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.CfPair
 import qualified Codec.Xlsx.Types.Internal.CommentTable      as CommentTable
 import           Codec.Xlsx.Types.Internal.CustomProperties
+import           Codec.Xlsx.Types.Internal.DvPair
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships hiding (lookup)
 import           Codec.Xlsx.Types.Internal.SharedStringTable
 import           Codec.Xlsx.Types.PivotTable.Internal
@@ -107,14 +108,15 @@ singleSheetFiles n cells pivFileDatas ws = runST $ do
             [ elementListSimple "sheetViews" . map (toElement "sheetView") <$> ws ^. wsSheetViews
             , nonEmptyElListSimple "cols" . map cwEl $ ws ^. wsColumns
             , Just . elementListSimple "sheetData" $ sheetDataXml cells (ws ^. wsRowPropertiesMap)
-            ] ++
-            map (Just . toElement "conditionalFormatting") cfPairs ++
-            [ nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
+            , nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
+            ] ++ map (Just . toElement "conditionalFormatting") cfPairs ++
+            [ Just $ countedElementList "dataValidations" $ map (toElement "dataValidation") dvPairs
             , toElement "pageSetup" <$> ws ^. wsPageSetup
             , fst3 <$> mDrawingData
             , fst <$> mCmntData
             ]
         cfPairs = map CfPair . M.toList $ ws ^. wsConditionalFormattings
+        dvPairs = map DvPair . M.toList $ ws ^. wsDataValidations
         cwEl cw = leafElement "col" [ ("min", txti $ cwMin cw)
                                     , ("max", txti $ cwMax cw)
                                     , ("width", txtd $ cwWidth cw)
