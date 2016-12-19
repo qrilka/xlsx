@@ -45,7 +45,9 @@ import qualified Codec.Xlsx.Types.Internal.CommentTable      as CommentTable
 import           Codec.Xlsx.Types.Internal.CustomProperties
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships hiding (lookup)
 import           Codec.Xlsx.Types.Internal.SharedStringTable
+import           Codec.Xlsx.Types.PivotTable.Internal
 import           Codec.Xlsx.Writer.Internal
+import           Codec.Xlsx.Writer.Internal.PivotTable
 
 -- | Writes `Xlsx' to raw data (lazy bytestring)
 fromXlsx :: POSIXTime -> Xlsx -> L.ByteString

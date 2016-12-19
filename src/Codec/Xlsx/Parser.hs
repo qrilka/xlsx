@@ -38,6 +38,7 @@ import           Text.XML                                    as X
 import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Parser.Internal.PivotTable
 import           Codec.Xlsx.Types
 import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.CfPair
@@ -46,6 +47,7 @@ import           Codec.Xlsx.Types.Internal.ContentTypes      as ContentTypes
 import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
 import           Codec.Xlsx.Types.Internal.SharedStringTable
+import           Codec.Xlsx.Types.PivotTable.Internal
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)
 toXlsx :: L.ByteString -> Xlsx

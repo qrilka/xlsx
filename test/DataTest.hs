@@ -29,12 +29,15 @@ import           Test.Tasty.HUnit                            (HUnitFailure (..),
 import           Codec.Xlsx
 import           Codec.Xlsx.Formatted
 import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Parser.Internal.PivotTable
 import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.CommentTable
 import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 import           Codec.Xlsx.Types.Internal.SharedStringTable
+import           Codec.Xlsx.Types.PivotTable.Internal
 import           Codec.Xlsx.Types.StyleSheet
 import           Codec.Xlsx.Writer.Internal
+import           Codec.Xlsx.Writer.Internal.PivotTable
 
 import           Diff
 
