@@ -1,3 +1,12 @@
+0.4.0
+-----
+* implemented basic charts support with only line charts currently
+* added data validation support (thanks Emil Axelsson <emax@chalmers.se>)
+* fixed reading comments with empty author names (thanks Aleksey
+  Khudyakov <alexey.skladnoy@gmail.com> for reporting)
+* implemented basic pivot table support
+* started using `hindent` to format library code
+
 0.3.0
 -----
 * implemented number formats
