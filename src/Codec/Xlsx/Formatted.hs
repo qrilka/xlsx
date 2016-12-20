@@ -45,7 +45,7 @@ import           Data.Text           (Text)
 import           Data.Traversable    (mapM)
 import           Data.Tuple          (swap)
 import           Prelude             hiding (mapM)
-import           Safe                (headNote)
+import           Safe                (headNote, fromJustNote)
 
 #if !MIN_VERSION_base(4,8,0)
 import           Control.Applicative
@@ -278,7 +278,7 @@ toFormattedCells m merges StyleSheet{..} = applyMerges $ M.map toFormattedCell m
         if apply then prop cXf else fail "not applied"
     applyMerges cells = foldl' onlyTopLeft cells merges
     onlyTopLeft cells range = flip execState cells $ do
-        let ((r1, c1), (r2, c2)) = fromRange range
+        let ((r1, c1), (r2, c2)) = fromJustNote "fromRange" $ fromRange range
             nonTopLeft = tail [(r, c) | r<-[r1..r2], c<-[c1..c2]]
         forM_ nonTopLeft (modify . M.delete)
         at (r1, c1) . non def . formattedRowSpan .= (r2 - r1 +1)

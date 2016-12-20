@@ -9,6 +9,8 @@ import           Data.ByteString.Lazy                        (ByteString)
 import qualified Data.ByteString.Lazy as LB
 import           Data.Map                                    (Map)
 import qualified Data.Map                                    as M
+import           Data.Maybe                                  (mapMaybe)
+import qualified Data.Text                                   as T
 import           Data.Time.Clock.POSIX                       (POSIXTime)
 import qualified Data.Vector                                 as V
 import           Text.RawString.QQ
@@ -27,12 +29,15 @@ import           Test.Tasty.HUnit                            (HUnitFailure (..),
 import           Codec.Xlsx
 import           Codec.Xlsx.Formatted
 import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Parser.Internal.PivotTable
 import           Codec.Xlsx.Types.Internal
 import           Codec.Xlsx.Types.Internal.CommentTable
 import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
 import           Codec.Xlsx.Types.Internal.SharedStringTable
+import           Codec.Xlsx.Types.PivotTable.Internal
 import           Codec.Xlsx.Types.StyleSheet
 import           Codec.Xlsx.Writer.Internal
+import           Codec.Xlsx.Writer.Internal.PivotTable
 
 import           Diff
 
@@ -77,6 +82,25 @@ main = defaultMain $
         Right testXlsx @==? toXlsxEither (fromXlsx testTime testXlsx)
     , testCase "toXlsxEither: invalid format" $
         Left InvalidZipArchive @==? toXlsxEither "this is not a valid XLSX file"
+    , testCase "proper pivot table rendering" $ do
+      let ptFiles = renderPivotTableFiles 3 testPivotTable
+      parseLBS_ def (pvtfTable ptFiles) @==?
+        stripContentSpaces (parseLBS_ def testPivotTableDefinition)
+      parseLBS_ def (pvtfCacheDefinition ptFiles) @==?
+        stripContentSpaces (parseLBS_ def testPivotCacheDefinition)
+    , testCase "proper pivot table parsing" $ do
+      let sheetName = "Sheet1"
+          ref = CellRef "A1:D5"
+          fields =
+            [ PivotFieldName "Color"
+            , PivotFieldName "Year"
+            , PivotFieldName "Price"
+            , PivotFieldName "Count"
+            ]
+          forCacheId (CacheId 3) = Just (sheetName, ref, fields)
+          forCacheId _ = Nothing
+      Just (sheetName, ref, fields) @==? parseCache testPivotCacheDefinition
+      Just testPivotTable @==? parsePivotTable forCacheId testPivotTableDefinition
     ]
 
 parseBS :: FromCursor a => ByteString -> [a]
@@ -85,15 +109,22 @@ parseBS = fromCursor . fromDocument . parseLBS_ def
 testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties
   where
-    sheets = [("List1", sheet1), ("Another sheet", sheet2)]
-    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup
-                       cFormatting validations
+    sheets =
+      [("List1", sheet1), ("Another sheet", sheet2), ("with pivot table", pvSheet)]
+    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup cFormatting validations []
     sheet2 = def & wsCells .~ testCellMap2
+    pvSheet = sheetWithPvCells & wsPivotTables .~ [testPivotTable]
+    sheetWithPvCells = flip execState def $ do
+      forM_ (zip [1..] ["Color", "Year", "Price", "Count"]) $ \(c, n) ->
+        cellValueAt (1, c) ?= CellText n
+      cellValueAt (2, 1) ?= CellText "brown"
+      cellValueAt (2, 2) ?= CellDouble 2016
+      cellValueAt (2, 3) ?= CellDouble 12.34
+      cellValueAt (2, 4) ?= CellDouble 42
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
     cols = [ColumnsWidth 1 10 15 1]
     drawing = Just $ testDrawing { _xdrAnchors = map resolve $ _xdrAnchors testDrawing }
     resolve :: Anchor RefId RefId -> Anchor FileInfo ChartSpace
---    pic = head (testDrawing ^. xdrAnchors) & anchObject %~ setFI
     resolve Anchor {..} =
       let obj =
             case _anchObject of
@@ -118,21 +149,22 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
     minimalStyles = renderStyleSheet minimalStyleSheet
     definedNames = DefinedNames [("SampleName", Nothing, "A10:A20")]
     sheetViews = Just [sheetView1, sheetView2]
-    sheetView1 = def & sheetViewRightToLeft .~ Just True
-                     & sheetViewTopLeftCell .~ Just "B5"
-    sheetView2 = def & sheetViewType .~ Just SheetViewTypePageBreakPreview
+    sheetView1 = def & sheetViewRightToLeft ?~ True
+                     & sheetViewTopLeftCell ?~ CellRef "B5"
+    sheetView2 = def & sheetViewType ?~ SheetViewTypePageBreakPreview
                      & sheetViewWorkbookViewId .~ 5
-                     & sheetViewSelection .~ [ def & selectionActiveCell .~ Just "C2"
-                                                   & selectionPane .~ Just PaneTypeBottomRight
-                                             , def & selectionActiveCellId .~ Just 1
-                                                   & selectionSqref ?~ SqRef ["A3:A10","B1:G3"]
+                     & sheetViewSelection .~ [ def & selectionActiveCell ?~ CellRef "C2"
+                                                   & selectionPane ?~ PaneTypeBottomRight
+                                             , def & selectionActiveCellId ?~ 1
+                                                   & selectionSqref ?~ SqRef [ CellRef "A3:A10"
+                                                                             , CellRef "B1:G3"]
                                              ]
-    pageSetup = Just $ def & pageSetupBlackAndWhite .~ Just True
-                           & pageSetupCopies .~ Just 2
-                           & pageSetupErrors .~ Just PrintErrorsDash
-                           & pageSetupPaperSize .~ Just PaperA4
+    pageSetup = Just $ def & pageSetupBlackAndWhite ?~  True
+                           & pageSetupCopies ?~ 2
+                           & pageSetupErrors ?~ PrintErrorsDash
+                           & pageSetupPaperSize ?~ PaperA4
     customProperties = M.fromList [("some_prop", VtInt 42)]
-    cFormatting = M.fromList [(SqRef ["A1:B3"], rules1), (SqRef ["C1:C10"], rules2)]
+    cFormatting = M.fromList [(SqRef [CellRef "A1:B3"], rules1), (SqRef [CellRef "C1:C10"], rules2)]
     cfRule c d = CfRule { _cfrCondition  = c
                         , _cfrDxfId      = Just d
                         , _cfrPriority   = topCfPriority
@@ -226,8 +258,8 @@ testSharedStringTableWithEmpty =
   SharedStringTable $ V.fromList [XlsxText ""]
 
 testCommentTable = CommentTable $ M.fromList
-    [ ("D4", Comment (XlsxRichText rich) "Bob" True)
-    , ("A2", Comment (XlsxText "Some comment here") "CBR" True) ]
+    [ (CellRef "D4", Comment (XlsxRichText rich) "Bob" True)
+    , (CellRef "A2", Comment (XlsxText "Some comment here") "CBR" True) ]
   where
     rich = [ RichTextRun
              { _richTextRunProperties =
@@ -539,9 +571,9 @@ testCondFormattedResult = CondFormatted styleSheet formattings
     dxfs = [ def & dxfFont ?~ (def & fontUnderline ?~ FontUnderlineSingle)
            , def & dxfFont ?~ (def & fontStrikeThrough ?~ True)
            , def & dxfFont ?~ (def & fontBold ?~ True) ]
-    formattings = M.fromList [ (SqRef ["A1:A2", "B2:B3"], [cfRule1, cfRule2])
-                             , (SqRef ["C3:E10"], [cfRule1])
-                             , (SqRef ["F1:G10"], [cfRule3]) ]
+    formattings = M.fromList [ (SqRef [CellRef "A1:A2", CellRef "B2:B3"], [cfRule1, cfRule2])
+                             , (SqRef [CellRef "C3:E10"], [cfRule1])
+                             , (SqRef [CellRef "F1:G10"], [cfRule3]) ]
     cfRule1 = CfRule
         { _cfrCondition  = ContainsBlanks
         , _cfrDxfId      = Just 0
@@ -578,10 +610,10 @@ testRunCondFormatted = conditionallyFormatted condFmts minimalStyleSheet
                           & condfmtDxf . dxfFont . non def . fontStrikeThrough ?~ True
             cfRule3 = def & condfmtCondition .~ CellIs (OpGreaterThan (Formula "A1"))
                           & condfmtDxf . dxfFont . non def . fontBold ?~ True
-        at "A1:A2"  ?= [cfRule1, cfRule2]
-        at "B2:B3"  ?= [cfRule1, cfRule2]
-        at "C3:E10" ?= [cfRule1]
-        at "F1:G10" ?= [cfRule3]
+        at (CellRef "A1:A2")  ?= [cfRule1, cfRule2]
+        at (CellRef "B2:B3")  ?= [cfRule1, cfRule2]
+        at (CellRef "C3:E10") ?= [cfRule1]
+        at (CellRef "F1:G10") ?= [cfRule3]
 
 testChartFile :: ByteString
 testChartFile = [r|
@@ -673,11 +705,12 @@ testWrittenChartSpace = renderLBS def{rsNamespaces=nss} $ toDocument testChartSp
     nss = [ ("c", "http://schemas.openxmlformats.org/drawingml/2006/chart")
           , ("a", "http://schemas.openxmlformats.org/drawingml/2006/main") ]
 
+
 validations :: Map SqRef DataValidation
 validations = M.fromList
-    [ ( SqRef ["A1"], def
+    [ ( SqRef [CellRef "A1"], def
       )
-      , ( SqRef ["A1","B2:C3"], def
+      , ( SqRef [CellRef "A1", CellRef "B2:C3"], def
         { _dvAllowBlank       = True
         , _dvError            = Just "incorrect data"
         , _dvErrorStyle       = ErrorStyleInformation
@@ -690,7 +723,7 @@ validations = M.fromList
         , _dvValidationType   = ValidationTypeList ["aaaa","bbbb","cccc"]
         }
       )
-    , ( SqRef ["A6","I2"], def
+    , ( SqRef [CellRef "A6", CellRef "I2"], def
         { _dvAllowBlank       = False
         , _dvError            = Just "aaa"
         , _dvErrorStyle       = ErrorStyleWarning
@@ -703,7 +736,7 @@ validations = M.fromList
         , _dvValidationType   = ValidationTypeDecimal $ ValGreaterThan $ Formula "10"
         }
       )
-    , ( SqRef ["A7"], def
+    , ( SqRef [CellRef "A7"], def
         { _dvAllowBlank       = False
         , _dvError            = Just "aaa"
         , _dvErrorStyle       = ErrorStyleStop
@@ -717,3 +750,101 @@ validations = M.fromList
         }
       )
     ]
+
+testPivotTable :: PivotTable
+testPivotTable =
+  PivotTable
+  { _pvtName = "PivotTable1"
+  , _pvtDataCaption = "Values"
+  , _pvtLocation = CellRef "A3:D12"
+  , _pvtSrcRef = CellRef "A1:D5"
+  , _pvtSrcSheet = "Sheet1"
+  , _pvtRowFields = [FieldPosition colorField, DataPosition]
+  , _pvtColumnFields = [FieldPosition yearField]
+  , _pvtDataFields =
+      [ DataField
+        { _dfName = "Sum of field Price"
+        , _dfField = priceField
+        , _dfFunction = ConsolidateSum
+        }
+      , DataField
+        { _dfName = "Sum of field Count"
+        , _dfField = countField
+        , _dfFunction = ConsolidateSum
+        }
+      ]
+  , _pvtFields =
+      [ PivotFieldInfo colorField False
+      , PivotFieldInfo yearField True
+      , PivotFieldInfo priceField False
+      , PivotFieldInfo countField False
+      ]
+  , _pvtRowGrandTotals = True
+  , _pvtColumnGrandTotals = False
+  , _pvtOutline = False
+  , _pvtOutlineData = False
+  }
+  where
+    colorField = PivotFieldName "Color"
+    yearField = PivotFieldName "Year"
+    priceField = PivotFieldName "Price"
+    countField = PivotFieldName "Count"
+
+testPivotTableDefinition :: ByteString
+testPivotTableDefinition = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><!--Pivot table generated by xlsx-->
+<pivotTableDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="PivotTable1" cacheId="3" dataOnRows="1" colGrandTotals="0" dataCaption="Values">
+  <location ref="A3:D12" firstHeaderRow="1" firstDataRow="2" firstDataCol="1"/>
+  <pivotFields>
+    <pivotField name="Color" axis="axisRow" showAll="0" outline="0">
+      <items>
+        <item t="default"/>
+      </items>
+    </pivotField>
+    <pivotField name="Year" axis="axisCol" showAll="0" outline="1">
+      <items>
+        <item t="default"/>
+      </items>
+    </pivotField>
+    <pivotField name="Price" dataField="1" showAll="0" outline="0"/>
+    <pivotField name="Count" dataField="1" showAll="0" outline="0"/>
+  </pivotFields>
+  <rowFields><field x="0"/><field x="-2"/></rowFields>
+  <colFields><field x="1"/></colFields>
+  <dataFields>
+    <dataField name="Sum of field Price" fld="2"/>
+    <dataField name="Sum of field Count" fld="3"/>
+  </dataFields>
+</pivotTableDefinition>
+|]
+
+testPivotCacheDefinition :: ByteString
+testPivotCacheDefinition = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><!--Pivot cache definition generated by xlsx-->
+<pivotCacheDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    invalid="1" refreshOnLoad="1"
+    xmlns:ns="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <cacheSource type="worksheet">
+    <worksheetSource ref="A1:D5" sheet="Sheet1"/>
+  </cacheSource>
+  <cacheFields>
+    <cacheField name="Color"/>
+    <cacheField name="Year"/>
+    <cacheField name="Price"/>
+    <cacheField name="Count"/>
+  </cacheFields>
+</pivotCacheDefinition>
+|]
+
+stripContentSpaces :: Document -> Document
+stripContentSpaces doc@Document {documentRoot = root} =
+  doc {documentRoot = go root}
+  where
+    go e@Element {elementNodes = nodes} =
+      e {elementNodes = mapMaybe goNode nodes}
+    goNode (NodeElement el) = Just $ NodeElement (go el)
+    goNode t@(NodeContent txt) =
+      if T.strip txt == T.empty
+        then Nothing
+        else Just t
+    goNode other = Just $ other

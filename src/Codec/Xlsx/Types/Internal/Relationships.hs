@@ -42,8 +42,11 @@ fromList = Relationships . Map.fromList
 empty :: Relationships
 empty = fromList []
 
-relEntry :: Int -> Text -> FilePath -> (RefId, Relationship)
-relEntry i typ trg = (RefId ("rId" <> txti i), Relationship (stdRelType typ) trg)
+size :: Relationships -> Int
+size = Map.size . relMap
+
+relEntry :: RefId -> Text -> FilePath -> (RefId, Relationship)
+relEntry rId typ trg = (rId, Relationship (stdRelType typ) trg)
 
 lookup :: RefId -> Relationships -> Maybe Relationship
 lookup ref = Map.lookup ref . relMap
@@ -68,6 +71,9 @@ relFrom path base = uriToString id (pathURI `relativeFrom` baseURI) ""
 
 findRelByType :: Text -> Relationships -> Maybe Relationship
 findRelByType t (Relationships m) = find ((==t) . relType) (Map.elems m)
+
+allByType :: Text -> Relationships -> [Relationship]
+allByType t (Relationships m) = filter ((==t) . relType) (Map.elems m)
 
 {-------------------------------------------------------------------------------
   Rendering
