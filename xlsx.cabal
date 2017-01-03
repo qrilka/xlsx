@@ -35,6 +35,7 @@ Library
   ghc-options:       -Wall
   Exposed-modules:   Codec.Xlsx
                    , Codec.Xlsx.Types
+                   , Codec.Xlsx.Types.AutoFilter
                    , Codec.Xlsx.Types.Comment
                    , Codec.Xlsx.Types.Common
                    , Codec.Xlsx.Types.ConditionalFormatting

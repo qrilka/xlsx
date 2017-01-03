@@ -108,6 +108,7 @@ singleSheetFiles n cells pivFileDatas ws = runST $ do
             [ elementListSimple "sheetViews" . map (toElement "sheetView") <$> ws ^. wsSheetViews
             , nonEmptyElListSimple "cols" . map cwEl $ ws ^. wsColumns
             , Just . elementListSimple "sheetData" $ sheetDataXml cells (ws ^. wsRowPropertiesMap)
+            , toElement "autoFilter" <$> (ws ^. wsAutoFilter)
             , nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
             ] ++ map (Just . toElement "conditionalFormatting") cfPairs ++
             [ nonEmptyElListSimple "dataValidations" $ map (toElement "dataValidation") dvPairs

@@ -157,6 +157,8 @@ extractSheet ar sst contentTypes caches wf = do
       validations = M.fromList . map unDvPair $
           cur $/ element (n_ "dataValidations") &/ element (n_ "dataValidation") >=> fromCursor
 
+  let mAutoFilter = listToMaybe $ cur $/ element (n_ "autoFilter") >=> fromCursor
+
   mDrawing <- case mDrawingId of
       Just dId -> do
           rel <- note (InvalidRef filePath dId) $ Relationships.lookup dId sheetRels
@@ -171,7 +173,19 @@ extractSheet ar sst contentTypes caches wf = do
     note (InconsistentXlsx $ "Bad pivot table in " <> T.pack ptPath) $
       parsePivotTable (flip Prelude.lookup caches) bs
 
-  return $ Worksheet cws rowProps cells mDrawing merges sheetViews pageSetup condFormtattings validations pTables
+  return $
+    Worksheet
+      cws
+      rowProps
+      cells
+      mDrawing
+      merges
+      sheetViews
+      pageSetup
+      condFormtattings
+      validations
+      pTables
+      mAutoFilter
 
 extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
 extractCellValue sst "s" v =

@@ -111,7 +111,13 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
   where
     sheets =
       [("List1", sheet1), ("Another sheet", sheet2), ("with pivot table", pvSheet)]
-    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges sheetViews pageSetup cFormatting validations []
+    sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges
+      sheetViews pageSetup cFormatting validations [] (Just autoFilter)
+    autoFilter = def & afRef ?~ CellRef "A1:E10"
+                     & afFilterColumns .~ fCols
+    fCols = M.fromList [ (1, Filters ["a","b","ZZZ"])
+                       , (2, CustomFiltersAnd (CustomFilter FltrGreaterThanOrEqual "0")
+                           (CustomFilter FltrLessThan "42"))]
     sheet2 = def & wsCells .~ testCellMap2
     pvSheet = sheetWithPvCells & wsPivotTables .~ [testPivotTable]
     sheetWithPvCells = flip execState def $ do

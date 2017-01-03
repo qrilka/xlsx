@@ -32,6 +32,7 @@ module Codec.Xlsx.Types (
     , wsConditionalFormattings
     , wsDataValidations
     , wsPivotTables
+    , wsAutoFilter
     -- ** Cells
     , cellValue
     , cellStyle
@@ -65,6 +66,7 @@ import           Text.XML                               (Element (..), parseLBS,
 import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
+import           Codec.Xlsx.Types.AutoFilter            as X
 import           Codec.Xlsx.Types.Comment               as X
 import           Codec.Xlsx.Types.Common                as X
 import           Codec.Xlsx.Types.ConditionalFormatting as X
@@ -155,12 +157,13 @@ data Worksheet = Worksheet
   , _wsConditionalFormattings :: Map SqRef ConditionalFormatting
   , _wsDataValidations :: Map SqRef DataValidation
   , _wsPivotTables :: [PivotTable]
+  , _wsAutoFilter :: Maybe AutoFilter
   } deriving (Eq, Show)
 
 makeLenses ''Worksheet
 
 instance Default Worksheet where
-    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty M.empty []
+    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty M.empty [] Nothing
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)
