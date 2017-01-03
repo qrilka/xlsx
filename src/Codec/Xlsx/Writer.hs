@@ -110,7 +110,7 @@ singleSheetFiles n cells pivFileDatas ws = runST $ do
             , Just . elementListSimple "sheetData" $ sheetDataXml cells (ws ^. wsRowPropertiesMap)
             , nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
             ] ++ map (Just . toElement "conditionalFormatting") cfPairs ++
-            [ Just $ countedElementList "dataValidations" $ map (toElement "dataValidation") dvPairs
+            [ nonEmptyElListSimple "dataValidations" $ map (toElement "dataValidation") dvPairs
             , toElement "pageSetup" <$> ws ^. wsPageSetup
             , fst3 <$> mDrawingData
             , fst <$> mCmntData
@@ -472,34 +472,31 @@ bookXml rIdNames (DefinedNames names) cacheIdRefs =
     -- (the @bookViews@ must contain at least one @wookbookView@).
     root =
       addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" Nothing $
-      Element
+      elementListSimple
         "workbook"
-        M.empty
-        [ nEl "bookViews" M.empty [nEl "workbookView" M.empty []]
-        , nEl "sheets" M.empty $
-          map
-            (\(i, (rId, name)) ->
-               NodeElement $ leafElement "sheet"
-                    [ "name" .= name
-                    , "sheetId" .= i
-                    , (odr "id") .= rId
-                    ]
-            )
-            (zip [(1::Int)..] rIdNames)
-        , nEl "definedNames" M.empty $
-          map
-            (\(name, lsId, val) ->
-               nEl "definedName" (definedName name lsId) [NodeContent val])
-            names
-        , NodeElement . elementListSimple "pivotCaches" $
-          map pivotCacheEl cacheIdRefs
-        ]
+        ([ elementListSimple "bookViews" [emptyElement "workbookView"]
+         , elementListSimple
+             "sheets"
+             [ leafElement
+               "sheet"
+               ["name" .= name, "sheetId" .= i, (odr "id") .= rId]
+             | (i, (rId, name)) <- zip [(1 :: Int) ..] rIdNames
+             ]
+         , elementListSimple
+             "definedNames"
+             [ elementContent0 "definedName" (definedName name lsId) val
+             | (name, lsId, val) <- names
+             ]
+         ] ++
+         maybeToList
+           (nonEmptyElListSimple "pivotCaches" $ map pivotCacheEl cacheIdRefs))
+
     pivotCacheEl (CacheId cId, refId) =
       leafElement "pivotCache" ["cacheId" .= cId, (odr "id") .= refId]
-    definedName :: Text -> Maybe Text -> Map Name Text
-    definedName name Nothing = M.fromList [("name", name)]
-    definedName name (Just lsId) =
-      M.fromList [("name", name), ("localSheetId", lsId)]
+
+    definedName :: Text -> Maybe Text -> [(Name, Text)]
+    definedName name Nothing = ["name" .= name]
+    definedName name (Just lsId) = ["name" .= name, "localSheetId" .= lsId]
 
 ssXml :: SharedStringTable -> L.ByteString
 ssXml = renderLBS def . toDocument

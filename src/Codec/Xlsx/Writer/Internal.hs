@@ -16,6 +16,7 @@ module Codec.Xlsx.Writer.Internal (
   , nonEmptyElListSimple
   , leafElement
   , emptyElement
+  , elementContent0
   , elementContent
   , elementContentPreserved
   , elementValue
