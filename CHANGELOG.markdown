@@ -1,3 +1,8 @@
+0.4.1
+-----
+* fixed serialization problem of empty validations and pivot caches
+  (thanks laurent stephane <laurent_step@yahoo.fr> for reporting)
+
 0.4.0
 -----
 * implemented basic charts support with only line charts currently
