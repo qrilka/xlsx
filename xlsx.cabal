@@ -35,6 +35,11 @@ Library
   ghc-options:       -Wall
   Exposed-modules:   Codec.Xlsx
                    , Codec.Xlsx.Types
+                   , Codec.Xlsx.Formatted
+                   , Codec.Xlsx.Lens
+                   , Codec.Xlsx.Parser
+                   , Codec.Xlsx.Parser.Internal
+                   , Codec.Xlsx.Parser.Internal.PivotTable
                    , Codec.Xlsx.Types.AutoFilter
                    , Codec.Xlsx.Types.Comment
                    , Codec.Xlsx.Types.Common
@@ -52,18 +57,13 @@ Library
                    , Codec.Xlsx.Types.Internal.NumFmtPair
                    , Codec.Xlsx.Types.Internal.Relationships
                    , Codec.Xlsx.Types.Internal.SharedStringTable
+                   , Codec.Xlsx.Types.PageSetup
                    , Codec.Xlsx.Types.PivotTable
                    , Codec.Xlsx.Types.PivotTable.Internal
                    , Codec.Xlsx.Types.RichText
                    , Codec.Xlsx.Types.SheetViews
-                   , Codec.Xlsx.Types.PageSetup
                    , Codec.Xlsx.Types.StyleSheet
                    , Codec.Xlsx.Types.Variant
-                   , Codec.Xlsx.Lens
-                   , Codec.Xlsx.Parser
-                   , Codec.Xlsx.Parser.Internal
-                   , Codec.Xlsx.Parser.Internal.PivotTable
-                   , Codec.Xlsx.Formatted
                    , Codec.Xlsx.Writer
                    , Codec.Xlsx.Writer.Internal
                    , Codec.Xlsx.Writer.Internal.PivotTable
