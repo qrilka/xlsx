@@ -128,7 +128,7 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
       cellValueAt (2, 3) ?= CellDouble 12.34
       cellValueAt (2, 4) ?= CellDouble 42
     rowProps = M.fromList [(1, RowProps (Just 50) (Just 3))]
-    cols = [ColumnsWidth 1 10 15 1]
+    cols = [ColumnsWidth 1 10 15 (Just 1)]
     drawing = Just $ testDrawing { _xdrAnchors = map resolve $ _xdrAnchors testDrawing }
     resolve :: Anchor RefId RefId -> Anchor FileInfo ChartSpace
     resolve Anchor {..} =

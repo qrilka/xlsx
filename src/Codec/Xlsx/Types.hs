@@ -131,19 +131,30 @@ data RowProperties = RowProps { rowHeight :: Maybe Double, rowStyle::Maybe Int}
 
 -- | Column range (from cwMin to cwMax) width
 data ColumnsWidth = ColumnsWidth
-    { cwMin   :: Int
-    , cwMax   :: Int
-    , cwWidth :: Double
-    , cwStyle :: Int
-    } deriving (Eq, Show)
+  { cwMin :: Int
+  -- ^ First column affected by this 'ColumnWidth' record.
+  , cwMax :: Int
+  -- ^ Last column affected by this 'ColumnWidth' record.
+  , cwWidth :: Double
+  -- ^ Column width measured as the number of characters of the
+  -- maximum digit width of the numbers 0, 1, 2, ..., 9 as rendered in
+  -- the normal style's font.
+  --
+  -- See longer description in Section 18.3.1.13 "col (Column Width &
+  -- Formatting)" (p. 1605)
+  , cwStyle :: Maybe Int
+  -- ^ Default style for the affected column(s). Affects cells not yet
+  -- allocated in the column(s).  In other words, this style applies
+  -- to new columns.
+  } deriving (Eq, Show)
 
 instance FromCursor ColumnsWidth where
-    fromCursor c = do
-      cwMin <- decimal =<< attribute "min" c
-      cwMax <- decimal =<< attribute "max" c
-      cwWidth <- rational =<< attribute "width" c
-      cwStyle <- decimal =<< attribute "style" c
-      return ColumnsWidth{..}
+  fromCursor c = do
+    cwMin <- fromAttribute "min" c
+    cwMax <- fromAttribute "max" c
+    cwWidth <- fromAttribute "width" c
+    cwStyle <- maybeAttribute "style" c
+    return ColumnsWidth {..}
 
 -- | Xlsx worksheet
 data Worksheet = Worksheet

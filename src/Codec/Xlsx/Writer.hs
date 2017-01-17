@@ -118,10 +118,10 @@ singleSheetFiles n cells pivFileDatas ws = runST $ do
             ]
         cfPairs = map CfPair . M.toList $ ws ^. wsConditionalFormattings
         dvPairs = map DvPair . M.toList $ ws ^. wsDataValidations
-        cwEl cw = leafElement "col" [ ("min", txti $ cwMin cw)
-                                    , ("max", txti $ cwMax cw)
-                                    , ("width", txtd $ cwWidth cw)
-                                    , ("style", txti $ cwStyle cw)]
+        cwEl cw =
+          leafElement "col" $
+          ["min" .= cwMin cw, "max" .= cwMax cw, "width" .= cwWidth cw] ++
+          catMaybes ["style" .=? (justNonDef 0 =<< cwStyle cw)]
         mergeE1 r = leafElement "mergeCell" [("ref" .= r)]
 
         sheetRels = if null referencedFiles
