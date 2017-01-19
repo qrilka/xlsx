@@ -269,7 +269,8 @@ testCommentTable = CommentTable $ M.fromList
   where
     rich = [ RichTextRun
              { _richTextRunProperties =
-               Just $ def & runPropertiesCharset ?~ 1
+               Just $ def & runPropertiesBold ?~ True
+                          & runPropertiesCharset ?~ 1
                           & runPropertiesColor ?~ def -- TODO: why not Nothing here?
                           & runPropertiesFont ?~ "Calibri"
                           & runPropertiesScheme ?~ FontSchemeMinor
