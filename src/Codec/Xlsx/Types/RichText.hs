@@ -265,13 +265,13 @@ instance FromCursor RunProperties where
     _runPropertiesFont          <- maybeElementValue (n_ "rFont") cur
     _runPropertiesCharset       <- maybeElementValue (n_ "charset") cur
     _runPropertiesFontFamily    <- maybeElementValue (n_ "family") cur
-    _runPropertiesBold          <- maybeElementValue (n_ "b") cur
-    _runPropertiesItalic        <- maybeElementValue (n_ "i") cur
-    _runPropertiesStrikeThrough <- maybeElementValue (n_ "strike") cur
-    _runPropertiesOutline       <- maybeElementValue (n_ "outline") cur
-    _runPropertiesShadow        <- maybeElementValue (n_ "shadow") cur
-    _runPropertiesCondense      <- maybeElementValue (n_ "condense") cur
-    _runPropertiesExtend        <- maybeElementValue (n_ "extend") cur
+    _runPropertiesBold          <- maybeBoolElementValue (n_ "b") cur
+    _runPropertiesItalic        <- maybeBoolElementValue (n_ "i") cur
+    _runPropertiesStrikeThrough <- maybeBoolElementValue (n_ "strike") cur
+    _runPropertiesOutline       <- maybeBoolElementValue (n_ "outline") cur
+    _runPropertiesShadow        <- maybeBoolElementValue (n_ "shadow") cur
+    _runPropertiesCondense      <- maybeBoolElementValue (n_ "condense") cur
+    _runPropertiesExtend        <- maybeBoolElementValue (n_ "extend") cur
     _runPropertiesColor         <- maybeFromElement  (n_ "color") cur
     _runPropertiesSize          <- maybeElementValue (n_ "sz") cur
     _runPropertiesUnderline     <- maybeElementValue (n_ "u") cur
