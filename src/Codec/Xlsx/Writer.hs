@@ -209,7 +209,8 @@ genDrawing n ref dr = do
   return (el, (rId, drawingFile), referenced)
   where
     drawingFilePath = "xl/drawings/drawing" <> show n <> ".xml"
-    drawingFile = FileData drawingFilePath (smlCT "drawing") "drawing" drawingXml
+    drawingCT = "application/vnd.openxmlformats-officedocument.drawing+xml"
+    drawingFile = FileData drawingFilePath drawingCT "drawing" drawingXml
     drawingXml = renderLBS def{rsNamespaces=nss} $ toDocument dr'
     nss = [ ("xdr", "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing")
           , ("a",   "http://schemas.openxmlformats.org/drawingml/2006/main")
