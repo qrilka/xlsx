@@ -33,6 +33,7 @@ module Codec.Xlsx.Types (
     , wsDataValidations
     , wsPivotTables
     , wsAutoFilter
+    , wsTables
     -- ** Cells
     , cellValue
     , cellStyle
@@ -79,6 +80,7 @@ import           Codec.Xlsx.Types.PivotTable            as X
 import           Codec.Xlsx.Types.RichText              as X
 import           Codec.Xlsx.Types.SheetViews            as X
 import           Codec.Xlsx.Types.StyleSheet            as X
+import           Codec.Xlsx.Types.Table                 as X
 import           Codec.Xlsx.Types.Variant               as X
 import           Codec.Xlsx.Writer.Internal
 
@@ -169,12 +171,13 @@ data Worksheet = Worksheet
   , _wsDataValidations :: Map SqRef DataValidation
   , _wsPivotTables :: [PivotTable]
   , _wsAutoFilter :: Maybe AutoFilter
+  , _wsTables :: [Table]
   } deriving (Eq, Show)
 
 makeLenses ''Worksheet
 
 instance Default Worksheet where
-    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty M.empty [] Nothing
+    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty M.empty [] Nothing []
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)

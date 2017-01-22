@@ -63,6 +63,7 @@ Library
                    , Codec.Xlsx.Types.RichText
                    , Codec.Xlsx.Types.SheetViews
                    , Codec.Xlsx.Types.StyleSheet
+                   , Codec.Xlsx.Types.Table
                    , Codec.Xlsx.Types.Variant
                    , Codec.Xlsx.Writer
                    , Codec.Xlsx.Writer.Internal

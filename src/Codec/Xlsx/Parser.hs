@@ -157,6 +157,10 @@ extractSheet ar sst contentTypes caches wf = do
       validations = M.fromList . map unDvPair $
           cur $/ element (n_ "dataValidations") &/ element (n_ "dataValidation") >=> fromCursor
 
+      tableIds =
+        cur $/ element (n_ "tableParts") &/ element (n_ "tablePart") >=>
+        fromAttribute (odr "id")
+
   let mAutoFilter = listToMaybe $ cur $/ element (n_ "autoFilter") >=> fromCursor
 
   mDrawing <- case mDrawingId of
@@ -173,6 +177,10 @@ extractSheet ar sst contentTypes caches wf = do
     note (InconsistentXlsx $ "Bad pivot table in " <> T.pack ptPath) $
       parsePivotTable (flip Prelude.lookup caches) bs
 
+  tables <- forM tableIds $ \rId -> do
+    fp <- lookupRelPath filePath sheetRels rId
+    getTable ar fp
+
   return $
     Worksheet
       cws
@@ -186,6 +194,7 @@ extractSheet ar sst contentTypes caches wf = do
       validations
       pTables
       mAutoFilter
+      tables
 
 extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
 extractCellValue sst "s" v =
@@ -333,6 +342,10 @@ readWorkbook ar = do
       return (cacheId, sources)
   return (sheets, DefinedNames names, caches)
 
+getTable :: Zip.Archive -> FilePath -> Parser Table
+getTable ar fp = do
+  cur <- xmlCursorRequired ar fp
+  headErr (InvalidFile fp) (fromCursor cur)
 
 worksheetFile :: FilePath -> Relationships -> Text -> RefId -> Parser WorksheetFile
 worksheetFile parentPath wbRels name rId =

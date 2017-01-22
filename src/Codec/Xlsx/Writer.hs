@@ -87,14 +87,24 @@ fromXlsx pt xlsx =
     workbookFiles = bookFiles xlsx
     sheetNames = xlsx ^. xlSheets . to (map fst)
 
-singleSheetFiles :: Int -> Cells -> [FileData] -> Worksheet -> (FileData, [FileData])
-singleSheetFiles n cells pivFileDatas ws = runST $ do
+singleSheetFiles :: Int
+                 -> Cells
+                 -> [FileData]
+                 -> Worksheet
+                 -> STRef s Int
+                 -> ST s (FileData, [FileData])
+singleSheetFiles n cells pivFileDatas ws tblIdRef = do
     ref <- newSTRef 1
     mCmntData <- genComments n cells ref
     mDrawingData <- maybe (return Nothing) (fmap Just . genDrawing n ref) (ws ^. wsDrawing)
     pivRefs <- forM pivFileDatas $ \fd -> do
       refId <- nextRefId ref
       return (refId, fd)
+    refTables <- forM (_wsTables ws) $ \tbl -> do
+      refId <- nextRefId ref
+      tblId <- readSTRef tblIdRef
+      modifySTRef' tblIdRef (+1)
+      return (refId, genTable tbl tblId)
     let sheetFilePath = "xl/worksheets/sheet" <> show n <> ".xml"
         sheetFile = FileData sheetFilePath
             "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
@@ -115,6 +125,8 @@ singleSheetFiles n cells pivFileDatas ws = runST $ do
             , toElement "pageSetup" <$> ws ^. wsPageSetup
             , fst3 <$> mDrawingData
             , fst <$> mCmntData
+            , nonEmptyElListSimple "tableParts"
+                [leafElement "tablePart" [odr "id" .= rId] | (rId, _) <- refTables]
             ]
         cfPairs = map CfPair . M.toList $ ws ^. wsConditionalFormattings
         dvPairs = map DvPair . M.toList $ ws ^. wsDataValidations
@@ -134,7 +146,8 @@ singleSheetFiles n cells pivFileDatas ws = runST $ do
             | (i, FileData{..}) <- referenced ]
         referenced = fromMaybe [] (snd <$> mCmntData) ++
                      catMaybes [ snd3 <$> mDrawingData ] ++
-                     pivRefs
+                     pivRefs ++
+                     refTables
         referencedFiles = map snd referenced
         extraFiles = maybe [] thd3 mDrawingData
         otherFiles = sheetRels ++ referencedFiles ++ extraFiles
@@ -324,6 +337,14 @@ generatePivotFiles tables = PvGenerated cacheFiles shTableFiles others
             renderRels [refFileDataToRel tablePath (unsafeRefId 1, cacheFile)]
       in ((cacheId, cacheFile), tableFile, [tableRels])
 
+genTable :: Table -> Int -> FileData
+genTable tbl tblId = FileData{..}
+  where
+    fdPath = "xl/tables/table" <> show tblId <> ".xml"
+    fdContentType = smlCT "table"
+    fdRelType = "table"
+    fdContents = renderLBS def $ tableToDocument tbl tblId
+
 data FileData = FileData { fdPath        :: FilePath
                          , fdContentType :: Text
                          , fdRelType     :: Text
@@ -436,9 +457,10 @@ bookFiles xlsx = runST $ do
         generatePivotFiles (xlsx ^. xlSheets . to (map (^. _2 . wsPivotTables)))
       sheetCells = map (transformSheetData shared) sheets
       sheetInputs = zip3 sheetCells sheetPivotTables sheets
+  tblIdRef <- newSTRef 1
   allSheetFiles <- forM (zip [1..] sheetInputs) $ \(i, (cells, pvTables, sheet)) -> do
     rId <- nextRefId ref
-    let (sheetFile, others) = singleSheetFiles i cells pvTables sheet
+    (sheetFile, others) <- singleSheetFiles i cells pvTables sheet tblIdRef
     return ((rId, sheetFile), others)
   let sheetFiles = map fst allSheetFiles
       sheetNameByRId = zip (map fst sheetFiles) (xlsx ^. xlSheets . to (map fst))
