@@ -1,3 +1,12 @@
+0.4.2
+-----
+* added basic tables support
+* fixed boolean element parsing for rich text run properties (thanks
+  laurent stephane <laurent_step@yahoo.fr> for reporting)
+* fixed problem of `cwStyle` not being optional (thanks laurent
+  stephane <laurent_step@yahoo.fr> for reporting)
+* added basic autofilter support
+
 0.4.1
 -----
 * fixed serialization problem of empty validations and pivot caches
