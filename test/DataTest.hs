@@ -112,7 +112,7 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
     sheets =
       [("List1", sheet1), ("Another sheet", sheet2), ("with pivot table", pvSheet)]
     sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges
-      sheetViews pageSetup cFormatting validations [] (Just autoFilter) tables
+      sheetViews pageSetup cFormatting validations [] (Just autoFilter) tables (Just protection)
     autoFilter = def & afRef ?~ CellRef "A1:E10"
                      & afFilterColumns .~ fCols
     fCols = M.fromList [ (1, Filters ["a","b","ZZZ"])
@@ -127,6 +127,11 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
         , tblAutoFilter = Just (def & afRef ?~ CellRef "A3")
         }
       ]
+    protection =
+      fullSheetProtection
+      { _sprScenarios = False
+      , _sprLegacyPassword = Just $ legacyPassword "hard password"
+      }
     sheet2 = def & wsCells .~ testCellMap2
     pvSheet = sheetWithPvCells & wsPivotTables .~ [testPivotTable]
     sheetWithPvCells = flip execState def $ do

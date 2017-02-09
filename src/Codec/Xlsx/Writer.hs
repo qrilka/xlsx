@@ -118,6 +118,7 @@ singleSheetFiles n cells pivFileDatas ws tblIdRef = do
             [ elementListSimple "sheetViews" . map (toElement "sheetView") <$> ws ^. wsSheetViews
             , nonEmptyElListSimple "cols" . map cwEl $ ws ^. wsColumns
             , Just . elementListSimple "sheetData" $ sheetDataXml cells (ws ^. wsRowPropertiesMap)
+            , toElement "sheetProtection" <$> (ws ^. wsProtection)
             , toElement "autoFilter" <$> (ws ^. wsAutoFilter)
             , nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
             ] ++ map (Just . toElement "conditionalFormatting") cfPairs ++

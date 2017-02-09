@@ -34,6 +34,7 @@ module Codec.Xlsx.Types (
     , wsPivotTables
     , wsAutoFilter
     , wsTables
+    , wsProtection
     -- ** Cells
     , cellValue
     , cellStyle
@@ -77,6 +78,7 @@ import           Codec.Xlsx.Types.Drawing.Chart         as X
 import           Codec.Xlsx.Types.Drawing.Common        as X
 import           Codec.Xlsx.Types.PageSetup             as X
 import           Codec.Xlsx.Types.PivotTable            as X
+import           Codec.Xlsx.Types.Protection            as X
 import           Codec.Xlsx.Types.RichText              as X
 import           Codec.Xlsx.Types.SheetViews            as X
 import           Codec.Xlsx.Types.StyleSheet            as X
@@ -172,12 +174,28 @@ data Worksheet = Worksheet
   , _wsPivotTables :: [PivotTable]
   , _wsAutoFilter :: Maybe AutoFilter
   , _wsTables :: [Table]
+  , _wsProtection :: Maybe SheetProtection
   } deriving (Eq, Show)
 
 makeLenses ''Worksheet
 
 instance Default Worksheet where
-    def = Worksheet [] M.empty M.empty Nothing [] Nothing Nothing M.empty M.empty [] Nothing []
+  def =
+    Worksheet
+    { _wsColumns = []
+    , _wsRowPropertiesMap = M.empty
+    , _wsCells = M.empty
+    , _wsDrawing = Nothing
+    , _wsMerges = []
+    , _wsSheetViews = Nothing
+    , _wsPageSetup = Nothing
+    , _wsConditionalFormattings = M.empty
+    , _wsDataValidations = M.empty
+    , _wsPivotTables = []
+    , _wsAutoFilter = Nothing
+    , _wsTables = []
+    , _wsProtection = Nothing
+    }
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show)

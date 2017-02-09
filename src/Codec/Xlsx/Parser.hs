@@ -146,6 +146,8 @@ extractSheet ar sst contentTypes caches wf = do
         (M.insert r h rowMap, foldr collectCell cellMap rowCells)
       collectCell (x, y, cd) = M.insert (x,y) cd
 
+      mProtection = listToMaybe $ cur $/ element (n_ "sheetProtection") >=> fromCursor
+
       mDrawingId = listToMaybe $ cur $/ element (n_ "drawing") >=> fromAttribute (odr"id")
 
       merges = cur $/ parseMerges
@@ -195,6 +197,7 @@ extractSheet ar sst contentTypes caches wf = do
       pTables
       mAutoFilter
       tables
+      mProtection
 
 extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
 extractCellValue sst "s" v =
