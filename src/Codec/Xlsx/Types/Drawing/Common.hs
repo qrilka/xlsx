@@ -517,7 +517,8 @@ instance ToElement Transform2D where
                              , toElement (a_ "ext") <$> _trExtents ]
 
 geometryToElement :: Geometry -> Element
-geometryToElement PresetGeometry = emptyElement (a_ "prstGeom")
+geometryToElement PresetGeometry =
+  leafElement (a_ "prstGeom") ["prst" .= ("rect" :: Text)]
 
 instance ToElement LineProperties where
     toElement nm LineProperties{..} =
