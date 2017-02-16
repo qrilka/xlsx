@@ -372,7 +372,7 @@ testDrawing = Drawing [anchor1, anchor2]
     nonVis1 =
       PicNonVisual $
       NonVisualDrawingProperties
-      { _nvdpId = 0
+      { _nvdpId = DrawingElementId 0
       , _nvdpName = "Picture 1"
       , _nvdpDescription = Just ""
       , _nvdpHidden = False
@@ -420,7 +420,7 @@ testDrawing = Drawing [anchor1, anchor2]
       }
     nonVis2 = GraphNonVisual $
       NonVisualDrawingProperties
-      { _nvdpId = 1
+      { _nvdpId = DrawingElementId 1
       , _nvdpName = ""
       , _nvdpDescription = Nothing
       , _nvdpHidden = False

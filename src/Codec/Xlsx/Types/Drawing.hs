@@ -9,6 +9,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 module Codec.Xlsx.Types.Drawing where
 
+import Control.Arrow (first)
 import Control.Lens.TH
 import Data.ByteString.Lazy (ByteString)
 import Data.Default
@@ -110,9 +111,13 @@ data GraphNonVisual = GraphNonVisual
     -- TODO cNvGraphicFramePr
   } deriving (Eq, Show)
 
+newtype DrawingElementId = DrawingElementId
+  { unDrawingElementId :: Int
+  } deriving (Eq, Show)
+
 -- see 20.1.2.2.8 "cNvPr (Non-Visual Drawing Properties)" (p. 2731)
 data NonVisualDrawingProperties = NonVisualDrawingProperties
-    { _nvdpId          :: Int
+    { _nvdpId          :: DrawingElementId
     -- ^ Specifies a unique identifier for the current
     -- DrawingML object within the current
     --
@@ -255,6 +260,9 @@ instance FromCursor NonVisualDrawingProperties where
         _nvdpTitle <- maybeAttribute "title" cur
         return NonVisualDrawingProperties{..}
 
+instance FromAttrVal DrawingElementId where
+  fromAttrVal = fmap (first DrawingElementId) . fromAttrVal
+
 instance FromCursor (BlipFillProperties RefId) where
     fromCursor cur = do
         let _bfpImageInfo = listToMaybe $ cur $/ element (a_ "blip") >=>
@@ -375,6 +383,9 @@ instance ToElement NonVisualDrawingProperties where
                 catMaybes [ "descr"  .=? _nvdpDescription
                           , "hidden" .=? justTrue _nvdpHidden
                           , "title"  .=? _nvdpTitle ]
+
+instance ToAttrVal DrawingElementId where
+  toAttrVal = toAttrVal . unDrawingElementId
 
 instance ToElement (BlipFillProperties RefId) where
     toElement nm BlipFillProperties{..} =
