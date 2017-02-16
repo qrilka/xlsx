@@ -9,26 +9,25 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 module Codec.Xlsx.Types.Drawing where
 
-import           Control.Lens.TH
-import           Data.ByteString.Lazy                    (ByteString)
-import           Data.Default
-import qualified Data.Map                                as M
-import           Data.Maybe                              (catMaybes,
-                                                          listToMaybe)
-import           Data.Text                               (Text)
-import           Text.XML
-import           Text.XML.Cursor
+import Control.Lens.TH
+import Data.ByteString.Lazy (ByteString)
+import Data.Default
+import qualified Data.Map as M
+import Data.Maybe (catMaybes, listToMaybe)
+import Data.Text (Text)
+import Text.XML
+import Text.XML.Cursor
 
 #if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
+import Control.Applicative
 #endif
 
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Drawing.Common
-import           Codec.Xlsx.Types.Drawing.Chart
-import           Codec.Xlsx.Types.Internal
-import           Codec.Xlsx.Types.Internal.Relationships
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Drawing.Chart
+import Codec.Xlsx.Types.Drawing.Common
+import Codec.Xlsx.Types.Internal
+import Codec.Xlsx.Types.Internal.Relationships
+import Codec.Xlsx.Writer.Internal
 
 -- | information about image file as a par of a drawing
 data FileInfo = FileInfo
