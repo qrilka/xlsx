@@ -365,8 +365,10 @@ drawingObjToElement Graphic {..} = elementListSimple "graphicFrame" elements
         ]
 
 instance ToElement PicNonVisual where
-    toElement nm PicNonVisual{..} =
-        elementListSimple nm [toElement "cNvPr" _pnvDrawingProps]
+  toElement nm PicNonVisual {..} =
+    elementListSimple
+      nm
+      [toElement "cNvPr" _pnvDrawingProps, emptyElement "cNvPicPr"]
 
 instance ToElement GraphNonVisual where
   toElement nm GraphNonVisual {..} =
