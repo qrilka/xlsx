@@ -488,8 +488,9 @@ bookXml :: [(RefId, Text)]
         -> [(CacheId, RefId)]
         -> L.ByteString
 bookXml rIdNames (DefinedNames names) cacheIdRefs =
-  renderLBS def $ Document (Prologue [] Nothing []) root []
+  renderLBS def {rsNamespaces = nss} $ Document (Prologue [] Nothing []) root []
   where
+    nss = [ ("r", "http://schemas.openxmlformats.org/officeDocument/2006/relationships") ]
     -- The @bookViews@ element is not required according to the schema, but its
     -- absence can cause Excel to crash when opening the print preview
     -- (see <https://phpexcel.codeplex.com/workitem/2935>). It suffices however
