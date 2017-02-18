@@ -6,49 +6,48 @@
 
 -- | This module provides a function for reading .xlsx files
 module Codec.Xlsx.Parser
-    ( toXlsx
-    , toXlsxEither
-    , ParseError (..)
-    , Parser
-    ) where
+  ( toXlsx
+  , toXlsxEither
+  , ParseError(..)
+  , Parser
+  ) where
 
-import qualified Codec.Archive.Zip                           as Zip
-import           Control.Applicative
-import           Control.Arrow                               (left)
-import           Control.Error.Safe                          (headErr)
-import           Control.Error.Util                          (note)
-import           Control.Lens                                hiding (element,
-                                                              views, (<.>))
-import           Control.Monad.Except                        (catchError,
-                                                              throwError)
-import qualified Data.ByteString.Lazy                        as L
-import           Data.ByteString.Lazy.Char8                  ()
-import           Data.List
-import qualified Data.Map                                    as M
-import           Data.Maybe
-import           Data.Monoid
-import           Data.Ord
-import           Data.Text                                   (Text)
-import qualified Data.Text                                   as T
-import qualified Data.Text.Read                              as T
-import           Data.Traversable
-import           Prelude                                     hiding (sequence)
-import           System.FilePath.Posix
-import           Text.XML                                    as X
-import           Text.XML.Cursor
+import qualified Codec.Archive.Zip as Zip
+import Control.Applicative
+import Control.Arrow (left)
+import Control.Error.Safe (headErr)
+import Control.Error.Util (note)
+import Control.Lens hiding (element, views, (<.>))
+import Control.Monad.Except (catchError, throwError)
+import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy.Char8 ()
+import Data.List
+import qualified Data.Map as M
+import Data.Maybe
+import Data.Monoid
+import Data.Ord
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Read as T
+import Data.Traversable
+import Prelude hiding (sequence)
+import System.FilePath.Posix
+import Text.XML as X
+import Text.XML.Cursor
 
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Parser.Internal.PivotTable
-import           Codec.Xlsx.Types
-import           Codec.Xlsx.Types.Internal
-import           Codec.Xlsx.Types.Internal.CfPair
-import           Codec.Xlsx.Types.Internal.CommentTable
-import           Codec.Xlsx.Types.Internal.ContentTypes      as ContentTypes
-import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
-import           Codec.Xlsx.Types.Internal.DvPair
-import           Codec.Xlsx.Types.Internal.Relationships     as Relationships
-import           Codec.Xlsx.Types.Internal.SharedStringTable
-import           Codec.Xlsx.Types.PivotTable.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Parser.Internal.PivotTable
+import Codec.Xlsx.Types
+import Codec.Xlsx.Types.Internal
+import Codec.Xlsx.Types.Internal.CfPair
+import Codec.Xlsx.Types.Internal.CommentTable
+import Codec.Xlsx.Types.Internal.ContentTypes as ContentTypes
+import Codec.Xlsx.Types.Internal.CustomProperties
+       as CustomProperties
+import Codec.Xlsx.Types.Internal.DvPair
+import Codec.Xlsx.Types.Internal.Relationships as Relationships
+import Codec.Xlsx.Types.Internal.SharedStringTable
+import Codec.Xlsx.Types.PivotTable.Internal
 
 -- | Reads `Xlsx' from raw data (lazy bytestring)
 toXlsx :: L.ByteString -> Xlsx

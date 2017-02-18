@@ -2,24 +2,24 @@
 {-# LANGUAGE RecordWildCards   #-}
 module Codec.Xlsx.Types.Internal.CommentTable where
 
-import           Data.ByteString.Lazy       (ByteString)
-import qualified Data.ByteString.Lazy       as LB
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Lazy.Char8 as LBC8
-import           Data.List.Extra            (nubOrd)
-import           Data.Map                   (Map)
-import qualified Data.Map                   as M
-import           Data.Text                  (Text)
-import           Data.Text.Lazy             (toStrict)
-import qualified Data.Text.Lazy.Builder     as B
+import Data.List.Extra (nubOrd)
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Text (Text)
+import Data.Text.Lazy (toStrict)
+import qualified Data.Text.Lazy.Builder as B
 import qualified Data.Text.Lazy.Builder.Int as B
-import           Safe
-import           Text.XML
-import           Text.XML.Cursor
+import Safe
+import Text.XML
+import Text.XML.Cursor
 
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Comment
-import           Codec.Xlsx.Types.Common
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Comment
+import Codec.Xlsx.Types.Common
+import Codec.Xlsx.Writer.Internal
 
 newtype CommentTable = CommentTable
     { _commentsTable :: Map CellRef Comment }
