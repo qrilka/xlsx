@@ -28,6 +28,9 @@ newtype CommentTable = CommentTable
 fromList :: [(CellRef, Comment)] -> CommentTable
 fromList = CommentTable . M.fromList
 
+toList :: CommentTable -> [(CellRef, Comment)]
+toList = M.toList . _commentsTable
+
 lookupComment :: CellRef -> CommentTable -> Maybe Comment
 lookupComment ref = M.lookup ref . _commentsTable
 

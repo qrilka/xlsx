@@ -25,7 +25,6 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
-import Data.Ord
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Read as T
@@ -40,7 +39,7 @@ import Codec.Xlsx.Parser.Internal.PivotTable
 import Codec.Xlsx.Types
 import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CfPair
-import Codec.Xlsx.Types.Internal.CommentTable
+import Codec.Xlsx.Types.Internal.CommentTable as CommentTable
 import Codec.Xlsx.Types.Internal.ContentTypes as ContentTypes
 import Codec.Xlsx.Types.Internal.CustomProperties
        as CustomProperties
@@ -115,7 +114,7 @@ extractSheet ar sst contentTypes caches wf = do
 
       cws = cur $/ element (n_ "cols") &/ element (n_ "col") >=> fromCursor
 
-      (rowProps, cells) = collect $ cur $/ element (n_ "sheetData") &/ element (n_ "row") >=> parseRow
+      (rowProps, cells0) = collect $ cur $/ element (n_ "sheetData") &/ element (n_ "row") >=> parseRow
       parseRow :: Cursor -> [(Int, Maybe RowProperties, [(Int, Int, Cell)])]
       parseRow c = do
         r <- c $| attribute "r" >=> decimal
@@ -135,15 +134,22 @@ extractSheet ar sst contentTypes caches wf = do
           t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
           d = listToMaybe $ cell $/ element (n_ "v") &/ content >=> extractCellValue sst t
           f = listToMaybe $ cell $/ element (n_ "f") >=> fromCursor
-          (c, r) = T.span (>'9') $ unCellRef ref
+          (r, c) = fromSingleCellRefNoting ref
           comment = commentsMap >>= lookupComment ref
-        return (int r, col2int c, Cell s d comment f)
+        return (r, c, Cell s d comment f)
       collect = foldr collectRow (M.empty, M.empty)
       collectRow (_, Nothing, rowCells) (rowMap, cellMap) =
         (rowMap, foldr collectCell cellMap rowCells)
       collectRow (r, Just h, rowCells) (rowMap, cellMap) =
         (M.insert r h rowMap, foldr collectCell cellMap rowCells)
       collectCell (x, y, cd) = M.insert (x,y) cd
+
+      commentCells =
+        M.fromList
+          [ (fromSingleCellRefNoting r, def {_cellComment = Just cmnt})
+          | (r, cmnt) <- maybe [] CommentTable.toList commentsMap
+          ]
+      cells = cells0 `M.union` commentCells
 
       mProtection = listToMaybe $ cur $/ element (n_ "sheetProtection") >=> fromCursor
 
@@ -366,6 +372,3 @@ lookupRelPath :: FilePath
               -> Either ParseError FilePath
 lookupRelPath fp rels rId =
   relTarget <$> note (InvalidRef fp rId) (Relationships.lookup rId rels)
-
-int :: Text -> Int
-int = either error fst . T.decimal

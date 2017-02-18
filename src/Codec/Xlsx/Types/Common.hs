@@ -4,6 +4,7 @@ module Codec.Xlsx.Types.Common
   ( CellRef(..)
   , singleCellRef
   , fromSingleCellRef
+  , fromSingleCellRefNoting
   , Range
   , mkRange
   , fromRange
@@ -22,6 +23,7 @@ import Data.Ix (inRange)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
+import Safe
 import Text.XML
 import Text.XML.Cursor
 
@@ -75,6 +77,14 @@ fromSingleCellRefRaw t = do
   guard $ not (T.null colT) && not (T.null rowT) && T.all isDigit rowT
   row <- decimal rowT
   return (row, col2int colT)
+
+-- | reverse to 'mkCellRef' expecting valid reference and failig with
+-- a standard error message like /"Bad cell reference 'XXX'"/
+fromSingleCellRefNoting :: CellRef -> (Int, Int)
+fromSingleCellRefNoting ref = fromJustNote errMsg $ fromSingleCellRefRaw txt
+  where
+    txt = unCellRef ref
+    errMsg = "Bad cell reference '" ++ T.unpack txt ++ "'"
 
 -- | Excel range (e.g. @D13:H14@), actually store as as 'CellRef' in
 -- xlsx

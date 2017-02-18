@@ -225,10 +225,12 @@ testCellMap2 = M.fromList [ ((1, 2), def & cellValue ?~ CellText "something here
                              def & cellValue ?~ CellText "value"
                                  & cellComment ?~ comment2
                             )
+                          , ((11, 4), def & cellComment ?~ comment3)
                           ]
   where
     comment1 = Comment (XlsxText "simple comment") "bob" True
     comment2 = Comment (XlsxRichText [rich1, rich2]) "alice" False
+    comment3 = Comment (XlsxText "comment for an empty cell") "bob" True
     rich1 = def & richTextRunText.~ "Look ma!"
                 & richTextRunProperties ?~ (
                    def & runPropertiesBold ?~ True
