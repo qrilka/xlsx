@@ -33,9 +33,9 @@ import Codec.Xlsx.Writer.Internal
 -- | information about image file as a par of a drawing
 data FileInfo = FileInfo
     { _fiFilename    :: FilePath
-    -- ^ image filename, images are assumed to be stored under path "xl/media/"
+    -- ^ image filename, images are assumed to be stored under path "xl\/media\/"
     , _fiContentType :: Text
-    -- ^ image content type, ECMA-376 advises to use "image/png" or "image/jpeg"
+    -- ^ image content type, ECMA-376 advises to use "image\/png" or "image\/jpeg"
     -- if interoperability is wanted
     , _fiContents    :: ByteString
     -- ^ image file contents
