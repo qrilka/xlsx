@@ -1,3 +1,15 @@
+0.4.3
+-----
+* added (legacy) sheet protection support
+* switched to use `r` prefix for relationships namespace in
+  workbook.xml to improve compatibility with readers expecting that
+  prefix (thanks Stéphane Laurent <laurent_step@yahoo.fr> for
+  reporting)
+* fixed parsing cells with comments but with no content (thanks
+  Stéphane Laurent <laurent_step@yahoo.fr> for reporting)
+* added some higher-level helpers work with pictures in SpreadsheetML
+  Drawing
+
 0.4.2
 -----
 * added basic tables support
