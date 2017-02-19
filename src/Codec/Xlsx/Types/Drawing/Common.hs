@@ -208,6 +208,16 @@ data PositiveSize2D = PositiveSize2D
   , _ps2dY :: PositiveCoordinate
   } deriving (Eq, Show)
 
+positiveSize2D :: Integer -> Integer -> PositiveSize2D
+positiveSize2D x y =
+  PositiveSize2D (PositiveCoordinate x) (PositiveCoordinate y)
+
+cmSize2D :: Integer -> Integer -> PositiveSize2D
+cmSize2D x y = positiveSize2D (cm2emu x) (cm2emu y)
+
+cm2emu :: Integer -> Integer
+cm2emu cm = 360000 * cm
+
 -- See 20.1.7.6 "xfrm (2D Transform for Individual Objects)" (p. 2849)
 data Transform2D = Transform2D
   { _trRot :: Angle

@@ -1,11 +1,12 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE CPP                  #-}
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 module Codec.Xlsx.Types.Drawing where
 
@@ -14,8 +15,9 @@ import Control.Lens.TH
 import Data.ByteString.Lazy (ByteString)
 import Data.Default
 import qualified Data.Map as M
-import Data.Maybe (catMaybes, listToMaybe)
+import Data.Maybe (catMaybes, listToMaybe, mapMaybe)
 import Data.Text (Text)
+import qualified Data.Text as T
 import Text.XML
 import Text.XML.Cursor
 
@@ -88,6 +90,52 @@ data DrawingObject p g
     -- TODO: sp, grpSp, graphicFrame, cxnSp, contentPart
   deriving (Eq, Show)
 
+-- | basic function to create picture drawing object
+--
+-- /Note:/ specification says that drawing element ids need to be
+-- unique within 1 document, otherwise /...document shall be
+-- considered non-conformant/.
+picture :: DrawingElementId -> FileInfo -> DrawingObject FileInfo c
+picture dId fi =
+  Picture
+  { _picMacro = Nothing
+  , _picPublished = False
+  , _picNonVisual = nonVis
+  , _picBlipFill = bfProps
+  , _picShapeProperties = shProps
+  }
+  where
+    nonVis =
+      PicNonVisual $
+      NonVisualDrawingProperties
+      { _nvdpId = dId
+      , _nvdpName = T.pack $ _fiFilename fi
+      , _nvdpDescription = Nothing
+      , _nvdpHidden = False
+      , _nvdpTitle = Nothing
+      }
+    bfProps =
+      BlipFillProperties
+      {_bfpImageInfo = Just fi, _bfpFillMode = Just FillStretch}
+    shProps =
+      ShapeProperties
+      { _spXfrm = Nothing
+      , _spGeometry = Nothing
+      , _spFill = Just NoFill
+      , _spOutline = Just $ LineProperties (Just NoFill)
+      }
+
+-- | helper to retrive information about all picture files in
+-- particular drawing alongside with their anchorings (i.e. sizes and
+-- positions)
+extractPictures :: Drawing -> [(Anchoring, FileInfo)]
+extractPictures dr = mapMaybe maybePictureInfo $ _xdrAnchors dr
+  where
+    maybePictureInfo Anchor {..} =
+      case _anchObject of
+        Picture {..} -> (_anchAnchoring,) <$> _bfpImageInfo _picBlipFill
+        _ -> Nothing
+
 -- | This element is used to set certain properties related to a drawing
 -- element on the client spreadsheet application.
 --
@@ -152,6 +200,22 @@ data Anchor p g = Anchor
     , _anchObject     :: DrawingObject p g
     , _anchClientData :: ClientData
     } deriving (Eq, Show)
+
+-- | simple drawing object anchoring using one cell as a top lelft
+-- corner and dimensions of that object
+simpleAnchorXY :: (Int, Int) -- ^ x+y coordinates of a cell used as
+                             -- top left anchoring corner
+               -> PositiveSize2D -- ^ size of drawing object to be
+                                 -- anchored
+               -> DrawingObject p g
+               -> Anchor p g
+simpleAnchorXY (x, y) sz obj =
+  Anchor
+  { _anchAnchoring =
+      OneCellAnchor {onecaFrom = unqMarker (x, fromIntegral $ cm2emu 10) (y, 0), onecaExt = sz}
+  , _anchObject = obj
+  , _anchClientData = def
+  }
 
 data GenericDrawing p g = Drawing
     { _xdrAnchors :: [Anchor p g]
