@@ -111,6 +111,7 @@ data Series = Series
   { _serTx :: Maybe Formula
     -- ^ specifies text for a series name, without rich text formatting
     -- currently only reference formula is supported
+  , _serShapeProperties :: Maybe ShapeProperties
   } deriving (Eq, Show)
 
 -- | A series on a line chart
@@ -221,6 +222,7 @@ instance FromCursor Series where
     _serTx <-
       cur $/ element (c_ "tx") &/ element (c_ "strRef") >=>
       maybeFromElement (c_ "f")
+    _serShapeProperties <- maybeFromElement (c_ "spPr") cur
     return Series {..}
 
 instance FromCursor DataMarker where
@@ -305,7 +307,7 @@ instance ToElement ChartSpace where
     where
       -- no such element gives a chart space with rounded corners
       nonRounded = elementValue "roundedCorners" False
-      chSpPr = toElement "spPr" $ def {_spFill = Just SolidFill}
+      chSpPr = toElement "spPr" $ def {_spFill = Just $ solidRgb "ffffff"}
       chartEl = elementListSimple "chart" elements
       elements =
         catMaybes
@@ -333,7 +335,7 @@ instance ToElement ChartSpace where
         , elementValue "axPos" ("b" :: Text)
         , elementValue "majorTickMark" TickMarkNone
         , elementValue "minorTickMark" TickMarkNone
-        , toElement "spPr" noFill
+        , toElement "spPr" grayLines
         , elementValue "crossAx" cr
         , elementValue "auto" True
         ]
@@ -347,17 +349,12 @@ instance ToElement ChartSpace where
         , gridLinesEl
         , elementValue "majorTickMark" TickMarkNone
         , elementValue "minorTickMark" TickMarkNone
-        , toElement "spPr" noFill
+        , toElement "spPr" grayLines
         , elementValue "crossAx" cr
         ]
-      noFill =
-        def
-        { _spFill = Just NoFill
-        , _spOutline = Just . LineProperties $ Just NoFill
-        }
+      grayLines = def {_spOutline = Just def {_lnFill = Just $ solidRgb "b3b3b3"}}
       gridLinesEl =
-        elementListSimple "majorGridlines" [toElement "spPr" lineFill]
-      lineFill = def { _spOutline = Just . LineProperties $ Just SolidFill }
+        elementListSimple "majorGridlines" [toElement "spPr" grayLines]
 
 chartToElement :: Chart -> Int -> Int -> Element
 chartToElement LineChart {..} cId vId = elementListSimple "lineChart" elements
@@ -439,12 +436,12 @@ instance ToElement DataLblProps where
 -- should we respect idx and order?
 instance ToElement Series where
   toElement nm Series {..} =
-    elementListSimple
-      nm
-      [ elementListSimple
-          "tx"
-          [elementListSimple "strRef" $ maybeToList (toElement "f" <$> _serTx)]
-      ]
+    elementListSimple nm $
+    [ elementListSimple
+        "tx"
+        [elementListSimple "strRef" $ maybeToList (toElement "f" <$> _serTx)]
+    ] ++
+    maybeToList (toElement "spPr" <$> _serShapeProperties)
 
 instance ToElement ChartTitle where
   toElement nm (ChartTitle body) =

@@ -251,22 +251,47 @@ data ShapeProperties = ShapeProperties
     -- TODO: bwMode, a_EG_EffectProperties, scene3d, sp3d, extLst
   } deriving (Eq, Show)
 
+-- | Specifies an outline style that can be applied to a number of
+-- different objects such as shapes and text.
+--
+-- TODO: cap, cmpd, algn, a_EG_LineDashProperties,
+--   a_EG_LineJoinProperties, headEnd, tailEnd, extLst
+--
 -- See 20.1.2.2.24 "ln (Outline)" (p. 2744)
 data LineProperties = LineProperties
   { _lnFill :: Maybe FillProperties
-    -- TODO: w, cap, cmpd, algn, a_EG_LineDashProperties,
-    --   a_EG_LineJoinProperties, headEnd, tailEnd, extLst
+  , _lnWidth :: Int
+  -- ^ Specifies the width to be used for the underline stroke.  The
+  -- value is in EMU, is greater of equal to 0 and maximum value is
+  -- 20116800.
   } deriving (Eq, Show)
+
+-- | Color choice for some drawing element
+--
+-- TODO: scrgbClr, hslClr, sysClr, schemeClr, prstClr
+--
+-- See @EG_ColorChoice@ (p. 3996)
+data ColorChoice =
+  RgbColor Text
+  -- ^ Specifies a color using the red, green, blue RGB color
+  -- model. Red, green, and blue is expressed as sequence of hex
+  -- digits, RRGGBB. A perceptual gamma of 2.2 is used.
+  --
+  -- See 20.1.2.3.32 "srgbClr (RGB Color Model - Hex Variant)" (p. 2773)
+  deriving (Eq, Show)
 
 -- TODO: gradFill, pattFill
 data FillProperties =
   NoFill
   -- ^ See 20.1.8.44 "noFill (No Fill)" (p. 2872)
-  | SolidFill
+  | SolidFill (Maybe ColorChoice)
   -- ^ Solid fill
-  -- TODO: colors
   -- See 20.1.8.54 "solidFill (Solid Fill)" (p. 2879)
   deriving (Eq, Show)
+
+-- | solid fill with color specified by hexadecimal RGB color
+solidRgb :: Text -> FillProperties
+solidRgb t = SolidFill . Just $ RgbColor t
 
 {-------------------------------------------------------------------------------
   Default instances
@@ -274,6 +299,9 @@ data FillProperties =
 
 instance Default ShapeProperties where
     def = ShapeProperties Nothing Nothing Nothing Nothing
+
+instance Default LineProperties where
+  def = LineProperties Nothing 0
 
 {-------------------------------------------------------------------------------
   Parsing
@@ -376,6 +404,7 @@ geometryFromNode n | n `nodeElNameIs` a_ "prstGeom" =
 instance FromCursor LineProperties where
     fromCursor cur = do
         let _lnFill = listToMaybe $ cur $/ anyElement >=> fromCursor
+        _lnWidth <- fromAttributeDef "w" 0 cur
         return LineProperties{..}
 
 instance FromCursor Point2D where
@@ -394,9 +423,20 @@ instance FromCursor FillProperties where
     fromCursor = fillPropsFromNode . node
 
 fillPropsFromNode :: Node -> [FillProperties]
-fillPropsFromNode n | n `nodeElNameIs` a_ "noFill" = return NoFill
-                    | n `nodeElNameIs` a_ "solidFill" = return SolidFill
-                    | otherwise = fail "no matching line fill node"
+fillPropsFromNode n
+  | n `nodeElNameIs` a_ "noFill" = return NoFill
+  | n `nodeElNameIs` a_ "solidFill" = do
+    let color =
+          listToMaybe $ fromNode n $/ anyElement >=> colorChoiceFromNode . node
+    return $ SolidFill color
+  | otherwise = fail "no matching line fill node"
+
+colorChoiceFromNode :: Node -> [ColorChoice]
+colorChoiceFromNode n
+  | n `nodeElNameIs` a_ "srgbClr" = do
+    val <- fromAttribute "val" $ fromNode n
+    return $ RgbColor val
+  | otherwise = fail "no matching color choice node"
 
 coordinate :: Monad m => Text -> m Coordinate
 coordinate t =  case T.decimal t of
@@ -531,12 +571,19 @@ geometryToElement PresetGeometry =
   leafElement (a_ "prstGeom") ["prst" .= ("rect" :: Text)]
 
 instance ToElement LineProperties where
-    toElement nm LineProperties{..} =
-      elementListSimple nm $ catMaybes [ fillPropsToElement <$> _lnFill ]
+  toElement nm LineProperties {..} = elementList nm attrs elements
+    where
+      attrs = catMaybes ["w" .=? justNonDef 0 _lnWidth]
+      elements = catMaybes [fillPropsToElement <$> _lnFill]
 
 fillPropsToElement :: FillProperties -> Element
 fillPropsToElement NoFill = emptyElement (a_ "noFill")
-fillPropsToElement SolidFill = emptyElement (a_ "solidFill")
+fillPropsToElement (SolidFill color) =
+  elementListSimple (a_ "solidFill") $ catMaybes [colorChoiceToElement <$> color]
+
+colorChoiceToElement :: ColorChoice -> Element
+colorChoiceToElement (RgbColor color) =
+  leafElement (a_ "srgbClr") ["val" .= color]
 
 -- | Add DrawingML namespace to name
 a_ :: Text -> Name

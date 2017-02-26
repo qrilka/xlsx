@@ -122,7 +122,7 @@ picture dId fi =
       { _spXfrm = Nothing
       , _spGeometry = Nothing
       , _spFill = Just NoFill
-      , _spOutline = Just $ LineProperties (Just NoFill)
+      , _spOutline = Just $ def {_lnFill = Just NoFill}
       }
 
 -- | helper to retrive information about all picture files in

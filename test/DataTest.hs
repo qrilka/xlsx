@@ -386,7 +386,7 @@ testDrawing = Drawing [anchor1, anchor2]
       { _spXfrm = Just trnsfrm
       , _spGeometry = Just PresetGeometry
       , _spFill = Nothing
-      , _spOutline = Just $ LineProperties (Just NoFill)
+      , _spOutline = Just $ def {_lnFill = Just NoFill}
       }
     trnsfrm =
       Transform2D
@@ -418,7 +418,8 @@ testDrawing = Drawing [anchor1, anchor2]
       , _grChartSpace = RefId "rId2"
       , _grTransform = transform
       }
-    nonVis2 = GraphNonVisual $
+    nonVis2 =
+      GraphNonVisual $
       NonVisualDrawingProperties
       { _nvdpId = DrawingElementId 1
       , _nvdpName = ""
@@ -652,6 +653,10 @@ testChartFile = [r|
 <c:ser>
   <c:idx val="0"/><c:order val="0"/>
   <c:tx><c:strRef><c:f>Sheet1!$A$1</c:f></c:strRef></c:tx>
+  <c:spPr>
+    <a:solidFill><a:srgbClr val="0000FF"/></a:solidFill>
+    <a:ln w="28800"><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></a:ln>
+  </c:spPr>
   <c:marker><c:symbol val="none"/></c:marker>
   <c:val><c:numRef><c:f>Sheet1!$B$1:$D$1</c:f></c:numRef></c:val>
   <c:smooth val="0"/>
@@ -659,6 +664,10 @@ testChartFile = [r|
 <c:ser>
   <c:idx val="1"/><c:order val="1"/>
   <c:tx><c:strRef><c:f>Sheet1!$A$2</c:f></c:strRef></c:tx>
+  <c:spPr>
+    <a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>
+    <a:ln w="28800"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln>
+  </c:spPr>
   <c:marker><c:symbol val="none"/></c:marker>
   <c:val><c:numRef><c:f>Sheet1!$B$2:$D$2</c:f></c:numRef></c:val>
   <c:smooth val="0"/>
@@ -705,20 +714,35 @@ testChartSpace =
       ]
     series =
       [ LineSeries
-        { _lnserShared = Series . Just $ Formula "Sheet1!$A$1"
+        { _lnserShared =
+            Series
+            { _serTx = Just $ Formula "Sheet1!$A$1"
+            , _serShapeProperties = Just $ rgbShape "0000FF"
+            }
         , _lnserMarker = Just markerNone
         , _lnserDataLblProps = Nothing
         , _lnserVal = Just $ Formula "Sheet1!$B$1:$D$1"
         , _lnserSmooth = Just False
         }
       , LineSeries
-        { _lnserShared = Series . Just $ Formula "Sheet1!$A$2"
+        { _lnserShared =
+            Series
+            { _serTx = Just $ Formula "Sheet1!$A$2"
+            , _serShapeProperties = Just $ rgbShape "FF0000"
+            }
         , _lnserMarker = Just markerNone
         , _lnserDataLblProps = Nothing
         , _lnserVal = Just $ Formula "Sheet1!$B$2:$D$2"
         , _lnserSmooth = Just False
         }
       ]
+    rgbShape color =
+      def
+      { _spFill = Just $ solidRgb color
+      , _spOutline =
+          Just $
+          LineProperties {_lnFill = Just $ solidRgb color, _lnWidth = 28800}
+      }
     markerNone =
       DataMarker {_dmrkSymbol = Just DataMarkerNone, _dmrkSize = Nothing}
 
