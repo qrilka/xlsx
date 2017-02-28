@@ -29,8 +29,10 @@ tests =
       [testDrawing] @==? parseBS testWrittenDrawing
     , testCase "correct chart parsing" $
       [testLineChartSpace] @==? parseBS testLineChartFile
-    , testCase "write . read == id for line Charts" $
-      [testLineChartSpace] @==? parseBS testWrittenLineChartSpace
+    , testCase "parse . render == id for line Charts" $
+      [testLineChartSpace] @==? parseBS (renderChartSpace testLineChartSpace)
+    , testCase "parse . render == id for area Charts" $
+      [testAreaChartSpace] @==? parseBS (renderChartSpace testAreaChartSpace)
     ]
 
 testDrawing :: UnresolvedDrawing
@@ -216,11 +218,11 @@ testLineChartFile = [r|
 </c:chartSpace>
 |]
 
-testLineChartSpace :: ChartSpace
-testLineChartSpace =
+oneChartChartSpace :: Chart -> ChartSpace
+oneChartChartSpace chart =
   ChartSpace
   { _chspTitle = Just $ ChartTitle titleBody
-  , _chspCharts = charts
+  , _chspCharts = [chart]
   , _chspLegend = Nothing
   , _chspPlotVisOnly = Just True
   , _chspDispBlanksAs = Just DispBlanksAsGap
@@ -238,14 +240,25 @@ testLineChartSpace =
       , _txbdParagraphs =
           [TextParagraph Nothing [RegularRun Nothing "Line chart title"]]
       }
-    charts =
-      [ LineChart
-        { _lnchGrouping = StandardGrouping
-        , _lnchSeries = series
-        , _lnchMarker = Just False
-        , _lnchSmooth = Just False
-        }
+
+renderChartSpace :: ChartSpace -> ByteString
+renderChartSpace = renderLBS def {rsNamespaces = nss} . toDocument
+  where
+    nss =
+      [ ("c", "http://schemas.openxmlformats.org/drawingml/2006/chart")
+      , ("a", "http://schemas.openxmlformats.org/drawingml/2006/main")
       ]
+
+testLineChartSpace :: ChartSpace
+testLineChartSpace = oneChartChartSpace lineChart
+  where
+    lineChart =
+      LineChart
+      { _lnchGrouping = StandardGrouping
+      , _lnchSeries = series
+      , _lnchMarker = Just False
+      , _lnchSmooth = Just False
+      }
     series =
       [ LineSeries
         { _lnserShared =
@@ -280,8 +293,24 @@ testLineChartSpace =
     markerNone =
       DataMarker {_dmrkSymbol = Just DataMarkerNone, _dmrkSize = Nothing}
 
-testWrittenLineChartSpace :: ByteString
-testWrittenLineChartSpace = renderLBS def{rsNamespaces=nss} $ toDocument testLineChartSpace
+testAreaChartSpace :: ChartSpace
+testAreaChartSpace = oneChartChartSpace areaChart
   where
-    nss = [ ("c", "http://schemas.openxmlformats.org/drawingml/2006/chart")
-          , ("a", "http://schemas.openxmlformats.org/drawingml/2006/main") ]
+    areaChart =
+      AreaChart {_archGrouping = Just StandardGrouping, _archSeries = series}
+    series =
+      [ AreaSeries
+        { _arserShared =
+            Series
+            { _serTx = Just $ Formula "Sheet1!$A$1"
+            , _serShapeProperties =
+                Just $
+                def
+                { _spFill = Just $ solidRgb "000088"
+                , _spOutline = Just $ def {_lnFill = Just NoFill}
+                }
+            }
+        , _arserDataLblProps = Nothing
+        , _arserVal = Just $ Formula "Sheet1!$B$1:$D$1"
+        }
+      ]
