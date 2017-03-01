@@ -106,9 +106,11 @@ Library
 
 test-suite data-test
   type: exitcode-stdio-1.0
-  main-is:  DataTest.hs
+  main-is:  Main.hs
   hs-source-dirs: test/
-  other-modules: Diff
+  other-modules: Common
+               , Diff
+               , DrawingTests
   Build-Depends: base
                , bytestring
                , containers
