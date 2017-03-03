@@ -133,7 +133,7 @@ singleSheetFiles n cells pivFileDatas ws tblIdRef = do
         dvPairs = map DvPair . M.toList $ ws ^. wsDataValidations
         cwEl cw =
           leafElement "col" $
-          ["min" .= cwMin cw, "max" .= cwMax cw, "width" .= cwWidth cw] ++
+          ["min" .= cwMin cw, "max" .= cwMax cw, "width" .= cwWidth cw, "customWidth" .= True] ++
           catMaybes ["style" .=? (justNonDef 0 =<< cwStyle cw)]
         mergeE1 r = leafElement "mergeCell" [("ref" .= r)]
 
