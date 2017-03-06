@@ -33,6 +33,8 @@ tests =
       [testLineChartSpace] @==? parseBS (renderChartSpace testLineChartSpace)
     , testCase "parse . render == id for area Charts" $
       [testAreaChartSpace] @==? parseBS (renderChartSpace testAreaChartSpace)
+    , testCase "parse . render == id for bar Charts" $
+      [testBarChartSpace] @==? parseBS (renderChartSpace testBarChartSpace)
     ]
 
 testDrawing :: UnresolvedDrawing
@@ -314,3 +316,27 @@ testAreaChartSpace = oneChartChartSpace areaChart
         , _arserVal = Just $ Formula "Sheet1!$B$1:$D$1"
         }
       ]
+
+testBarChartSpace :: ChartSpace
+testBarChartSpace =
+  oneChartChartSpace
+    BarChart
+    { _brchDirection = DirectionColumn
+    , _brchGrouping = Just StandardGrouping
+    , _brchSeries =
+        [ BarSeries
+          { _brserShared =
+              Series
+              { _serTx = Just $ Formula "Sheet1!$A$1"
+              , _serShapeProperties =
+                  Just $
+                  def
+                  { _spFill = Just $ solidRgb "000088"
+                  , _spOutline = Just $ def {_lnFill = Just NoFill}
+                  }
+              }
+          , _brserDataLblProps = Nothing
+          , _brserVal = Just $ Formula "Sheet1!$B$1:$D$1"
+          }
+        ]
+    }

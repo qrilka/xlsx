@@ -76,7 +76,7 @@ data LegendPos
 -- | Specific Chart
 -- TODO:
 --   area3DChart, line3DChart, stockChart, radarChart, scatterChart,
---   pieChart, pie3DChart, doughnutChart, barChart, bar3DChart, ofPieChart,
+--   pieChart, pie3DChart, doughnutChart, bar3DChart, ofPieChart,
 --   surfaceChart, surface3DChart, bubbleChart
 data Chart
   = LineChart { _lnchGrouping :: ChartGrouping
@@ -90,6 +90,10 @@ data Chart
   | AreaChart { _archGrouping :: Maybe ChartGrouping
               , _archSeries :: [AreaSeries]
               }
+  | BarChart { _brchDirection :: BarDirection
+             , _brchGrouping :: Maybe ChartGrouping
+             , _brchSeries :: [BarSeries]
+             }
   deriving (Eq, Show)
 
 -- | Possible groupings for a bar chart
@@ -105,6 +109,14 @@ data ChartGrouping
   | StandardGrouping
     -- ^(Standard) Specifies that the chart series are drawn on the value
     -- axis.
+  deriving (Eq, Show)
+
+-- | Possible directions for a bar chart
+--
+-- See 21.2.3.3 "ST_BarDir (Bar Direction)" (p. 3441)
+data BarDirection
+  = DirectionBar
+  | DirectionColumn
   deriving (Eq, Show)
 
 -- | Specifies common series options
@@ -141,6 +153,18 @@ data AreaSeries = AreaSeries
   { _arserShared :: Series
   , _arserDataLblProps :: Maybe DataLblProps
   , _arserVal :: Maybe Formula
+  } deriving (Eq, Show)
+
+-- | A series on a bar chart
+--
+-- TODO: invertIfNegative, pictureOptions, dPt, trendline, errBars,
+-- cat, shape, extLst
+--
+-- See @CT_BarSer@ (p. 4064)
+data BarSeries = BarSeries
+  { _brserShared :: Series
+  , _brserDataLblProps :: Maybe DataLblProps
+  , _brserVal :: Maybe Formula
   } deriving (Eq, Show)
 
 -- See @CT_Marker@ (p. 4061)
@@ -220,6 +244,11 @@ chartFromNode n
     _archGrouping <- maybeElementValue (c_ "grouping") cur
     let _archSeries = cur $/ element (c_ "ser") >=> fromCursor
     return AreaChart {..}
+  | n `nodeElNameIs` (c_ "barChart") = do
+    _brchDirection <- fromElementValue (c_ "barDir") cur
+    _brchGrouping <- maybeElementValue (c_ "grouping") cur
+    let _brchSeries = cur $/ element (c_ "ser") >=> fromCursor
+    return BarChart {..}
   | otherwise = fail "no matching chart node"
   where
     cur = fromNode n
@@ -244,6 +273,16 @@ instance FromCursor AreaSeries where
       maybeFromElement (c_ "f")
     _arserSmooth <- maybeElementValueDef (c_ "smooth") True cur
     return AreaSeries {..}
+
+instance FromCursor BarSeries where
+  fromCursor cur = do
+    _brserShared <- fromCursor cur
+    _brserDataLblProps <- maybeFromElement (c_ "dLbls") cur
+    _brserVal <-
+      cur $/ element (c_ "val") &/ element (c_ "numRef") >=>
+      maybeFromElement (c_ "f")
+    _brserSmooth <- maybeElementValueDef (c_ "smooth") True cur
+    return BarSeries {..}
 
 -- should we respect idx and order?
 instance FromCursor Series where
@@ -274,6 +313,11 @@ instance FromAttrVal DataMarkerSymbol where
   fromAttrVal "x" = readSuccess DataMarkerX
   fromAttrVal "auto" = readSuccess DataMarkerAuto
   fromAttrVal t = invalidText "DataMarkerSymbol" t
+
+instance FromAttrVal BarDirection where
+  fromAttrVal "bar" = readSuccess DirectionBar
+  fromAttrVal "col" = readSuccess DirectionColumn
+  fromAttrVal t = invalidText "BarDirection" t
 
 instance FromCursor DataLblProps where
   fromCursor cur = do
@@ -389,18 +433,26 @@ chartToElement :: Chart -> Int -> Int -> Element
 chartToElement chart cId vId =
   case chart of
     LineChart {..} ->
-      chartElement "lineChart" (Just _lnchGrouping) _lnchSeries $
+      chartElement "lineChart" (Just _lnchGrouping) _lnchSeries [] $
       catMaybes
         [ elementValue "marker" <$> _lnchMarker
         , elementValue "smooth" <$> _lnchSmooth
         ]
-    AreaChart {..} -> chartElement "areaChart" _archGrouping _archSeries []
+    AreaChart {..} -> chartElement "areaChart" _archGrouping _archSeries [] []
+    BarChart {..} ->
+      chartElement
+        "barChart"
+        _brchGrouping
+        _brchSeries
+        [elementValue "barDir" _brchDirection]
+        []
   where
-    chartElement nm mGrouping series extra =
+    chartElement nm mGrouping series prepended appended =
       elementListSimple nm $
+      prepended ++
       (maybeToList $ elementValue "grouping" <$> mGrouping) ++
       (varyColors : seriesEls series) ++
-      extra ++ map (elementValue "axId") [cId, vId]
+      appended ++ map (elementValue "axId") [cId, vId]
     -- no element seems to be equal to varyColors=true in Excel Online
     varyColors = elementValue "varyColors" False
     seriesEls series = [indexedSeriesEl i s | (i, s) <- zip [0 ..] series]
@@ -416,23 +468,35 @@ instance ToAttrVal ChartGrouping where
   toAttrVal StandardGrouping = "standard"
   toAttrVal StackedGrouping = "stacked"
 
+instance ToAttrVal BarDirection where
+  toAttrVal DirectionBar = "bar"
+  toAttrVal DirectionColumn = "col"
+
 instance ToElement LineSeries where
-  toElement nm LineSeries {..} = serEl
-      { elementNodes = elementNodes serEl ++
-                     map NodeElement elements }
+  toElement nm LineSeries {..} = simpleSeries nm _lnserShared _lnserVal pr ap
     where
-      serEl = toElement nm _lnserShared
-      elements =
+      pr =
         catMaybes
           [ toElement "marker" <$> _lnserMarker
           , toElement "dLbls" <$> _lnserDataLblProps
-          , Just $ valEl _lnserVal
-          , elementValue "smooth" <$> _lnserSmooth
           ]
-      valEl v =
-        elementListSimple
-          "val"
-          [elementListSimple "numRef" $ maybeToList (toElement "f" <$> v)]
+      ap = maybeToList $ elementValue "smooth" <$> _lnserSmooth
+
+simpleSeries :: Name
+             -> Series
+             -> Maybe Formula
+             -> [Element]
+             -> [Element]
+             -> Element
+simpleSeries nm shared val prepended appended =
+  serEl {elementNodes = elementNodes serEl ++ map NodeElement elements}
+  where
+    serEl = toElement nm shared
+    elements = prepended ++ (valEl val : appended)
+    valEl v =
+      elementListSimple
+        "val"
+        [elementListSimple "numRef" $ maybeToList (toElement "f" <$> v)]
 
 instance ToElement DataMarker where
   toElement nm DataMarker {..} = elementListSimple nm elements
@@ -470,17 +534,10 @@ instance ToElement DataLblProps where
           ]
 
 instance ToElement AreaSeries where
-  toElement nm AreaSeries {..} =
-    serEl {elementNodes = elementNodes serEl ++ map NodeElement elements}
-    where
-      serEl = toElement nm _arserShared
-      elements =
-        catMaybes
-          [toElement "dLbls" <$> _arserDataLblProps, Just $ valEl _arserVal]
-      valEl v =
-        elementListSimple
-          "val"
-          [elementListSimple "numRef" $ maybeToList (toElement "f" <$> v)]
+  toElement nm AreaSeries {..} = simpleSeries nm _arserShared _arserVal [] []
+
+instance ToElement BarSeries where
+  toElement nm BarSeries {..} = simpleSeries nm _brserShared _brserVal [] []
 
 -- should we respect idx and order?
 instance ToElement Series where
