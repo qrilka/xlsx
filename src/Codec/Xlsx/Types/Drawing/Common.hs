@@ -1,25 +1,25 @@
-{-# LANGUAGE CPP               #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE RecordWildCards #-}
 module Codec.Xlsx.Types.Drawing.Common where
 
-import           Control.Arrow              (first)
-import           Control.Monad              (join)
-import           Data.Default
-import           Data.Maybe                 (catMaybes, listToMaybe)
-import           Data.Monoid                ((<>))
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.Read             as T
-import           Text.XML
-import           Text.XML.Cursor
+import Control.Arrow (first)
+import Control.Monad (join)
+import Data.Default
+import Data.Maybe (catMaybes, listToMaybe)
+import Data.Monoid ((<>))
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Read as T
+import Text.XML
+import Text.XML.Cursor
 
 #if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
+import Control.Applicative
 #endif
 
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Writer.Internal
 
 -- | This simple type represents an angle in 60,000ths of a degree.
 -- Positive angles are clockwise (i.e., towards the positive y axis); negative
