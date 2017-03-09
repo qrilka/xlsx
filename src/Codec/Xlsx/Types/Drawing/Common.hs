@@ -1,9 +1,11 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types.Drawing.Common where
 
 import Control.Arrow (first)
+import Control.Lens.TH
 import Control.Monad (join)
 import Data.Default
 import Data.Maybe (catMaybes, listToMaybe)
@@ -292,6 +294,8 @@ data FillProperties =
 -- | solid fill with color specified by hexadecimal RGB color
 solidRgb :: Text -> FillProperties
 solidRgb t = SolidFill . Just $ RgbColor t
+
+makeLenses ''ShapeProperties
 
 {-------------------------------------------------------------------------------
   Default instances
