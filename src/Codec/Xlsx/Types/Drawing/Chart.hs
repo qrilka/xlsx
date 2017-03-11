@@ -1,8 +1,10 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types.Drawing.Chart where
 
+import Control.Lens.TH
 import Data.Default
 import Data.Maybe (catMaybes, maybeToList)
 import Data.Text (Text)
@@ -76,7 +78,7 @@ data LegendPos
 -- | Specific Chart
 -- TODO:
 --   area3DChart, line3DChart, stockChart, radarChart, scatterChart,
---   pieChart, pie3DChart, doughnutChart, bar3DChart, ofPieChart,
+--   pie3DChart, doughnutChart, bar3DChart, ofPieChart,
 --   surfaceChart, surface3DChart, bubbleChart
 data Chart
   = LineChart { _lnchGrouping :: ChartGrouping
@@ -93,6 +95,8 @@ data Chart
   | BarChart { _brchDirection :: BarDirection
              , _brchGrouping :: Maybe ChartGrouping
              , _brchSeries :: [BarSeries]
+             }
+  | PieChart { _pichSeries :: [PieSeries]
              }
   deriving (Eq, Show)
 
@@ -118,6 +122,16 @@ data BarDirection
   = DirectionBar
   | DirectionColumn
   deriving (Eq, Show)
+
+-- | Single data point options
+--
+-- TODO:  invertIfNegative,  bubble3D, explosion, pictureOptions, extLst
+--
+-- See 21.2.2.52 "dPt (Data Point)" (p. 3384)
+data DataPoint = DataPoint
+  { _dpMarker :: Maybe DataMarker
+  , _dpShapeProperties :: Maybe ShapeProperties
+  } deriving (Eq, Show)
 
 -- | Specifies common series options
 -- TODO: spPr
@@ -165,6 +179,20 @@ data BarSeries = BarSeries
   { _brserShared :: Series
   , _brserDataLblProps :: Maybe DataLblProps
   , _brserVal :: Maybe Formula
+  } deriving (Eq, Show)
+
+-- | A series on a pie chart
+--
+-- TODO: explosion, cat, extLst
+--
+-- See @CT_PieSer@ (p. 4065)
+data PieSeries = PieSeries
+  { _piserShared :: Series
+  , _piserDataPoints :: [DataPoint]
+  -- ^ normally you should set fill for chart datapoints to make them
+  -- properly colored
+  , _piserDataLblProps :: Maybe DataLblProps
+  , _piserVal :: Maybe Formula
   } deriving (Eq, Show)
 
 -- See @CT_Marker@ (p. 4061)
@@ -217,6 +245,15 @@ data TickMark
     -- ^ (Outside) Specifies the tick marks shall be outside the plot area.
   deriving (Eq, Show)
 
+makeLenses ''DataPoint
+
+{-------------------------------------------------------------------------------
+  Default instances
+-------------------------------------------------------------------------------}
+
+instance Default DataPoint where
+    def = DataPoint Nothing Nothing
+
 {-------------------------------------------------------------------------------
   Parsing
 -------------------------------------------------------------------------------}
@@ -249,6 +286,9 @@ chartFromNode n
     _brchGrouping <- maybeElementValue (c_ "grouping") cur
     let _brchSeries = cur $/ element (c_ "ser") >=> fromCursor
     return BarChart {..}
+  | n `nodeElNameIs` (c_ "pieChart") = do
+    let _pichSeries = cur $/ element (c_ "ser") >=> fromCursor
+    return PieChart {..}
   | otherwise = fail "no matching chart node"
   where
     cur = fromNode n
@@ -284,6 +324,17 @@ instance FromCursor BarSeries where
     _brserSmooth <- maybeElementValueDef (c_ "smooth") True cur
     return BarSeries {..}
 
+instance FromCursor PieSeries where
+  fromCursor cur = do
+    _piserShared <- fromCursor cur
+    let _piserDataPoints = cur $/ element (c_ "dPt") >=> fromCursor
+    _piserDataLblProps <- maybeFromElement (c_ "dLbls") cur
+    _piserVal <-
+      cur $/ element (c_ "val") &/ element (c_ "numRef") >=>
+      maybeFromElement (c_ "f")
+    _piserSmooth <- maybeElementValueDef (c_ "smooth") True cur
+    return PieSeries {..}
+
 -- should we respect idx and order?
 instance FromCursor Series where
   fromCursor cur = do
@@ -298,6 +349,12 @@ instance FromCursor DataMarker where
     _dmrkSymbol <- maybeElementValue (c_ "symbol") cur
     _dmrkSize <- maybeElementValue (c_ "size") cur
     return DataMarker {..}
+
+instance FromCursor DataPoint where
+  fromCursor cur = do
+    _dpMarker <- maybeFromElement (c_ "marker") cur
+    _dpShapeProperties <- maybeFromElement (c_ "spPr") cur
+    return DataPoint {..}
 
 instance FromAttrVal DataMarkerSymbol where
   fromAttrVal "circle" = readSuccess DataMarkerCircle
@@ -446,7 +503,11 @@ chartToElement chart cId vId =
         _brchSeries
         [elementValue "barDir" _brchDirection]
         []
+    PieChart {..} -> chartElement "pieChart" Nothing _pichSeries [] []
   where
+    chartElement
+      :: ToElement s
+      => Name -> Maybe ChartGrouping -> [s] -> [Element] -> [Element] -> Element
     chartElement nm mGrouping series prepended appended =
       elementListSimple nm $
       prepended ++
@@ -454,7 +515,7 @@ chartToElement chart cId vId =
       (varyColors : seriesEls series) ++
       appended ++ map (elementValue "axId") [cId, vId]
     -- no element seems to be equal to varyColors=true in Excel Online
-    varyColors = elementValue "varyColors" False
+    varyColors = elementValue "varyColors" True
     seriesEls series = [indexedSeriesEl i s | (i, s) <- zip [0 ..] series]
     indexedSeriesEl
       :: ToElement a
@@ -534,10 +595,28 @@ instance ToElement DataLblProps where
           ]
 
 instance ToElement AreaSeries where
-  toElement nm AreaSeries {..} = simpleSeries nm _arserShared _arserVal [] []
+  toElement nm AreaSeries {..} = simpleSeries nm _arserShared _arserVal pr []
+    where
+      pr = maybeToList $ fmap (toElement "dLbls") _arserDataLblProps
 
 instance ToElement BarSeries where
-  toElement nm BarSeries {..} = simpleSeries nm _brserShared _brserVal [] []
+  toElement nm BarSeries {..} = simpleSeries nm _brserShared _brserVal pr []
+    where
+      pr = maybeToList $ fmap (toElement "dLbls") _brserDataLblProps
+
+instance ToElement PieSeries where
+  toElement nm PieSeries {..} = simpleSeries nm _piserShared _piserVal pr []
+    where
+      pr = dPts ++ maybeToList (fmap (toElement "dLbls") _piserDataLblProps)
+      dPts = zipWith dPtEl [(0 :: Int) ..] _piserDataPoints
+      dPtEl i DataPoint {..} =
+        elementListSimple
+          "dPt"
+          (elementValue "idx" i :
+           catMaybes
+             [ toElement "marker" <$> _dpMarker
+             , toElement "spPr" <$> _dpShapeProperties
+             ])
 
 -- should we respect idx and order?
 instance ToElement Series where

@@ -6,6 +6,7 @@ module DrawingTests
   , testLineChartSpace
   ) where
 
+import Control.Lens
 import Data.ByteString.Lazy (ByteString)
 import Test.Tasty (testGroup, TestTree)
 import Test.Tasty.HUnit (testCase)
@@ -35,6 +36,8 @@ tests =
       [testAreaChartSpace] @==? parseBS (renderChartSpace testAreaChartSpace)
     , testCase "parse . render == id for bar Charts" $
       [testBarChartSpace] @==? parseBS (renderChartSpace testBarChartSpace)
+    , testCase "parse . render == id for pie Charts" $
+      [testPieChartSpace] @==? parseBS (renderChartSpace testPieChartSpace)
     ]
 
 testDrawing :: UnresolvedDrawing
@@ -340,3 +343,27 @@ testBarChartSpace =
           }
         ]
     }
+
+testPieChartSpace :: ChartSpace
+testPieChartSpace =
+  oneChartChartSpace
+    PieChart
+    { _pichSeries =
+        [ PieSeries
+          { _piserShared =
+              Series
+              { _serTx = Just $ Formula "Sheet1!$A$1"
+              , _serShapeProperties = Nothing
+              }
+          , _piserDataPoints =
+              [ def & dpShapeProperties ?~ solidFill "000088"
+              , def & dpShapeProperties ?~ solidFill "008800"
+              , def & dpShapeProperties ?~ solidFill "880000"
+              ]
+          , _piserDataLblProps = Nothing
+          , _piserVal = Just $ Formula "Sheet1!$B$1:$D$1"
+          }
+        ]
+    }
+  where
+    solidFill color = def & spFill ?~ solidRgb color
