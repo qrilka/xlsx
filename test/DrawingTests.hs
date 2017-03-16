@@ -38,6 +38,8 @@ tests =
       [testBarChartSpace] @==? parseBS (renderChartSpace testBarChartSpace)
     , testCase "parse . render == id for pie Charts" $
       [testPieChartSpace] @==? parseBS (renderChartSpace testPieChartSpace)
+    , testCase "parse . render == id for scatter Charts" $
+      [testScatterChartSpace] @==? parseBS (renderChartSpace testScatterChartSpace)
     ]
 
 testDrawing :: UnresolvedDrawing
@@ -367,3 +369,25 @@ testPieChartSpace =
     }
   where
     solidFill color = def & spFill ?~ solidRgb color
+
+testScatterChartSpace :: ChartSpace
+testScatterChartSpace =
+  oneChartChartSpace
+    ScatterChart
+    { _scchStyle = ScatterMarker
+    , _scchSeries =
+        [ ScatterSeries
+          { _scserShared =
+              Series
+              { _serTx = Just $ Formula "Sheet1!$A$2"
+              , _serShapeProperties =
+                  Just $ def {_spOutline = Just $ def {_lnFill = Just NoFill}}
+              }
+          , _scserMarker = Just $ DataMarker (Just DataMarkerSquare) Nothing
+          , _scserDataLblProps = Nothing
+          , _scserXVal = Just $ Formula "Sheet1!$B$1:$D$1"
+          , _scserYVal = Just $ Formula "Sheet1!$B$2:$D$2"
+          , _scserSmooth = Nothing
+          }
+        ]
+    }

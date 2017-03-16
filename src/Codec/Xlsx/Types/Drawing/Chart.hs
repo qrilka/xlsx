@@ -77,7 +77,7 @@ data LegendPos
 
 -- | Specific Chart
 -- TODO:
---   area3DChart, line3DChart, stockChart, radarChart, scatterChart,
+--   area3DChart, line3DChart, stockChart, radarChart,
 --   pie3DChart, doughnutChart, bar3DChart, ofPieChart,
 --   surfaceChart, surface3DChart, bubbleChart
 data Chart
@@ -98,6 +98,9 @@ data Chart
              }
   | PieChart { _pichSeries :: [PieSeries]
              }
+  | ScatterChart { _scchStyle :: ScatterStyle
+                 , _scchSeries :: [ScatterSeries]
+                 }
   deriving (Eq, Show)
 
 -- | Possible groupings for a bar chart
@@ -121,6 +124,22 @@ data ChartGrouping
 data BarDirection
   = DirectionBar
   | DirectionColumn
+  deriving (Eq, Show)
+
+-- | Possible styles of scatter chart
+--
+-- /Note:/ It appears that even for 'ScatterMarker' style Exel draws a
+-- line between chart points if otline fill for '_scserShared' isn't
+-- set to so it's not quite clear how could Excel use this property
+--
+-- See 21.2.3.40 "ST_ScatterStyle (Scatter Style)" (p. 3455)
+data ScatterStyle
+  = ScatterNone
+  | ScatterLine
+  | ScatterLineMarker
+  | ScatterMarker
+  | ScatterSmooth
+  | ScatterSmoothMarker
   deriving (Eq, Show)
 
 -- | Single data point options
@@ -193,6 +212,20 @@ data PieSeries = PieSeries
   -- properly colored
   , _piserDataLblProps :: Maybe DataLblProps
   , _piserVal :: Maybe Formula
+  } deriving (Eq, Show)
+
+-- | A series on a scatter chart
+--
+-- TODO: dPt, trendline, errBars, smooth, extLst
+--
+-- See @CT_ScatterSer@ (p. 4064)
+data ScatterSeries = ScatterSeries
+  { _scserShared :: Series
+  , _scserMarker :: Maybe DataMarker
+  , _scserDataLblProps :: Maybe DataLblProps
+  , _scserXVal :: Maybe Formula
+  , _scserYVal :: Maybe Formula
+  , _scserSmooth :: Maybe Bool
   } deriving (Eq, Show)
 
 -- See @CT_Marker@ (p. 4061)
@@ -289,6 +322,10 @@ chartFromNode n
   | n `nodeElNameIs` (c_ "pieChart") = do
     let _pichSeries = cur $/ element (c_ "ser") >=> fromCursor
     return PieChart {..}
+  | n `nodeElNameIs` (c_ "scatterChart") = do
+    _scchStyle <- fromElementValue (c_ "scatterStyle") cur
+    let _scchSeries = cur $/ element (c_ "ser") >=> fromCursor
+    return ScatterChart {..}
   | otherwise = fail "no matching chart node"
   where
     cur = fromNode n
@@ -332,6 +369,20 @@ instance FromCursor PieSeries where
       maybeFromElement (c_ "f")
     return PieSeries {..}
 
+instance FromCursor ScatterSeries where
+  fromCursor cur = do
+    _scserShared <- fromCursor cur
+    _scserMarker <- maybeFromElement (c_ "marker") cur
+    _scserDataLblProps <- maybeFromElement (c_ "dLbls") cur
+    _scserXVal <-
+      cur $/ element (c_ "xVal") &/ element (c_ "numRef") >=>
+      maybeFromElement (c_ "f")
+    _scserYVal <-
+      cur $/ element (c_ "yVal") &/ element (c_ "numRef") >=>
+      maybeFromElement (c_ "f")
+    _scserSmooth <- maybeElementValueDef (c_ "smooth") True cur
+    return ScatterSeries {..}
+
 -- should we respect idx and order?
 instance FromCursor Series where
   fromCursor cur = do
@@ -372,6 +423,15 @@ instance FromAttrVal BarDirection where
   fromAttrVal "bar" = readSuccess DirectionBar
   fromAttrVal "col" = readSuccess DirectionColumn
   fromAttrVal t = invalidText "BarDirection" t
+
+instance FromAttrVal ScatterStyle where
+  fromAttrVal "none" = readSuccess ScatterNone
+  fromAttrVal "line" = readSuccess ScatterLine
+  fromAttrVal "lineMarker" = readSuccess ScatterLineMarker
+  fromAttrVal "marker" = readSuccess ScatterMarker
+  fromAttrVal "smooth" = readSuccess ScatterSmooth
+  fromAttrVal "smoothMarker" = readSuccess ScatterSmoothMarker
+  fromAttrVal t = invalidText "ScatterStyle" t
 
 instance FromCursor DataLblProps where
   fromCursor cur = do
@@ -446,73 +506,64 @@ instance ToElement ChartSpace where
           , elementValue "plotVisOnly" <$> _chspPlotVisOnly
           , elementValue "dispBlanksAs" <$> _chspDispBlanksAs
           ]
-      -- we reserve 2 axes - X and Y for line charts
-      -- this needs to be reworked when other chart types will be added
-      enumCharts = zip [1,3 ..] _chspCharts
-      charts = [chartToElement ch i (i + 1) | (i, ch) <- enumCharts]
-      areaEls = charts ++ valAxes ++ catAxes
-      catAxes = [catAxEl i (i + 1) | (i, _) <- enumCharts]
-      valAxes = [valAxEl (i + 1) i | (i, _) <- enumCharts]
-      catAxEl :: Int -> Int -> Element
-      catAxEl i cr =
-        elementListSimple "catAx" $
-        [ elementValue "axId" i
-        , emptyElement "scaling"
-        , elementValue "delete" False
-        , elementValue "axPos" ("b" :: Text)
-        , elementValue "majorTickMark" TickMarkNone
-        , elementValue "minorTickMark" TickMarkNone
-        , toElement "spPr" grayLines
-        , elementValue "crossAx" cr
-        , elementValue "auto" True
-        ]
-      valAxEl :: Int -> Int -> Element
-      valAxEl i cr =
-        elementListSimple "valAx" $
-        [ elementValue "axId" i
-        , emptyElement "scaling"
-        , elementValue "delete" False
-        , elementValue "axPos" ("l" :: Text)
-        , gridLinesEl
-        , elementValue "majorTickMark" TickMarkNone
-        , elementValue "minorTickMark" TickMarkNone
-        , toElement "spPr" grayLines
-        , elementValue "crossAx" cr
-        ]
-      grayLines = def {_spOutline = Just def {_lnFill = Just $ solidRgb "b3b3b3"}}
-      gridLinesEl =
-        elementListSimple "majorGridlines" [toElement "spPr" grayLines]
+      areaEls = charts ++ axes
+      (_, charts, axes) = foldr addChart (1, [], []) _chspCharts
+      addChart ch (i, cs, as) =
+        let (c, as') = chartToElements ch i
+        in (i + length as', c : cs, as' ++ as)
 
-chartToElement :: Chart -> Int -> Int -> Element
-chartToElement chart cId vId =
+chartToElements :: Chart -> Int -> (Element, [Element])
+chartToElements chart axId =
   case chart of
     LineChart {..} ->
-      chartElement "lineChart" (Just _lnchGrouping) _lnchSeries [] $
-      catMaybes
-        [ elementValue "marker" <$> _lnchMarker
-        , elementValue "smooth" <$> _lnchSmooth
-        ]
-    AreaChart {..} -> chartElement "areaChart" _archGrouping _archSeries [] []
+      chartElement
+        "lineChart"
+        stdAxes
+        (Just _lnchGrouping)
+        _lnchSeries
+        []
+        (catMaybes
+           [ elementValue "marker" <$> _lnchMarker
+           , elementValue "smooth" <$> _lnchSmooth
+           ])
+    AreaChart {..} ->
+      chartElement "areaChart" stdAxes _archGrouping _archSeries [] []
     BarChart {..} ->
       chartElement
         "barChart"
+        stdAxes
         _brchGrouping
         _brchSeries
         [elementValue "barDir" _brchDirection]
         []
-    PieChart {..} -> chartElement "pieChart" Nothing _pichSeries [] []
+    PieChart {..} -> chartElement "pieChart" [] Nothing _pichSeries [] []
+    ScatterChart {..} ->
+      chartElement
+        "scatterChart"
+        xyAxes
+        Nothing
+        _scchSeries
+        [elementValue "scatterStyle" _scchStyle]
+        []
   where
     chartElement
       :: ToElement s
-      => Name -> Maybe ChartGrouping -> [s] -> [Element] -> [Element] -> Element
-    chartElement nm mGrouping series prepended appended =
-      elementListSimple nm $
-      prepended ++
-      (maybeToList $ elementValue "grouping" <$> mGrouping) ++
-      (varyColors : seriesEls series) ++
-      appended ++ map (elementValue "axId") [cId, vId]
+      => Name
+      -> [Element]
+      -> Maybe ChartGrouping
+      -> [s]
+      -> [Element]
+      -> [Element]
+      -> (Element, [Element])
+    chartElement nm axes mGrouping series prepended appended =
+      ( elementListSimple nm $
+        prepended ++
+        (maybeToList $ elementValue "grouping" <$> mGrouping) ++
+        (varyColors : seriesEls series) ++
+        appended ++ zipWith (\n _ -> elementValue "axId" n) [axId ..] axes
+      , axes)
     -- no element seems to be equal to varyColors=true in Excel Online
-    varyColors = elementValue "varyColors" True
+    varyColors = elementValue "varyColors" False
     seriesEls series = [indexedSeriesEl i s | (i, s) <- zip [0 ..] series]
     indexedSeriesEl
       :: ToElement a
@@ -520,6 +571,38 @@ chartToElement chart cId vId =
     indexedSeriesEl i s = prependI i $ toElement "ser" s
     prependI i e@Element {..} = e {elementNodes = iNodes i ++ elementNodes}
     iNodes i = map NodeElement [elementValue n i | n <- ["idx", "order"]]
+
+    stdAxes = [catAx axId (axId + 1), valAx "l" (axId + 1) axId]
+    xyAxes = [valAx "b" axId (axId + 1), valAx "l" (axId + 1) axId]
+    catAx :: Int -> Int -> Element
+    catAx i cr =
+      elementListSimple "catAx" $
+      [ elementValue "axId" i
+      , emptyElement "scaling"
+      , elementValue "delete" False
+      , elementValue "axPos" ("b" :: Text)
+      , elementValue "majorTickMark" TickMarkNone
+      , elementValue "minorTickMark" TickMarkNone
+      , toElement "spPr" grayLines
+      , elementValue "crossAx" cr
+      , elementValue "auto" True
+      ]
+    valAx :: Text -> Int -> Int -> Element
+    valAx pos i cr =
+      elementListSimple "valAx" $
+      [ elementValue "axId" i
+      , emptyElement "scaling"
+      , elementValue "delete" False
+      , elementValue "axPos" pos
+      , gridLinesEl
+      , elementValue "majorTickMark" TickMarkNone
+      , elementValue "minorTickMark" TickMarkNone
+      , toElement "spPr" grayLines
+      , elementValue "crossAx" cr
+      ]
+    grayLines = def {_spOutline = Just def {_lnFill = Just $ solidRgb "b3b3b3"}}
+    gridLinesEl =
+      elementListSimple "majorGridlines" [toElement "spPr" grayLines]
 
 instance ToAttrVal ChartGrouping where
   toAttrVal PercentStackedGrouping = "percentStacked"
@@ -529,6 +612,14 @@ instance ToAttrVal ChartGrouping where
 instance ToAttrVal BarDirection where
   toAttrVal DirectionBar = "bar"
   toAttrVal DirectionColumn = "col"
+
+instance ToAttrVal ScatterStyle where
+  toAttrVal ScatterNone = "none"
+  toAttrVal ScatterLine = "line"
+  toAttrVal ScatterLineMarker = "lineMarker"
+  toAttrVal ScatterMarker = "marker"
+  toAttrVal ScatterSmooth = "smooth"
+  toAttrVal ScatterSmoothMarker = "smoothMarker"
 
 instance ToElement LineSeries where
   toElement nm LineSeries {..} = simpleSeries nm _lnserShared _lnserVal pr ap
@@ -615,6 +706,23 @@ instance ToElement PieSeries where
              , toElement "spPr" <$> _dpShapeProperties
              ])
 
+instance ToElement ScatterSeries where
+  toElement nm ScatterSeries {..} =
+    serEl {elementNodes = elementNodes serEl ++ map NodeElement elements}
+    where
+      serEl = toElement nm _scserShared
+      elements =
+        catMaybes
+          [ toElement "marker" <$> _scserMarker
+          , toElement "dLbls" <$> _scserDataLblProps
+          ] ++
+        [valEl "xVal" _scserXVal, valEl "yVal" _scserYVal] ++
+        (maybeToList $ fmap (elementValue "smooth") _scserSmooth)
+      valEl vnm v =
+        elementListSimple
+          vnm
+          [elementListSimple "numRef" $ maybeToList (toElement "f" <$> v)]
+
 -- should we respect idx and order?
 instance ToElement Series where
   toElement nm Series {..} =
@@ -638,10 +746,10 @@ instance ToElement Legend where
                             , elementValue "overlay" <$>_legendOverlay]
 
 instance ToAttrVal LegendPos where
-  toAttrVal LegendBottom   = "b" 
-  toAttrVal LegendLeft     = "l" 
-  toAttrVal LegendRight    = "r" 
-  toAttrVal LegendTop      = "t" 
+  toAttrVal LegendBottom   = "b"
+  toAttrVal LegendLeft     = "l"
+  toAttrVal LegendRight    = "r"
+  toAttrVal LegendTop      = "t"
   toAttrVal LegendTopRight = "tr"
 
 instance ToAttrVal DispBlanksAs where
