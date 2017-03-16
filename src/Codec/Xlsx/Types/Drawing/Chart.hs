@@ -311,7 +311,6 @@ instance FromCursor AreaSeries where
     _arserVal <-
       cur $/ element (c_ "val") &/ element (c_ "numRef") >=>
       maybeFromElement (c_ "f")
-    _arserSmooth <- maybeElementValueDef (c_ "smooth") True cur
     return AreaSeries {..}
 
 instance FromCursor BarSeries where
@@ -321,7 +320,6 @@ instance FromCursor BarSeries where
     _brserVal <-
       cur $/ element (c_ "val") &/ element (c_ "numRef") >=>
       maybeFromElement (c_ "f")
-    _brserSmooth <- maybeElementValueDef (c_ "smooth") True cur
     return BarSeries {..}
 
 instance FromCursor PieSeries where
@@ -332,7 +330,6 @@ instance FromCursor PieSeries where
     _piserVal <-
       cur $/ element (c_ "val") &/ element (c_ "numRef") >=>
       maybeFromElement (c_ "f")
-    _piserSmooth <- maybeElementValueDef (c_ "smooth") True cur
     return PieSeries {..}
 
 -- should we respect idx and order?
