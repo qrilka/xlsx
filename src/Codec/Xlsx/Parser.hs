@@ -79,7 +79,7 @@ data WorksheetFile = WorksheetFile { wfName :: Text
                                    }
                    deriving Show
 
-type Caches = [(CacheId, (Text, CellRef, [PivotFieldName]))]
+type Caches = [(CacheId, (Text, CellRef, [CacheField]))]
 
 extractSheet :: Zip.Archive
              -> SharedStringTable

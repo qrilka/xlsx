@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP                #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Codec.Xlsx.Parser.Internal
     ( ParseException(..)
     , n_
@@ -15,6 +16,7 @@ module Codec.Xlsx.Parser.Internal
     , maybeElementValueDef
     , maybeBoolElementValue
     , maybeFromElement
+    , attrValIs
     , contentOrEmpty
     , readSuccess
     , readFailure
@@ -112,6 +114,12 @@ maybeFromElement :: FromCursor a => Name -> Cursor -> [Maybe a]
 maybeFromElement name cursor = case cursor $/ element name of
   [cursor'] -> Just <$> fromCursor cursor'
   _ -> [Nothing]
+
+attrValIs :: (Eq a, FromAttrVal a) => Name -> a -> Axis
+attrValIs n v c =
+  case fromAttribute n c of
+    [x] | x == v -> [c]
+    _ -> []
 
 contentOrEmpty :: Cursor -> [Text]
 contentOrEmpty c =

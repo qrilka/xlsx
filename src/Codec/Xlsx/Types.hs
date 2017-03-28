@@ -36,10 +36,10 @@ module Codec.Xlsx.Types (
     , wsTables
     , wsProtection
     -- ** Cells
-    , cellValue
-    , cellStyle
-    , cellComment
-    , cellFormula
+    , Cell.cellValue
+    , Cell.cellStyle
+    , Cell.cellComment
+    , Cell.cellFormula
     -- * Style helpers
     , emptyStyles
     , renderStyleSheet
@@ -61,14 +61,13 @@ import           Data.Function                          (on)
 import           Data.List                              (groupBy)
 import           Data.Map                               (Map)
 import qualified Data.Map                               as M
-import           Data.Maybe                             (catMaybes)
 import           Data.Text                              (Text)
-import           Text.XML                               (Element (..), parseLBS,
-                                                         renderLBS)
+import           Text.XML                               (parseLBS, renderLBS)
 import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Types.AutoFilter            as X
+import           Codec.Xlsx.Types.Cell                  as Cell
 import           Codec.Xlsx.Types.Comment               as X
 import           Codec.Xlsx.Types.Common                as X
 import           Codec.Xlsx.Types.ConditionalFormatting as X
@@ -85,50 +84,6 @@ import           Codec.Xlsx.Types.StyleSheet            as X
 import           Codec.Xlsx.Types.Table                 as X
 import           Codec.Xlsx.Types.Variant               as X
 import           Codec.Xlsx.Writer.Internal
-
--- | Formula for the cell.
---
--- TODO: array. dataTable and shared formula types support
---
--- See 18.3.1.40 "f (Formula)" (p. 1636)
-data CellFormula
-    = NormalCellFormula
-      { _cellfExpression    :: Formula
-      , _cellfAssignsToName :: Bool
-      -- ^ Specifies that this formula assigns a value to a name.
-      , _cellfCalculate     :: Bool
-      -- ^ Indicates that this formula needs to be recalculated
-      -- the next time calculation is performed.
-      -- [/Example/: This is always set on volatile functions,
-      -- like =RAND(), and circular references. /end example/]
-      } deriving (Eq, Show)
-
-simpleCellFormula :: Text -> CellFormula
-simpleCellFormula expr = NormalCellFormula
-    { _cellfExpression    = Formula expr
-    , _cellfAssignsToName = False
-    , _cellfCalculate     = False
-    }
-
--- | Currently cell details include only cell values and style ids
--- (e.g. formulas from @\<f\>@ and inline strings from @\<is\>@
--- subelements are ignored)
-data Cell = Cell
-    { _cellStyle   :: Maybe Int
-    , _cellValue   :: Maybe CellValue
-    , _cellComment :: Maybe Comment
-    , _cellFormula :: Maybe CellFormula
-    } deriving (Eq, Show)
-
-makeLenses ''Cell
-
-instance Default Cell where
-    def = Cell Nothing Nothing Nothing Nothing
-
--- | Map containing cell values which are indexed by row and column
--- if you need to use more traditional (x,y) indexing please you could
--- use corresponding accessors from ''Codec.Xlsx.Lens''
-type CellMap = Map (Int, Int) Cell
 
 data RowProperties = RowProps { rowHeight :: Maybe Double, rowStyle::Maybe Int}
                    deriving (Read,Eq,Show,Ord)
@@ -281,33 +236,3 @@ fromRows :: [(Int, [(Int, Cell)])] -> CellMap
 fromRows rows = M.fromList $ concatMap mapRow rows
   where
     mapRow (r, cells) = map (\(c, v) -> ((r, c), v)) cells
-
-{-------------------------------------------------------------------------------
-  Parsing
--------------------------------------------------------------------------------}
-
-instance FromCursor CellFormula where
-    fromCursor cur = do
-        t <- fromAttributeDef "t" "normal" cur
-        typedCellFormula t cur
-
-typedCellFormula :: Text -> Cursor -> [CellFormula]
-typedCellFormula "normal" cur = do
-    _cellfExpression <- fromCursor cur
-    _cellfAssignsToName <- fromAttributeDef "bx" False cur
-    _cellfCalculate <- fromAttributeDef "ca" False cur
-    return NormalCellFormula{..}
-typedCellFormula _ _ = fail "parseable cell formula type was not found"
-
-{-------------------------------------------------------------------------------
-  Rendering
--------------------------------------------------------------------------------}
-
-instance ToElement CellFormula where
-    toElement nm NormalCellFormula{..} =
-        let formulaEl = toElement nm _cellfExpression
-        in formulaEl
-           { elementAttributes =
-                   M.fromList $ catMaybes [ "bx" .=? justTrue _cellfAssignsToName
-                                          , "ca" .=? justTrue _cellfCalculate ]
-           }

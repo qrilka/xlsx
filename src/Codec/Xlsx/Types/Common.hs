@@ -137,7 +137,6 @@ data XlsxText = XlsxText Text
 newtype Formula = Formula {unFormula :: Text}
     deriving (Eq, Ord, Show)
 
-
 -- | Cell values include text, numbers and booleans,
 -- standard includes date format also but actually dates
 -- are represented by numbers with a date format assigned

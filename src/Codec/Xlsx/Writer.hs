@@ -301,8 +301,8 @@ data PvGenerated = PvGenerated
   , pvgOthers :: [FileData]
   }
 
-generatePivotFiles :: [[PivotTable]] -> PvGenerated
-generatePivotFiles tables = PvGenerated cacheFiles shTableFiles others
+generatePivotFiles :: [(CellMap, [PivotTable])] -> PvGenerated
+generatePivotFiles cmTables = PvGenerated cacheFiles shTableFiles others
   where
     cacheFiles = [cacheFile | (cacheFile, _, _) <- flatRendered]
     shTableFiles = map (map (\(_, tableFile, _) -> tableFile)) rendered
@@ -311,11 +311,11 @@ generatePivotFiles tables = PvGenerated cacheFiles shTableFiles others
     flatRendered = concat rendered
     (_, rendered) =
       mapAccumL
-        (\c ts -> mapAccumL (\c' t -> (c' + 1, render c' t)) c ts)
+        (\c (cm, ts) -> mapAccumL (\c' t -> (c' + 1, render cm c' t)) c ts)
         firstCacheId
-        tables
-    render cacheIdRaw tbl =
-      let PivotTableFiles {..} = renderPivotTableFiles cacheIdRaw tbl
+        cmTables
+    render cm cacheIdRaw tbl =
+      let PivotTableFiles {..} = renderPivotTableFiles cm cacheIdRaw tbl
           cacheId = CacheId cacheIdRaw
           cacheIdStr = show cacheIdRaw
           cachePath =
@@ -451,11 +451,14 @@ bookFiles xlsx = runST $ do
   let style =
         (stRId, FileData "xl/styles.xml" (smlCT "styles") "styles" $
               unStyles (xlsx ^. xlStyles))
-  let PvGenerated
-        {pvgCacheFiles=cacheIdFiles,
-         pvgOthers=pivotOtherFiles,
-         pvgSheetTableFiles=sheetPivotTables} =
-        generatePivotFiles (xlsx ^. xlSheets . to (map (^. _2 . wsPivotTables)))
+  let PvGenerated { pvgCacheFiles = cacheIdFiles
+                  , pvgOthers = pivotOtherFiles
+                  , pvgSheetTableFiles = sheetPivotTables
+                  } =
+        generatePivotFiles
+          [ (_wsCells, _wsPivotTables)
+          | (_, Worksheet {..}) <- xlsx ^. xlSheets
+          ]
       sheetCells = map (transformSheetData shared) sheets
       sheetInputs = zip3 sheetCells sheetPivotTables sheets
   tblIdRef <- newSTRef 1

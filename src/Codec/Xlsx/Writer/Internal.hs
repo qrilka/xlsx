@@ -136,7 +136,7 @@ instance ToAttrVal Text    where toAttrVal = id
 instance ToAttrVal String  where toAttrVal = fromString
 instance ToAttrVal Int     where toAttrVal = txti
 instance ToAttrVal Integer where toAttrVal = txti
-instance ToAttrVal Double  where toAttrVal = fromString . show
+instance ToAttrVal Double  where toAttrVal = txtd
 
 instance ToAttrVal Bool where
   toAttrVal True  = "1"

@@ -35,6 +35,7 @@ data PivotTable = PivotTable
 data PivotFieldInfo = PivotFieldInfo
   { _pfiName :: PivotFieldName
   , _pfiOutline :: Bool
+  , _pfiHiddenItems :: [CellValue]
   } deriving (Eq, Show)
 
 newtype PivotFieldName =

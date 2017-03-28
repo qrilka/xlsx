@@ -41,6 +41,7 @@ Library
                    , Codec.Xlsx.Parser.Internal
                    , Codec.Xlsx.Parser.Internal.PivotTable
                    , Codec.Xlsx.Types.AutoFilter
+                   , Codec.Xlsx.Types.Cell
                    , Codec.Xlsx.Types.Comment
                    , Codec.Xlsx.Types.Common
                    , Codec.Xlsx.Types.ConditionalFormatting
