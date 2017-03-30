@@ -67,10 +67,10 @@ testPivotTable =
         }
       ]
   , _pvtFields =
-      [ PivotFieldInfo colorField False [CellText "green"]
-      , PivotFieldInfo yearField True []
-      , PivotFieldInfo priceField False []
-      , PivotFieldInfo countField False []
+      [ PivotFieldInfo colorField False FieldSortAscending [CellText "green"]
+      , PivotFieldInfo yearField True FieldSortManual []
+      , PivotFieldInfo priceField False FieldSortManual []
+      , PivotFieldInfo countField False FieldSortManual []
       ]
   , _pvtRowGrandTotals = True
   , _pvtColumnGrandTotals = False
@@ -119,7 +119,7 @@ testPivotTableDefinition = [r|
 <pivotTableDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="PivotTable1" cacheId="3" dataOnRows="1" colGrandTotals="0" dataCaption="Values">
   <location ref="A3:D12" firstHeaderRow="1" firstDataRow="2" firstDataCol="1"/>
   <pivotFields>
-    <pivotField name="Color" axis="axisRow" showAll="0" outline="0">
+    <pivotField name="Color" axis="axisRow" showAll="0" outline="0" sortType="ascending">
       <items>
         <item h="1" x="0"/><item x="1"/><item x="2"/><item t="default"/>
       </items>

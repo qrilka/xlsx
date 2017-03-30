@@ -73,12 +73,13 @@ ptDefinitionElement nm cacheId cache PivotTable {..} =
     pivotFields = elementListSimple "pivotFields" $ map pFieldEl _pvtFields
     pFieldEl PivotFieldInfo { _pfiName = fName
                             , _pfiOutline = outline
+                            , _pfiSortType = sortType
                             , _pfiHiddenItems = hidden
                             }
       | FieldPosition fName `elem` _pvtRowFields =
-        pFieldEl' fName outline ("axisRow" :: Text) hidden
+        pFieldEl' fName outline ("axisRow" :: Text) hidden sortType
       | FieldPosition fName `elem` _pvtColumnFields =
-        pFieldEl' fName outline ("axisCol" :: Text) hidden
+        pFieldEl' fName outline ("axisCol" :: Text) hidden sortType
       | otherwise =
         leafElement
           "pivotField"
@@ -87,14 +88,15 @@ ptDefinitionElement nm cacheId cache PivotTable {..} =
           , "showAll" .= False
           , "outline" .= outline
           ]
-    pFieldEl' fName outline axis hidden =
+    pFieldEl' fName outline axis hidden sortType =
       elementList
         "pivotField"
-        [ "name" .= fName
-        , "axis" .= axis
-        , "showAll" .= False
-        , "outline" .= outline
-        ]
+        ([ "name" .= fName
+         , "axis" .= axis
+         , "showAll" .= False
+         , "outline" .= outline
+         ] ++
+         catMaybes ["sortType" .=? justNonDef FieldSortManual sortType])
         [ elementListSimple "items" $
           items fName hidden ++
           [leafElement "item" ["t" .= ("default" :: Text)]]

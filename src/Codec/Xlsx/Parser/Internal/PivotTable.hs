@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-module Codec.Xlsx.Parser.Internal.PivotTable (
-   parsePivotTable
+module Codec.Xlsx.Parser.Internal.PivotTable
+  ( parsePivotTable
   , parseCache
-) where
+  ) where
 
 import Control.Applicative
 import Control.Arrow ((&&&))
@@ -41,6 +41,7 @@ parsePivotTable srcByCacheId bs =
               _pvtFields =
                 cur $/ element (n_ "pivotFields") &/ element (n_ "pivotField") >=> \c -> do
                   _pfiName <- fromAttribute "name" c
+                  _pfiSortType <- fromAttributeDef "sortType" FieldSortManual c
                   _pfiOutline <- fromAttributeDef "outline" True c
                   let hidden =
                         c $/ element (n_ "items") &/ element (n_ "item") >=>

@@ -4,6 +4,7 @@ module Codec.Xlsx.Types.PivotTable
   ( PivotTable(..)
   , PivotFieldName(..)
   , PivotFieldInfo(..)
+  , FieldSortType(..)
   , PositionedField(..)
   , DataField(..)
   , ConsolidateFunction(..)
@@ -35,8 +36,18 @@ data PivotTable = PivotTable
 data PivotFieldInfo = PivotFieldInfo
   { _pfiName :: PivotFieldName
   , _pfiOutline :: Bool
+  , _pfiSortType :: FieldSortType
   , _pfiHiddenItems :: [CellValue]
   } deriving (Eq, Show)
+
+-- | Sort orders that can be applied to fields in a PivotTable
+--
+-- See 18.18.28 "ST_FieldSortType (Field Sort Type)" (p. 2454)
+data FieldSortType
+  = FieldSortAscending
+  | FieldSortDescending
+  | FieldSortManual
+  deriving (Eq, Ord, Show)
 
 newtype PivotFieldName =
   PivotFieldName Text
@@ -110,6 +121,11 @@ instance ToAttrVal ConsolidateFunction where
 instance ToAttrVal PivotFieldName where
   toAttrVal (PivotFieldName n) = toAttrVal n
 
+instance ToAttrVal FieldSortType where
+  toAttrVal FieldSortManual = "manual"
+  toAttrVal FieldSortAscending = "ascending"
+  toAttrVal FieldSortDescending = "descending"
+
 {-------------------------------------------------------------------------------
   Parsing
 -------------------------------------------------------------------------------}
@@ -130,3 +146,9 @@ instance FromAttrVal ConsolidateFunction where
 
 instance FromAttrVal PivotFieldName where
   fromAttrVal = fmap (first PivotFieldName) . fromAttrVal
+
+instance FromAttrVal FieldSortType where
+  fromAttrVal "manual" = readSuccess FieldSortManual
+  fromAttrVal "ascending" = readSuccess FieldSortAscending
+  fromAttrVal "descending" = readSuccess FieldSortDescending
+  fromAttrVal t = invalidText "FieldSortType" t
