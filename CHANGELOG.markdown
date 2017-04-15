@@ -1,3 +1,10 @@
+0.5.0
+-----
+* renamed `ColumnsWidth` to more intuitive `ColumnsProperties` and
+  added some more fields to it
+* added pivot table field sorting and hidden values support
+* added support for 4 more chart types
+
 0.4.3
 -----
 * added (legacy) sheet protection support
