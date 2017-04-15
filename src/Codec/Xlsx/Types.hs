@@ -7,7 +7,7 @@ module Codec.Xlsx.Types (
     Xlsx(..)
     , Styles(..)
     , DefinedNames(..)
-    , ColumnsWidth(..)
+    , ColumnsProperties(..)
     , PageSetup(..)
     , Worksheet(..)
     , CellMap
@@ -22,7 +22,7 @@ module Codec.Xlsx.Types (
     , xlDefinedNames
     , xlCustomProperties
     -- ** Worksheet
-    , wsColumns
+    , wsColumnsProperties
     , wsRowPropertiesMap
     , wsCells
     , wsDrawing
@@ -61,6 +61,7 @@ import           Data.Function                          (on)
 import           Data.List                              (groupBy)
 import           Data.Map                               (Map)
 import qualified Data.Map                               as M
+import           Data.Maybe                             (catMaybes, isJust)
 import           Data.Text                              (Text)
 import           Text.XML                               (parseLBS, renderLBS)
 import           Text.XML.Cursor
@@ -88,36 +89,48 @@ import           Codec.Xlsx.Writer.Internal
 data RowProperties = RowProps { rowHeight :: Maybe Double, rowStyle::Maybe Int}
                    deriving (Read,Eq,Show,Ord)
 
--- | Column range (from cwMin to cwMax) width
-data ColumnsWidth = ColumnsWidth
-  { cwMin :: Int
+-- | Column range (from cwMin to cwMax) properties
+data ColumnsProperties = ColumnsProperties
+  { cpMin :: Int
   -- ^ First column affected by this 'ColumnWidth' record.
-  , cwMax :: Int
+  , cpMax :: Int
   -- ^ Last column affected by this 'ColumnWidth' record.
-  , cwWidth :: Double
+  , cpWidth :: Maybe Double
   -- ^ Column width measured as the number of characters of the
   -- maximum digit width of the numbers 0, 1, 2, ..., 9 as rendered in
   -- the normal style's font.
   --
   -- See longer description in Section 18.3.1.13 "col (Column Width &
   -- Formatting)" (p. 1605)
-  , cwStyle :: Maybe Int
+  , cpStyle :: Maybe Int
   -- ^ Default style for the affected column(s). Affects cells not yet
   -- allocated in the column(s).  In other words, this style applies
   -- to new columns.
+  , cpHidden :: Bool
+  -- ^ Flag indicating if the affected column(s) are hidden on this
+  -- worksheet.
+  , cpCollapsed :: Bool
+  -- ^ Flag indicating if the outlining of the affected column(s) is
+  -- in the collapsed state.
+  , cpBestFit :: Bool
+  -- ^ Flag indicating if the specified column(s) is set to 'best
+  -- fit'.
   } deriving (Eq, Show)
 
-instance FromCursor ColumnsWidth where
+instance FromCursor ColumnsProperties where
   fromCursor c = do
-    cwMin <- fromAttribute "min" c
-    cwMax <- fromAttribute "max" c
-    cwWidth <- fromAttribute "width" c
-    cwStyle <- maybeAttribute "style" c
-    return ColumnsWidth {..}
+    cpMin <- fromAttribute "min" c
+    cpMax <- fromAttribute "max" c
+    cpWidth <- maybeAttribute "width" c
+    cpStyle <- maybeAttribute "style" c
+    cpHidden <- fromAttributeDef "hidden" False c
+    cpCollapsed <- fromAttributeDef "collapsed" False c
+    cpBestFit <- fromAttributeDef "bestFit" False c
+    return ColumnsProperties {..}
 
 -- | Xlsx worksheet
 data Worksheet = Worksheet
-  { _wsColumns :: [ColumnsWidth] -- ^ column widths
+  { _wsColumnsProperties :: [ColumnsProperties] -- ^ column widths
   , _wsRowPropertiesMap :: Map Int RowProperties -- ^ custom row properties (height, style) map
   , _wsCells :: CellMap -- ^ data mapped by (row, column) pairs
   , _wsDrawing :: Maybe Drawing -- ^ SpreadsheetML Drawing
@@ -137,7 +150,7 @@ makeLenses ''Worksheet
 instance Default Worksheet where
   def =
     Worksheet
-    { _wsColumns = []
+    { _wsColumnsProperties = []
     , _wsRowPropertiesMap = M.empty
     , _wsCells = M.empty
     , _wsDrawing = Nothing
@@ -236,3 +249,18 @@ fromRows :: [(Int, [(Int, Cell)])] -> CellMap
 fromRows rows = M.fromList $ concatMap mapRow rows
   where
     mapRow (r, cells) = map (\(c, v) -> ((r, c), v)) cells
+
+
+instance ToElement ColumnsProperties where
+  toElement nm ColumnsProperties {..} = leafElement nm attrs
+    where
+      attrs =
+        ["min" .= cpMin, "max" .= cpMax] ++
+        catMaybes
+          [ "style" .=? (justNonDef 0 =<< cpStyle)
+          , "width" .=? cpWidth
+          , "customWidth" .=? justTrue (isJust cpWidth)
+          , "hidden" .=? justTrue cpHidden
+          , "collapsed" .=? justTrue cpCollapsed
+          , "bestFit" .=? justTrue cpBestFit
+          ]

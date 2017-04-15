@@ -116,7 +116,7 @@ singleSheetFiles n cells pivFileDatas ws tblIdRef = do
             elementListSimple "worksheet" rootEls
         rootEls = catMaybes $
             [ elementListSimple "sheetViews" . map (toElement "sheetView") <$> ws ^. wsSheetViews
-            , nonEmptyElListSimple "cols" . map cwEl $ ws ^. wsColumns
+            , nonEmptyElListSimple "cols" . map (toElement "col") $ ws ^. wsColumnsProperties
             , Just . elementListSimple "sheetData" $ sheetDataXml cells (ws ^. wsRowPropertiesMap)
             , toElement "sheetProtection" <$> (ws ^. wsProtection)
             , toElement "autoFilter" <$> (ws ^. wsAutoFilter)
@@ -131,10 +131,6 @@ singleSheetFiles n cells pivFileDatas ws tblIdRef = do
             ]
         cfPairs = map CfPair . M.toList $ ws ^. wsConditionalFormattings
         dvPairs = map DvPair . M.toList $ ws ^. wsDataValidations
-        cwEl cw =
-          leafElement "col" $
-          ["min" .= cwMin cw, "max" .= cwMax cw, "width" .= cwWidth cw, "customWidth" .= True] ++
-          catMaybes ["style" .=? (justNonDef 0 =<< cwStyle cw)]
         mergeE1 r = leafElement "mergeCell" [("ref" .= r)]
 
         sheetRels = if null referencedFiles
