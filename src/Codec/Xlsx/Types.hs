@@ -86,8 +86,12 @@ import           Codec.Xlsx.Types.Table                 as X
 import           Codec.Xlsx.Types.Variant               as X
 import           Codec.Xlsx.Writer.Internal
 
-data RowProperties = RowProps { rowHeight :: Maybe Double, rowStyle::Maybe Int}
-                   deriving (Read,Eq,Show,Ord)
+-- | Properties of a row. See §18.3.1.73 "row (Row)" for more details
+data RowProperties = RowProps
+  { rowHeight :: Maybe Double
+    -- ^ Row height in points
+  , rowStyle  :: Maybe Int
+  } deriving (Read,Eq,Show,Ord)
 
 -- | Column range (from cwMin to cwMax) properties
 data ColumnsProperties = ColumnsProperties

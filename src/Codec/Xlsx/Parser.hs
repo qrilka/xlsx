@@ -18,6 +18,7 @@ import Control.Arrow (left)
 import Control.Error.Safe (headErr)
 import Control.Error.Util (note)
 import Control.Lens hiding (element, views, (<.>))
+import Control.Monad        (guard)
 import Control.Monad.Except (catchError, throwError)
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Char8 ()
@@ -121,10 +122,11 @@ extractSheet ar sst contentTypes caches wf = do
         let ht = if attribute "customHeight" c == ["true"]
                  then listToMaybe $ c $| attribute "ht" >=> rational
                  else Nothing
-        let s = listToMaybe $ decimal =<< attribute "s" c :: Maybe Int
-        let rp = if isNothing s && isNothing ht
-                 then  Nothing
-                 else  Just (RowProps ht s)
+        let s  = listToMaybe $ decimal =<< attribute "s" c :: Maybe Int
+        let rp = do guard $ not $ isNothing s && isNothing ht
+                    Just RowProps { rowHeight = ht
+                                  , rowStyle  = s
+                                  }
         return (r, rp, c $/ element (n_ "c") >=> parseCell)
       parseCell :: Cursor -> [(Int, Int, Cell)]
       parseCell cell = do
