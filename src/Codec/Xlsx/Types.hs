@@ -91,7 +91,15 @@ data RowProperties = RowProps
   { rowHeight :: Maybe Double
     -- ^ Row height in points
   , rowStyle  :: Maybe Int
+  , rowHidden :: Bool
+    -- ^ Whether row is visible or not
   } deriving (Read,Eq,Show,Ord)
+
+instance Default RowProperties where
+  def = RowProps { rowHeight = Nothing
+                 , rowStyle  = Nothing
+                 , rowHidden = False
+                 }
 
 -- | Column range (from cwMin to cwMax) properties
 data ColumnsProperties = ColumnsProperties
