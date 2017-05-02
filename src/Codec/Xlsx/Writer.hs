@@ -15,6 +15,7 @@ import qualified Data.ByteString.Lazy                        as L
 import           Data.ByteString.Lazy.Char8                  ()
 import           Data.List                                   (foldl', mapAccumL)
 import           Data.Map                                    (Map)
+import           Data.Maybe                                  (maybeToList)
 import           Data.STRef
 import           Control.Monad.ST
 import qualified Data.Map                                    as M
@@ -164,16 +165,19 @@ sheetDataXml :: Cells -> Map Int RowProperties -> [Element]
 sheetDataXml rows rh = map rowEl rows
   where
     rowEl (r, cells) = elementList "row"
-                       (ht ++ s ++ [("r", txti r) ,("hidden", "false"), ("outlineLevel", "0"),
-                                    ("collapsed", "false"), ("customFormat", "true"),
-                                    ("customHeight", txtb hasHeight)])
+                         (ht ++ s ++
+                         [("r", txti r), ("hidden", txtb hidden), ("outlineLevel", "0"),
+                          ("collapsed", "false"), ("customFormat", "true"),
+                          ("customHeight", txtb hasHeight)])
                        $ map (cellEl r) cells
       where
-        (ht, hasHeight, s) = case M.lookup r rh of
-          Just (RowProps (Just h) (Just st)) -> ([("ht", txtd h)], True,[("s", txti st)])
-          Just (RowProps Nothing  (Just st)) -> ([], True, [("s", txti st)])
-          Just (RowProps (Just h) Nothing ) -> ([("ht", txtd h)], True,[])
-          _ -> ([], False,[])
+        mProps    = M.lookup r rh
+        hasHeight = isJust $ rowHeight =<< mProps
+        ht        = do Just h <- [rowHeight =<< mProps]
+                       return ("ht", txtd h)
+        s         = do Just st <- [rowStyle =<< mProps]
+                       return ("s", txti st)
+        hidden    = fromMaybe False $ rowHidden <$> mProps
     cellEl r (icol, cell) =
       elementList "c" (cellAttrs (singleCellRef (r, icol)) cell)
               (catMaybes [ elementContent "v" . value <$> xlsxCellValue cell

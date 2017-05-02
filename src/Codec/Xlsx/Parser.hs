@@ -118,14 +118,22 @@ extractSheet ar sst contentTypes caches wf = do
       parseRow :: Cursor -> [(Int, Maybe RowProperties, [(Int, Int, Cell)])]
       parseRow c = do
         r <- c $| attribute "r" >=> decimal
-        let ht = if attribute "customHeight" c == ["true"]
-                 then listToMaybe $ c $| attribute "ht" >=> rational
-                 else Nothing
-        let s = listToMaybe $ decimal =<< attribute "s" c :: Maybe Int
-        let rp = if isNothing s && isNothing ht
-                 then  Nothing
-                 else  Just (RowProps ht s)
-        return (r, rp, c $/ element (n_ "c") >=> parseCell)
+        let prop = RowProps
+              { rowHeight = 
+                  if attribute "customHeight" c == ["true"]
+                  then listToMaybe $ c $| attribute "ht" >=> rational
+                  else Nothing
+              , rowStyle  =
+                  listToMaybe $ decimal =<< attribute "s" c :: Maybe Int
+              , rowHidden  =
+                  case boolean =<< attribute "hidden" c of
+                    []  -> False
+                    f:_ -> f
+              }
+        return ( r
+               , if prop == def then Nothing else Just prop
+               , c $/ element (n_ "c") >=> parseCell
+               )
       parseCell :: Cursor -> [(Int, Int, Cell)]
       parseCell cell = do
         ref <- fromAttribute "r" cell
