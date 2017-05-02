@@ -117,16 +117,16 @@ extractSheet ar sst contentTypes caches wf = do
       (rowProps, cells0) = collect $ cur $/ element (n_ "sheetData") &/ element (n_ "row") >=> parseRow
       parseRow :: Cursor -> [(Int, Maybe RowProperties, [(Int, Int, Cell)])]
       parseRow c = do
-        r <- c $| attribute "r" >=> decimal
+        r <- fromAttribute "r" c
         let prop = RowProps
               { rowHeight = 
-                  if attribute "customHeight" c == ["true"]
-                  then listToMaybe $ c $| attribute "ht" >=> rational
+                  if fromAttribute "customHeight" c == [True]
+                  then listToMaybe $ fromAttribute "ht" c
                   else Nothing
               , rowStyle  =
-                  listToMaybe $ decimal =<< attribute "s" c :: Maybe Int
+                  listToMaybe $ fromAttribute "s" c
               , rowHidden  =
-                  case boolean =<< attribute "hidden" c of
+                  case fromAttribute "hidden" c of
                     []  -> False
                     f:_ -> f
               }
