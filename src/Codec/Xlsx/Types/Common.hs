@@ -17,6 +17,8 @@ module Codec.Xlsx.Types.Common
   , col2int
   ) where
 
+import GHC.Generics (Generic)
+
 import Control.Arrow
 import Control.Monad (guard)
 import Data.Char

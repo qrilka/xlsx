@@ -2,6 +2,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.DvPair where
 
+import GHC.Generics (Generic)
+
 import qualified Data.Map                   as M
 import           Text.XML                   (Element (..))
 

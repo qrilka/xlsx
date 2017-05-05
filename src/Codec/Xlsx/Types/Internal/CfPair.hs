@@ -2,6 +2,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.CfPair where
 
+import GHC.Generics (Generic)
+
 import           Text.XML.Cursor
 
 import           Codec.Xlsx.Parser.Internal

@@ -5,6 +5,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Table where
 
+import GHC.Generics (Generic)
+
 import Control.Lens (makeLenses)
 import Data.Maybe (maybeToList)
 import Data.Text (Text)

@@ -4,6 +4,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.ContentTypes where
 
+import GHC.Generics (Generic)
+
 import           Control.Arrow
 import           Data.Foldable              (asum)
 import           Data.Map                   (Map)

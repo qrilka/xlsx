@@ -28,6 +28,8 @@ module Codec.Xlsx.Types.Protection
   , sprSelectUnlockedCells
   ) where
 
+import GHC.Generics (Generic)
+
 import Control.Arrow (first)
 import Control.Lens (makeLenses)
 import Data.Bits

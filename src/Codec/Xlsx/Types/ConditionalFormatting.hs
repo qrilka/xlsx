@@ -18,6 +18,8 @@ module Codec.Xlsx.Types.ConditionalFormatting
     , topCfPriority
     ) where
 
+import GHC.Generics (Generic)
+
 import           Control.Lens               (makeLenses)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M

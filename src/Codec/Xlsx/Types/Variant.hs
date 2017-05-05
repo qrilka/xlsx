@@ -2,6 +2,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Variant where
 
+import GHC.Generics (Generic)
+
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Base64     as B64
 import           Data.Text                  (Text)

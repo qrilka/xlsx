@@ -47,6 +47,8 @@ module Codec.Xlsx.Types.SheetViews (
   , paneYSplit
   ) where
 
+import GHC.Generics (Generic)
+
 import Control.Lens (makeLenses)
 import Data.Default
 import Data.Maybe (catMaybes, maybeToList, listToMaybe)

@@ -13,6 +13,8 @@ module Codec.Xlsx.Parser
   , Parser
   ) where
 
+import GHC.Generics (Generic)
+
 import qualified Codec.Archive.Zip as Zip
 import Control.Applicative
 import Control.Arrow (left)

@@ -4,6 +4,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.AutoFilter where
 
+import GHC.Generics (Generic)
+
 import Control.Lens (makeLenses)
 import Data.Default
 import Data.Map (Map)

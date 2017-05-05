@@ -30,6 +30,8 @@ module Codec.Xlsx.Types.RichText (
   , runPropertiesVertAlign
   ) where
 
+import GHC.Generics (Generic)
+
 import Control.Lens hiding (element)
 import Control.Monad
 import Data.Default

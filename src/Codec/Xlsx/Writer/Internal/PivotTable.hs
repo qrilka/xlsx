@@ -6,6 +6,8 @@ module Codec.Xlsx.Writer.Internal.PivotTable
   , renderPivotTableFiles
   ) where
 
+import GHC.Generics (Generic)
+
 import Data.ByteString.Lazy (ByteString)
 import Data.List.Extra (nubOrd)
 import qualified Data.Map as M

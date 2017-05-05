@@ -11,6 +11,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Drawing where
 
+import GHC.Generics (Generic)
+
 import Control.Arrow (first)
 import Control.Lens.TH
 import Data.ByteString.Lazy (ByteString)

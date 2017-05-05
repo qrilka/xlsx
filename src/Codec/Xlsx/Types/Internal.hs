@@ -2,6 +2,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal where
 
+import GHC.Generics (Generic)
+
 import           Control.Arrow
 import           Data.Text                  (Text)
 

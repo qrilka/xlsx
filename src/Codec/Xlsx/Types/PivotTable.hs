@@ -11,6 +11,8 @@ module Codec.Xlsx.Types.PivotTable
   , ConsolidateFunction(..)
   ) where
 
+import GHC.Generics (Generic)
+
 import Control.Arrow (first)
 import Data.Text (Text)
 

@@ -53,6 +53,8 @@ module Codec.Xlsx.Types (
     , module X
     ) where
 
+import GHC.Generics (Generic)
+
 import           Control.Exception                      (SomeException,
                                                          toException)
 import           Control.Lens.TH

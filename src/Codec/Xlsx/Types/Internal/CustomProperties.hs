@@ -2,6 +2,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.CustomProperties where
 
+import GHC.Generics (Generic)
+
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
 import           Data.Text                  (Text)

@@ -4,6 +4,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.DataValidation where
 
+import GHC.Generics (Generic)
+
 import           Control.Lens.TH            (makeLenses)
 import           Control.Monad              ((>=>))
 import           Data.Char                  (isSpace)

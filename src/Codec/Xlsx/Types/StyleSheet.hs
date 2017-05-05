@@ -127,6 +127,8 @@ module Codec.Xlsx.Types.StyleSheet (
   , firstUserNumFmtId
   ) where
 
+import GHC.Generics (Generic)
+
 import           Control.Lens                         hiding (element, elements,
                                                        (.=))
 import           Data.Default

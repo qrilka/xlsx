@@ -2,6 +2,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.NumFmtPair where
 
+import GHC.Generics (Generic)
+
 import           Data.Text                  (Text)
 
 import           Codec.Xlsx.Parser.Internal

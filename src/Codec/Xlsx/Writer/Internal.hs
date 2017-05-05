@@ -38,6 +38,8 @@ module Codec.Xlsx.Writer.Internal (
   , justFalse
   ) where
 
+import GHC.Generics (Generic)
+
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T
 import           Data.Text.Lazy                   (toStrict)

@@ -4,6 +4,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.Relationships where
 
+import GHC.Generics (Generic)
+
 import           Data.List                  (find)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map

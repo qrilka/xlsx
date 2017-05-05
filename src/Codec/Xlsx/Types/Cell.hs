@@ -13,6 +13,8 @@ module Codec.Xlsx.Types.Cell
   , CellMap
   ) where
 
+import GHC.Generics (Generic)
+
 import Control.Lens.TH (makeLenses)
 import Data.Default
 import Data.Map (Map)

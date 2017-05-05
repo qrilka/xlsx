@@ -19,6 +19,8 @@ module Codec.Xlsx.Lens
     , cellValueAtXY
  ) where
 
+import GHC.Generics (Generic)
+
 import           Codec.Xlsx.Types
 import           Control.Lens
 import           Data.Function       (on)

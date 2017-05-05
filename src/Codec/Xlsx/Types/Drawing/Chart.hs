@@ -5,6 +5,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Drawing.Chart where
 
+import GHC.Generics (Generic)
+
 import Control.Lens.TH
 import Data.Default
 import Data.Maybe (catMaybes, maybeToList)

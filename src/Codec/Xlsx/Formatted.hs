@@ -33,6 +33,8 @@ module Codec.Xlsx.Formatted (
   , condfmtStopIfTrue
   ) where
 
+import GHC.Generics (Generic)
+
 import           Control.Lens
 import           Control.Monad.State hiding (forM_, mapM)
 import           Data.Default

@@ -8,6 +8,8 @@ module Codec.Xlsx.Writer
     ( fromXlsx
     ) where
 
+import GHC.Generics (Generic)
+
 import qualified Codec.Archive.Zip                           as Zip
 import           Control.Arrow                               (second)
 import           Control.Lens                                hiding (transform, (.=))

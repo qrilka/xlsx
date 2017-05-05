@@ -28,6 +28,8 @@ module Codec.Xlsx.Parser.Internal
     , rational
     ) where
 
+import GHC.Generics (Generic)
+
 import           Control.Exception       (Exception)
 import           Data.Maybe
 import           Data.Text               (Text)

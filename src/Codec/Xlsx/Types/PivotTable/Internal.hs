@@ -7,6 +7,8 @@ module Codec.Xlsx.Types.PivotTable.Internal
   , CacheField(..)
   ) where
 
+import GHC.Generics (Generic)
+
 import Control.Arrow (first)
 import Data.Maybe (catMaybes)
 import Text.XML

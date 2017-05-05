@@ -11,6 +11,8 @@ module Codec.Xlsx.Types.Internal.SharedStringTable (
   , sstEmpty
   ) where
 
+import GHC.Generics (Generic)
+
 import           Control.Monad
 
 import qualified Data.Map                   as Map

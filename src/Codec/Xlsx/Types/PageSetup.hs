@@ -35,6 +35,8 @@ module Codec.Xlsx.Types.PageSetup (
   , pageSetupVerticalDpi
   ) where
 
+import GHC.Generics (Generic)
+
 import Control.Lens (makeLenses)
 import Data.Default
 import Data.Maybe (catMaybes)

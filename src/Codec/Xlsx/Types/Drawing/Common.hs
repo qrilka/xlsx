@@ -5,6 +5,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Drawing.Common where
 
+import GHC.Generics (Generic)
+
 import Control.Arrow (first)
 import Control.Lens.TH
 import Control.Monad (join)

@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Comment where
 
+import GHC.Generics (Generic)
+
 import           Data.Text               (Text)
 
 import           Codec.Xlsx.Types.Common
