@@ -41,7 +41,7 @@ import           Control.Applicative
 #endif
 
 data ParseException = ParseException String
-                    deriving (Show, Typeable)
+                    deriving (Show, Typeable, Generic)
 
 instance Exception ParseException
 

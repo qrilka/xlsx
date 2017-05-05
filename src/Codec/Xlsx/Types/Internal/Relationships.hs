@@ -26,7 +26,7 @@ import           Codec.Xlsx.Writer.Internal
 data Relationship = Relationship
     { relType   :: Text
     , relTarget :: FilePath
-    } deriving (Show, Eq)
+    } deriving (Eq, Show, Generic)
 
 -- | Describes relationships according to Open Packaging Convention
 --
@@ -34,7 +34,7 @@ data Relationship = Relationship
 -- Conventions
 newtype Relationships = Relationships
     { relMap :: Map RefId Relationship
-    } deriving (Show, Eq)
+    } deriving (Eq, Show, Generic)
 
 fromList :: [(RefId, Relationship)] -> Relationships
 fromList = Relationships . Map.fromList

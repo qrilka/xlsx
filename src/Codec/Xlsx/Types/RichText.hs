@@ -66,7 +66,7 @@ data RichTextRun = RichTextRun {
     -- Section 18.4.12, "t (Text)" (p. 1727)
   , _richTextRunText :: Text
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Run properties
 --
@@ -171,7 +171,7 @@ data RunProperties = RunProperties {
     -- Section 18.4.14, "vertAlign (Vertical Alignment)" (p. 1728)
   , _runPropertiesVertAlign :: Maybe FontVerticalAlignment
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Lenses

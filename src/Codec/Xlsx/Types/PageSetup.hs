@@ -134,7 +134,7 @@ data PageSetup = PageSetup {
     -- | Vertical print resolution of the device.
   , _pageSetupVerticalDpi :: Maybe Int
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Enumerations
@@ -155,7 +155,7 @@ data CellComments =
 
     -- | Do not print cell comments
   | CellCommentsNone
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Print errors
 --
@@ -173,14 +173,14 @@ data PrintErrors =
 
      -- | Display cell errors as @#N/A@
    | PrintErrorsNA
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Print orientation for this sheet
 data Orientation =
     OrientationDefault
   | OrientationLandscape
   | OrientationPortrait
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Specifies printed page order
 data PageOrder =
@@ -189,7 +189,7 @@ data PageOrder =
 
     -- | Order pages horizontally first, then move vertically
   | PageOrderOverThenDown
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Paper size
 data PaperSize =
@@ -259,7 +259,7 @@ data PaperSize =
   | EnvelopeInvite               -- ^ Invite envelope (220 mm by 220 mm)
   | EnvelopeItaly                -- ^ Italy envelope (110 mm by 230 mm)
   | EnvelopeMonarch              -- ^ Monarch envelope (3.875 in. by 7.5 in.).
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Default instances

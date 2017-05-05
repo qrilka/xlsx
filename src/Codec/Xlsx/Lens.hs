@@ -30,7 +30,7 @@ import           Control.Applicative
 #endif
 
 newtype SheetList = SheetList{ unSheetList :: [(Text, Worksheet)] }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 type instance IxValue (SheetList) = Worksheet
 type instance Index (SheetList) = Text

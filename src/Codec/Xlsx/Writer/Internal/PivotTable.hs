@@ -22,13 +22,13 @@ import Codec.Xlsx.Writer.Internal
 data PivotTableFiles = PivotTableFiles
   { pvtfTable :: ByteString
   , pvtfCacheDefinition :: ByteString
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data CacheDefinition = CacheDefinition
   { cdSourceRef :: CellRef
   , cdSourceSheet :: Text
   , cdFields :: [CacheField]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 renderPivotTableFiles :: CellMap -> Int -> PivotTable -> PivotTableFiles
 renderPivotTableFiles cm cacheId t = PivotTableFiles {..}

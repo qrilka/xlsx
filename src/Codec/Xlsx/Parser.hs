@@ -57,7 +57,7 @@ data ParseError = InvalidZipArchive
                 | InvalidFile FilePath
                 | InvalidRef FilePath RefId
                 | InconsistentXlsx Text
-                deriving (Show, Eq)
+                deriving (Eq, Show, Generic)
 
 type Parser = Either ParseError
 
@@ -77,7 +77,7 @@ toXlsxEither bs = do
 data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
                                    }
-                   deriving Show
+                   deriving (Show, Generic)
 
 type Caches = [(CacheId, (Text, CellRef, [CacheField]))]
 

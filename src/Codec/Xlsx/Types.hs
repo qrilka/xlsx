@@ -93,7 +93,7 @@ data RowProperties = RowProps
   , rowStyle  :: Maybe Int
   , rowHidden :: Bool
     -- ^ Whether row is visible or not
-  } deriving (Read,Eq,Show,Ord)
+  } deriving (Eq, Ord, Show, Read, Generic)
 
 instance Default RowProperties where
   def = RowProps { rowHeight = Nothing
@@ -127,7 +127,7 @@ data ColumnsProperties = ColumnsProperties
   , cpBestFit :: Bool
   -- ^ Flag indicating if the specified column(s) is set to 'best
   -- fit'.
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 instance FromCursor ColumnsProperties where
   fromCursor c = do
@@ -155,7 +155,7 @@ data Worksheet = Worksheet
   , _wsAutoFilter :: Maybe AutoFilter
   , _wsTables :: [Table]
   , _wsProtection :: Maybe SheetProtection
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 makeLenses ''Worksheet
 
@@ -178,7 +178,7 @@ instance Default Worksheet where
     }
 
 newtype Styles = Styles {unStyles :: L.ByteString}
-            deriving (Eq, Show)
+            deriving (Eq, Show, Generic)
 
 -- | Structured representation of Xlsx file (currently a subset of its contents)
 data Xlsx = Xlsx
@@ -186,7 +186,7 @@ data Xlsx = Xlsx
     , _xlStyles           :: Styles
     , _xlDefinedNames     :: DefinedNames
     , _xlCustomProperties :: Map Text Variant
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 -- | Defined names
 --
@@ -210,7 +210,7 @@ data Xlsx = Xlsx
 --
 -- NOTE: Right now this is only a minimal implementation of defined names.
 newtype DefinedNames = DefinedNames [(Text, Maybe Text, Text)]
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 makeLenses ''Xlsx
 

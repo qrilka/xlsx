@@ -229,7 +229,7 @@ data StyleSheet = StyleSheet
     -- This element contains custom number formats defined in this style sheet
     --
     -- Section 18.8.31, "numFmts (Number Formats)" (p. 1784)
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Generic)
 
 -- | Cell formatting
 --
@@ -316,7 +316,7 @@ data CellXf = CellXf {
     -- not take effect unless the sheet has been protected.
   , _cellXfProtection        :: Maybe Protection
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Supporting record types
@@ -365,7 +365,7 @@ data Alignment = Alignment {
     -- within the cell.
   , _alignmentWrapText        :: Maybe Bool
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Expresses a single set of cell border formats (left, right, top, bottom,
 -- diagonal). Color is optional. When missing, 'automatic' is implied.
@@ -423,7 +423,7 @@ data Border = Border {
     -- | Vertical inner border
   , _borderVertical     :: Maybe BorderStyle
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Border style
 -- See @CT_BorderPr@ (p. 3934)
@@ -431,7 +431,7 @@ data BorderStyle = BorderStyle {
     _borderStyleColor :: Maybe Color
   , _borderStyleLine  :: Maybe LineStyle
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | One of the colors associated with the data bar or color scale.
 --
@@ -465,7 +465,7 @@ data Color = Color {
     -- 100% darken and 1.0 means 100% lighten. Also, 0.0 means no change.
   , _colorTint      :: Maybe Double
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | This element specifies fill formatting.
 --
@@ -477,7 +477,7 @@ data Color = Color {
 data Fill = Fill {
     _fillPattern :: Maybe FillPattern
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | This element is used to specify cell fill information for pattern and solid
 -- color cell fills. For solid cell fills (no pattern), fgColor is used. For
@@ -490,7 +490,7 @@ data FillPattern = FillPattern {
   , _fillPatternFgColor :: Maybe Color
   , _fillPatternType    :: Maybe PatternType
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | This element defines the properties for one of the fonts used in this
 -- workbook.
@@ -592,7 +592,7 @@ data Font = Font {
     -- is available) accordingly.
   , _fontVertAlign     :: Maybe FontVerticalAlignment
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | A single dxf record, expressing incremental formatting to be applied.
 --
@@ -605,7 +605,7 @@ data Dxf = Dxf
     , _dxfBorder     :: Maybe Border
     , _dxfProtection :: Maybe Protection
     -- TODO: extList
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Generic)
 
 type NumFmt = Text
 
@@ -616,7 +616,7 @@ type NumFmt = Text
 data NumberFormat
     = StdNumberFormat ImpliedNumberFormat
     | UserNumberFormat NumFmt
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
 
 -- | Basic number format with predefined number of decimals
 -- as format code of number format in xlsx should be less than 255 characters
@@ -665,7 +665,7 @@ data ImpliedNumberFormat =
   | NfExponent1Decimal                -- ^> 48 ##0.0E+0
   | NfTextPlaceHolder                 -- ^> 49 @
   | NfOtherImplied Int                -- ^ other (non local-neutral?) built-in format (id < 164)
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 stdNumberFormatId :: ImpliedNumberFormat -> Int
 stdNumberFormatId NfGeneral                         = 0 -- General
@@ -743,7 +743,7 @@ data Protection = Protection {
     _protectionHidden :: Maybe Bool
   , _protectionLocked :: Maybe Bool
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Enumerations
@@ -761,7 +761,7 @@ data CellHorizontalAlignment =
   | CellHorizontalAlignmentJustify
   | CellHorizontalAlignmentLeft
   | CellHorizontalAlignmentRight
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Vertical alignment in cells
 --
@@ -772,7 +772,7 @@ data CellVerticalAlignment =
   | CellVerticalAlignmentDistributed
   | CellVerticalAlignmentJustify
   | CellVerticalAlignmentTop
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Font family
 --
@@ -796,7 +796,7 @@ data FontFamily =
 
     -- | Novelty font
   | FontFamilyDecorative
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Font scheme
 --
@@ -810,7 +810,7 @@ data FontScheme =
 
     -- | This font is not a theme font.
   | FontSchemeNone
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Font underline property
 --
@@ -821,7 +821,7 @@ data FontUnderline =
   | FontUnderlineSingleAccounting
   | FontUnderlineDoubleAccounting
   | FontUnderlineNone
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Vertical alignment
 --
@@ -830,7 +830,7 @@ data FontVerticalAlignment =
     FontVerticalAlignmentBaseline
   | FontVerticalAlignmentSubscript
   | FontVerticalAlignmentSuperscript
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 data LineStyle =
     LineStyleDashDot
@@ -847,7 +847,7 @@ data LineStyle =
   | LineStyleSlantDashDot
   | LineStyleThick
   | LineStyleThin
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Indicates the style of fill pattern being used for a cell format.
 --
@@ -872,7 +872,7 @@ data PatternType =
   | PatternTypeMediumGray
   | PatternTypeNone
   | PatternTypeSolid
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Reading order
 --
@@ -881,7 +881,7 @@ data ReadingOrder =
     ReadingOrderContextDependent
   | ReadingOrderLeftToRight
   | ReadingOrderRightToLeft
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Lenses

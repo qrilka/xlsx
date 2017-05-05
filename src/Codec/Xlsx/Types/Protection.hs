@@ -43,7 +43,7 @@ import Codec.Xlsx.Writer.Internal
 
 newtype LegacyPassword =
   LegacyPassword Text
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Creates legacy @XOR@ hashed password.
 --
@@ -125,7 +125,7 @@ data SheetProtection = SheetProtection
     -- sheet is protected
   , _sprSort :: Bool
     -- ^ sorting should not be allowed when the sheet is protected
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 makeLenses ''SheetProtection
 

@@ -47,7 +47,7 @@ import           Codec.Xlsx.Writer.Internal
 newtype SharedStringTable = SharedStringTable {
     sstTable :: Vector XlsxText
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 sstEmpty :: SharedStringTable
 sstEmpty = SharedStringTable V.empty

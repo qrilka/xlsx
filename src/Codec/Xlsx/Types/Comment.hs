@@ -17,4 +17,4 @@ data Comment = Comment
     , _commentAuthor  :: Text
     -- ^ comment author
     , _commentVisible :: Bool
-    } deriving (Show, Eq)
+    } deriving (Eq, Show, Generic)

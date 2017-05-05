@@ -12,7 +12,7 @@ import           Codec.Xlsx.Types.Variant
 import           Codec.Xlsx.Writer.Internal
 
 newtype CustomProperties = CustomProperties (Map Text Variant)
-    deriving (Show, Eq)
+    deriving (Eq, Show, Generic)
 
 fromList :: [(Text, Variant)] -> CustomProperties
 fromList = CustomProperties . M.fromList

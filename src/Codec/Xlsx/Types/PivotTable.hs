@@ -31,14 +31,14 @@ data PivotTable = PivotTable
   , _pvtLocation :: CellRef
   , _pvtSrcSheet :: Text
   , _pvtSrcRef :: Range
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data PivotFieldInfo = PivotFieldInfo
   { _pfiName :: PivotFieldName
   , _pfiOutline :: Bool
   , _pfiSortType :: FieldSortType
   , _pfiHiddenItems :: [CellValue]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Sort orders that can be applied to fields in a PivotTable
 --
@@ -47,22 +47,22 @@ data FieldSortType
   = FieldSortAscending
   | FieldSortDescending
   | FieldSortManual
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 newtype PivotFieldName =
   PivotFieldName Text
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 data PositionedField
   = DataPosition
   | FieldPosition PivotFieldName
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 data DataField = DataField
   { _dfField :: PivotFieldName
   , _dfName :: Text
   , _dfFunction :: ConsolidateFunction
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Data consolidation functions specified by the user and used to
 -- consolidate ranges of data
@@ -99,7 +99,7 @@ data ConsolidateFunction
   | ConsolidateVarP
     -- ^ The variance of a population, where the population is all of
     -- the data to be summarized.
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Rendering

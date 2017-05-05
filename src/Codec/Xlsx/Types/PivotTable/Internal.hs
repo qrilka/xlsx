@@ -20,12 +20,12 @@ import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Types.PivotTable
 import Codec.Xlsx.Writer.Internal
 
-newtype CacheId = CacheId Int deriving Eq
+newtype CacheId = CacheId Int deriving (Eq, Generic)
 
 data CacheField = CacheField
   { cfName :: PivotFieldName
   , cfItems :: [CellValue]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Parsing

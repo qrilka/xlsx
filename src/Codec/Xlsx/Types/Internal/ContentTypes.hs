@@ -22,17 +22,17 @@ import           Codec.Xlsx.Parser.Internal
 data CtDefault = CtDefault
     { dfltExtension   :: FilePath
     , dfltContentType :: Text
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data Override = Override
     { ovrPartName    :: FilePath
     , ovrContentType :: Text
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data ContentTypes = ContentTypes
     { ctDefaults :: Map FilePath Text
     , ctTypes    :: Map FilePath Text
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 lookup :: FilePath -> ContentTypes -> Maybe Text
 lookup path ContentTypes{..} =

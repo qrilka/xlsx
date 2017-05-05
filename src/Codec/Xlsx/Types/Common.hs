@@ -56,7 +56,7 @@ col2int = T.foldl' (\i c -> i * 26 + let2int c) 0
 -- See 18.18.62 @ST_Ref@ (p. 2482)
 newtype CellRef = CellRef
   { unCellRef :: Text
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Generic)
 
 -- | Render position in @(row, col)@ format to an Excel reference.
 --
@@ -107,7 +107,7 @@ fromRange r =
 --
 -- See 18.18.76 "ST_Sqref (Reference Sequence)" (p.2488)
 newtype SqRef = SqRef [CellRef]
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
 
 -- | Common type containing either simple string or rich formatted text.
 -- Used in @si@, @comment@ and @is@ elements
@@ -129,13 +129,13 @@ newtype SqRef = SqRef [CellRef]
 -- See @CT_Rst@, p. 3903
 data XlsxText = XlsxText Text
               | XlsxRichText [RichTextRun]
-              deriving (Show, Eq, Ord)
+              deriving (Eq, Ord, Show, Generic)
 
 -- | A formula
 --
 -- See 18.18.35 "ST_Formula (Formula)" (p. 2457)
 newtype Formula = Formula {unFormula :: Text}
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
 
 -- | Cell values include text, numbers and booleans,
 -- standard includes date format also but actually dates
@@ -146,7 +146,7 @@ data CellValue
   | CellDouble Double
   | CellBool Bool
   | CellRich [RichTextRun]
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Parsing

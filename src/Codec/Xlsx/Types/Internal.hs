@@ -11,7 +11,7 @@ import           Control.Applicative
 import           Codec.Xlsx.Parser.Internal
 import           Codec.Xlsx.Writer.Internal
 
-newtype RefId = RefId { unRefId :: Text } deriving (Show, Eq, Ord)
+newtype RefId = RefId { unRefId :: Text } deriving (Eq, Ord, Show, Generic)
 
 instance ToAttrVal RefId where
     toAttrVal = toAttrVal . unRefId

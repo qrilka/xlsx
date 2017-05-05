@@ -15,7 +15,7 @@ import           Codec.Xlsx.Writer.Internal
 -- See 18.3.1.32 "dataValidation (Data Validation)" (p. 1614/1624)
 newtype DvPair = DvPair
     { unDvPair :: (SqRef, DataValidation)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance FromCursor DvPair where
     fromCursor cur = do

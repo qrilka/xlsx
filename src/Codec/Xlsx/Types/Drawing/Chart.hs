@@ -29,14 +29,14 @@ data ChartSpace = ChartSpace
   , _chspLegend :: Maybe Legend
   , _chspPlotVisOnly :: Maybe Bool
   , _chspDispBlanksAs :: Maybe DispBlanksAs
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Chart title
 --
 -- TODO: layout, overlay, spPr, txPr, extLst
 newtype ChartTitle =
   ChartTitle TextBody
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | This simple type specifies the possible ways to display blanks.
 --
@@ -48,13 +48,13 @@ data DispBlanksAs
     -- ^ Specifies that blank values shall be spanned with a line.
   | DispBlanksAsZero
     -- ^ Specifies that blank values shall be treated as zero.
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- TODO: legendEntry, layout, overlay, spPr, txPr, extLst
 data Legend = Legend
     { _legendPos     :: Maybe LegendPos
     , _legendOverlay :: Maybe Bool
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 -- See 21.2.3.24 "ST_LegendPos (Legend Position)" (p. 3449)
 data LegendPos
@@ -73,7 +73,7 @@ data LegendPos
   | LegendTopRight
     -- ^ tr (Top Right) Specifies that the legend shall be drawn at
     -- the top right of the chart.
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Specific Chart
 -- TODO:
@@ -101,7 +101,7 @@ data Chart
   | ScatterChart { _scchStyle :: ScatterStyle
                  , _scchSeries :: [ScatterSeries]
                  }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Possible groupings for a bar chart
 --
@@ -116,7 +116,7 @@ data ChartGrouping
   | StandardGrouping
     -- ^(Standard) Specifies that the chart series are drawn on the value
     -- axis.
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Possible directions for a bar chart
 --
@@ -124,7 +124,7 @@ data ChartGrouping
 data BarDirection
   = DirectionBar
   | DirectionColumn
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Possible styles of scatter chart
 --
@@ -140,7 +140,7 @@ data ScatterStyle
   | ScatterMarker
   | ScatterSmooth
   | ScatterSmoothMarker
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Single data point options
 --
@@ -150,7 +150,7 @@ data ScatterStyle
 data DataPoint = DataPoint
   { _dpMarker :: Maybe DataMarker
   , _dpShapeProperties :: Maybe ShapeProperties
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Specifies common series options
 -- TODO: spPr
@@ -161,7 +161,7 @@ data Series = Series
     -- ^ specifies text for a series name, without rich text formatting
     -- currently only reference formula is supported
   , _serShapeProperties :: Maybe ShapeProperties
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | A series on a line chart
 --
@@ -175,7 +175,7 @@ data LineSeries = LineSeries
   , _lnserVal :: Maybe Formula
     -- ^ currently only reference formula is supported
   , _lnserSmooth :: Maybe Bool
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | A series on an area chart
 --
@@ -186,7 +186,7 @@ data AreaSeries = AreaSeries
   { _arserShared :: Series
   , _arserDataLblProps :: Maybe DataLblProps
   , _arserVal :: Maybe Formula
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | A series on a bar chart
 --
@@ -198,7 +198,7 @@ data BarSeries = BarSeries
   { _brserShared :: Series
   , _brserDataLblProps :: Maybe DataLblProps
   , _brserVal :: Maybe Formula
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | A series on a pie chart
 --
@@ -212,7 +212,7 @@ data PieSeries = PieSeries
   -- properly colored
   , _piserDataLblProps :: Maybe DataLblProps
   , _piserVal :: Maybe Formula
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | A series on a scatter chart
 --
@@ -226,14 +226,14 @@ data ScatterSeries = ScatterSeries
   , _scserXVal :: Maybe Formula
   , _scserYVal :: Maybe Formula
   , _scserSmooth :: Maybe Bool
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- See @CT_Marker@ (p. 4061)
 data DataMarker = DataMarker
   { _dmrkSymbol :: Maybe DataMarkerSymbol
   , _dmrkSize :: Maybe Int
     -- ^ integer between 2 and 72, specifying a size in points
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data DataMarkerSymbol
   = DataMarkerCircle
@@ -248,7 +248,7 @@ data DataMarkerSymbol
   | DataMarkerTriangle
   | DataMarkerX
   | DataMarkerAuto
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Settings for the data labels for an entire series or the
 -- entire chart
@@ -262,7 +262,7 @@ data DataLblProps = DataLblProps
   , _dlblShowCatName :: Maybe Bool
   , _dlblShowSerName :: Maybe Bool
   , _dlblShowPercent :: Maybe Bool
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Specifies the possible positions for tick marks.
 
@@ -276,7 +276,7 @@ data TickMark
     -- ^ (None) Specifies there shall be no tick marks.
   | TickMarkOut
     -- ^ (Outside) Specifies the tick marks shall be outside the plot area.
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 makeLenses ''DataPoint
 

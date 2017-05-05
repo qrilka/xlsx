@@ -41,7 +41,7 @@ data CellFormula
       -- the next time calculation is performed.
       -- [/Example/: This is always set on volatile functions,
       -- like =RAND(), and circular references. /end example/]
-      } deriving (Eq, Show)
+      } deriving (Eq, Show, Generic)
 
 simpleCellFormula :: Text -> CellFormula
 simpleCellFormula expr = NormalCellFormula
@@ -57,7 +57,7 @@ data Cell = Cell
     , _cellValue   :: Maybe CellValue
     , _cellComment :: Maybe Comment
     , _cellFormula :: Maybe CellFormula
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance Default Cell where
     def = Cell Nothing Nothing Nothing Nothing

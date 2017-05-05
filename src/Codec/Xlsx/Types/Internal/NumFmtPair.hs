@@ -11,7 +11,7 @@ import           Codec.Xlsx.Writer.Internal
 -- See 18.8.30 "numFmt (Number Format)" (p. 1777)
 newtype NumFmtPair = NumFmtPair
     { unNumFmtPair :: (Int, Text)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance FromCursor NumFmtPair where
     fromCursor cur = do

@@ -23,7 +23,7 @@ import Codec.Xlsx.Writer.Internal
 
 newtype CommentTable = CommentTable
     { _commentsTable :: Map CellRef Comment }
-    deriving (Show, Eq)
+    deriving (Eq, Show, Generic)
 
 fromList :: [(CellRef, Comment)] -> CommentTable
 fromList = CommentTable . M.fromList

@@ -28,7 +28,7 @@ import Codec.Xlsx.Writer.Internal
 -- angles are counter-clockwise (i.e., towards the negative y axis).
 newtype Angle =
   Angle Int
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | A string with rich text formatting
 --
@@ -58,7 +58,7 @@ data TextBody = TextBody
     -- aligns the text within the "bounds box" for the text.
   , _txbdParagraphs :: [TextParagraph]
     -- ^ Paragraphs of text within the containing text body
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Text vertical overflow
 -- See 20.1.10.83 "ST_TextVertOverflowType (Text Vertical Overflow)" (p. 3083)
@@ -71,7 +71,7 @@ data TextVertOverflow
     -- there is text which is not visible.
   | TextVertOverflow
     -- ^ Overflow the text and pay no attention to top and bottom barriers.
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | If there is vertical text, determines what kind of vertical text is going to be used.
 --
@@ -100,7 +100,7 @@ data TextVertical
   | TextVerticalWordArtRtl
     -- ^  Specifies that vertical WordArt should be shown from right to left rather than
     -- left to right.
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Text wrapping types
 --
@@ -111,7 +111,7 @@ data TextWrap
     -- paying attention to the bounding rectangle boundaries.
     | TextWrapSquare
     -- ^ Determines whether we wrap words within the bounding rectangle.
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 -- | This type specifies a list of available anchoring types for text.
 --
@@ -137,13 +137,13 @@ data TextAnchoring
     -- text in a line, it does not justify.
   | TextAnchoringTop
     -- ^ Anchor the text at the top of the bounding rectangle.
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- See 21.1.2.2.6 "p (Text Paragraphs)" (p. 3211)
 data TextParagraph = TextParagraph
   { _txpaDefCharProps :: Maybe TextCharacterProperties
   , _txpaRuns :: [TextRun]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Text character properties
 --
@@ -158,7 +158,7 @@ data TextCharacterProperties = TextCharacterProperties
   { _txchBold :: Bool
   , _txchItalic :: Bool
   , _txchUnderline :: Bool
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Text run
 --
@@ -166,7 +166,7 @@ data TextCharacterProperties = TextCharacterProperties
 data TextRun = RegularRun
   { _txrCharProps :: Maybe TextCharacterProperties
   , _txrText :: Text
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | This simple type represents a one dimensional position or length
 --
@@ -177,7 +177,7 @@ data Coordinate
   | UniversalMeasure UnitIdentifier
                      Double
     -- ^ see 22.9.2.15 "ST_UniversalMeasure (Universal Measurement)" (p. 3793)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Units used in "Universal measure" coordinates
 -- see 22.9.2.15 "ST_UniversalMeasure (Universal Measurement)" (p. 3793)
@@ -188,13 +188,13 @@ data UnitIdentifier
   | UnitPt -- "pt" 1 pt = 1/72 in (informative)
   | UnitPc -- "pc" 1 pc = 12 pt (informative)
   | UnitPi -- "pi" 1 pi = 12 pt (informative)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- See @CT_Point2D@ (p. 3989)
 data Point2D = Point2D
   { _pt2dX :: Coordinate
   , _pt2dY :: Coordinate
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 unqPoint2D :: Int -> Int -> Point2D
 unqPoint2D x y = Point2D (UnqCoordinate x) (UnqCoordinate y)
@@ -203,12 +203,12 @@ unqPoint2D x y = Point2D (UnqCoordinate x) (UnqCoordinate y)
 -- see 20.1.10.41 "ST_PositiveCoordinate (Positive Coordinate)" (p. 2942)
 newtype PositiveCoordinate =
   PositiveCoordinate Integer
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 data PositiveSize2D = PositiveSize2D
   { _ps2dX :: PositiveCoordinate
   , _ps2dY :: PositiveCoordinate
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 positiveSize2D :: Integer -> Integer -> PositiveSize2D
 positiveSize2D x y =
@@ -235,14 +235,14 @@ data Transform2D = Transform2D
   , _trExtents :: Maybe PositiveSize2D
     -- ^ See 20.1.7.3 "ext (Extents)" (p. 2846) or
     -- 20.5.2.14 "ext (Shape Extent)" (p. 3165)
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- TODO: custGeom
 data Geometry =
   PresetGeometry
   -- TODO: prst, avList
   -- currently uses "rect" with empty avList
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- See 20.1.2.2.35 "spPr (Shape Properties)" (p. 2751)
 data ShapeProperties = ShapeProperties
@@ -251,7 +251,7 @@ data ShapeProperties = ShapeProperties
   , _spFill :: Maybe FillProperties
   , _spOutline :: Maybe LineProperties
     -- TODO: bwMode, a_EG_EffectProperties, scene3d, sp3d, extLst
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Specifies an outline style that can be applied to a number of
 -- different objects such as shapes and text.
@@ -266,7 +266,7 @@ data LineProperties = LineProperties
   -- ^ Specifies the width to be used for the underline stroke.  The
   -- value is in EMU, is greater of equal to 0 and maximum value is
   -- 20116800.
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Color choice for some drawing element
 --
@@ -280,7 +280,7 @@ data ColorChoice =
   -- digits, RRGGBB. A perceptual gamma of 2.2 is used.
   --
   -- See 20.1.2.3.32 "srgbClr (RGB Color Model - Hex Variant)" (p. 2773)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- TODO: gradFill, pattFill
 data FillProperties =
@@ -289,7 +289,7 @@ data FillProperties =
   | SolidFill (Maybe ColorChoice)
   -- ^ Solid fill
   -- See 20.1.8.54 "solidFill (Solid Fill)" (p. 2879)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | solid fill with color specified by hexadecimal RGB color
 solidRgb :: Text -> FillProperties
