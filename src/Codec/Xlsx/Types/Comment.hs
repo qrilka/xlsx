@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Comment where
 
 import           Data.Text               (Text)

@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Writer.Internal.PivotTable
   ( PivotTableFiles(..)
   , renderPivotTableFiles

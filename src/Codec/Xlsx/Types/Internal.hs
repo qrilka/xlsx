@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal where
 
 import           Control.Arrow

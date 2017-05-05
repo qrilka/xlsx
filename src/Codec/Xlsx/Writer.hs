@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DeriveGeneric #-}
 -- | This module provides a function for serializing structured `Xlsx` into lazy bytestring
 module Codec.Xlsx.Writer
     ( fromXlsx

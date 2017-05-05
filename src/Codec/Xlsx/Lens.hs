@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP          #-}
 {-# LANGUAGE RankNTypes   #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 -- | lenses to access sheets, cells and values of 'Xlsx'
 

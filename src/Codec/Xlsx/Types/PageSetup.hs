@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.PageSetup (
     -- * Main types
     PageSetup(..)

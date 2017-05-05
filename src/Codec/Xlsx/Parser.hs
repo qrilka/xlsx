@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TupleSections             #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 -- | This module provides a function for reading .xlsx files
 module Codec.Xlsx.Parser
