@@ -28,19 +28,18 @@ module Codec.Xlsx.Parser.Internal
     , rational
     ) where
 
+import Control.Exception (Exception)
+import Data.Maybe
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Read as T
+import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
-
-import           Control.Exception       (Exception)
-import           Data.Maybe
-import           Data.Text               (Text)
-import qualified Data.Text               as T
-import qualified Data.Text.Read          as T
-import           Data.Typeable           (Typeable)
-import           Text.XML
-import           Text.XML.Cursor
+import Text.XML
+import Text.XML.Cursor
 
 #if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
+import Control.Applicative
 #endif
 
 data ParseException = ParseException String

@@ -5,16 +5,15 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Table where
 
-import GHC.Generics (Generic)
-
 import Control.Lens (makeLenses)
 import Data.Maybe (maybeToList)
 import Data.Text (Text)
+import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Cursor
 
 #if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
+import Control.Applicative
 #endif
 
 import Codec.Xlsx.Parser.Internal

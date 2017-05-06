@@ -53,41 +53,39 @@ module Codec.Xlsx.Types (
     , module X
     ) where
 
+import Control.Exception (SomeException, toException)
+import Control.Lens.TH
+import qualified Data.ByteString.Lazy as L
+import Data.Default
+import Data.Function (on)
+import Data.List (groupBy)
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Maybe (catMaybes, isJust)
+import Data.Text (Text)
 import GHC.Generics (Generic)
+import Text.XML (parseLBS, renderLBS)
+import Text.XML.Cursor
 
-import           Control.Exception                      (SomeException,
-                                                         toException)
-import           Control.Lens.TH
-import qualified Data.ByteString.Lazy                   as L
-import           Data.Default
-import           Data.Function                          (on)
-import           Data.List                              (groupBy)
-import           Data.Map                               (Map)
-import qualified Data.Map                               as M
-import           Data.Maybe                             (catMaybes, isJust)
-import           Data.Text                              (Text)
-import           Text.XML                               (parseLBS, renderLBS)
-import           Text.XML.Cursor
-
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.AutoFilter            as X
-import           Codec.Xlsx.Types.Cell                  as Cell
-import           Codec.Xlsx.Types.Comment               as X
-import           Codec.Xlsx.Types.Common                as X
-import           Codec.Xlsx.Types.ConditionalFormatting as X
-import           Codec.Xlsx.Types.DataValidation        as X
-import           Codec.Xlsx.Types.Drawing               as X
-import           Codec.Xlsx.Types.Drawing.Chart         as X
-import           Codec.Xlsx.Types.Drawing.Common        as X
-import           Codec.Xlsx.Types.PageSetup             as X
-import           Codec.Xlsx.Types.PivotTable            as X
-import           Codec.Xlsx.Types.Protection            as X
-import           Codec.Xlsx.Types.RichText              as X
-import           Codec.Xlsx.Types.SheetViews            as X
-import           Codec.Xlsx.Types.StyleSheet            as X
-import           Codec.Xlsx.Types.Table                 as X
-import           Codec.Xlsx.Types.Variant               as X
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.AutoFilter as X
+import Codec.Xlsx.Types.Cell as Cell
+import Codec.Xlsx.Types.Comment as X
+import Codec.Xlsx.Types.Common as X
+import Codec.Xlsx.Types.ConditionalFormatting as X
+import Codec.Xlsx.Types.DataValidation as X
+import Codec.Xlsx.Types.Drawing as X
+import Codec.Xlsx.Types.Drawing.Chart as X
+import Codec.Xlsx.Types.Drawing.Common as X
+import Codec.Xlsx.Types.PageSetup as X
+import Codec.Xlsx.Types.PivotTable as X
+import Codec.Xlsx.Types.Protection as X
+import Codec.Xlsx.Types.RichText as X
+import Codec.Xlsx.Types.SheetViews as X
+import Codec.Xlsx.Types.StyleSheet as X
+import Codec.Xlsx.Types.Table as X
+import Codec.Xlsx.Types.Variant as X
+import Codec.Xlsx.Writer.Internal
 
 -- | Properties of a row. See §18.3.1.73 "row (Row)" for more details
 data RowProperties = RowProps

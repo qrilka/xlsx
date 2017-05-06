@@ -2,16 +2,14 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.DvPair where
 
+import qualified Data.Map as M
 import GHC.Generics (Generic)
+import Text.XML (Element(..))
 
-import qualified Data.Map                   as M
-import           Text.XML                   (Element (..))
-
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Common
-import           Codec.Xlsx.Types.DataValidation
-import           Codec.Xlsx.Writer.Internal
-
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Common
+import Codec.Xlsx.Types.DataValidation
+import Codec.Xlsx.Writer.Internal
 
 -- | Internal helper type for parsing data validation records
 --

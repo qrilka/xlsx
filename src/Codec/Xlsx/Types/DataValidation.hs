@@ -4,23 +4,22 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.DataValidation where
 
+import Control.Lens.TH (makeLenses)
+import Control.Monad ((>=>))
+import Data.Char (isSpace)
+import Data.Default
+import qualified Data.Map as M
+import Data.Maybe (catMaybes)
+import Data.Monoid ((<>))
+import Data.Text (Text)
+import qualified Data.Text as T
 import GHC.Generics (Generic)
+import Text.XML (Node(..), Element(..))
+import Text.XML.Cursor (Cursor, ($/), element)
 
-import           Control.Lens.TH            (makeLenses)
-import           Control.Monad              ((>=>))
-import           Data.Char                  (isSpace)
-import           Data.Default
-import qualified Data.Map                   as M
-import           Data.Maybe                 (catMaybes)
-import           Data.Monoid                ((<>))
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import           Text.XML                   (Node (..), Element (..))
-import           Text.XML.Cursor            (Cursor, ($/), element)
-
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Common
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Common
+import Codec.Xlsx.Writer.Internal
 
 -- See 18.18.20 "ST_DataValidationOperator (Data Validation Operator)" (p. 2439/2449)
 data ValidationExpression

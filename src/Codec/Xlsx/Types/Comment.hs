@@ -1,11 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Comment where
 
+import Data.Text (Text)
 import GHC.Generics (Generic)
 
-import           Data.Text               (Text)
-
-import           Codec.Xlsx.Types.Common
+import Codec.Xlsx.Types.Common
 
 -- | User comment for a cell
 --

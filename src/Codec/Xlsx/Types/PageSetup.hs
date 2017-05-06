@@ -35,14 +35,13 @@ module Codec.Xlsx.Types.PageSetup (
   , pageSetupVerticalDpi
   ) where
 
-import GHC.Generics (Generic)
-
 import Control.Lens (makeLenses)
 import Data.Default
+import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
+import GHC.Generics (Generic)
 import Text.XML
-import qualified Data.Map as Map
 
 import Codec.Xlsx.Writer.Internal
 import Codec.Xlsx.Parser.Internal

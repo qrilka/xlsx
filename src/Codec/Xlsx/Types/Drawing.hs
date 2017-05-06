@@ -11,8 +11,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Drawing where
 
-import GHC.Generics (Generic)
-
 import Control.Arrow (first)
 import Control.Lens.TH
 import Data.ByteString.Lazy (ByteString)
@@ -21,6 +19,7 @@ import qualified Data.Map as M
 import Data.Maybe (catMaybes, listToMaybe, mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
+import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Cursor
 

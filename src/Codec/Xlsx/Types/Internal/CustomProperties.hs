@@ -2,17 +2,16 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.CustomProperties where
 
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Text (Text)
 import GHC.Generics (Generic)
+import Text.XML
+import Text.XML.Cursor
 
-import           Data.Map                   (Map)
-import qualified Data.Map                   as M
-import           Data.Text                  (Text)
-import           Text.XML
-import           Text.XML.Cursor
-
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Variant
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Variant
+import Codec.Xlsx.Writer.Internal
 
 newtype CustomProperties = CustomProperties (Map Text Variant)
     deriving (Eq, Show, Generic)

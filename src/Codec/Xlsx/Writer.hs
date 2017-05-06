@@ -5,54 +5,55 @@
 {-# LANGUAGE DeriveGeneric #-}
 -- | This module provides a function for serializing structured `Xlsx` into lazy bytestring
 module Codec.Xlsx.Writer
-    ( fromXlsx
-    ) where
+  ( fromXlsx
+  ) where
 
-import GHC.Generics (Generic)
-
-import qualified Codec.Archive.Zip                           as Zip
-import           Control.Arrow                               (second)
-import           Control.Lens                                hiding (transform, (.=))
-import           Control.Monad                               (forM)
-import qualified Data.ByteString.Lazy                        as L
-import           Data.ByteString.Lazy.Char8                  ()
-import           Data.List                                   (foldl', mapAccumL)
-import           Data.Map                                    (Map)
-import           Data.Maybe                                  (maybeToList)
-import           Data.STRef
-import           Control.Monad.ST
-import qualified Data.Map                                    as M
-import           Data.Maybe
-import           Data.Monoid                                 ((<>))
-import           Data.Text                                   (Text)
-import Data.Tuple.Extra (fst3, snd3, thd3)
-import qualified Data.Text                                   as T
-import           Data.Time                                   (UTCTime)
-import           Data.Time.Clock.POSIX                       (POSIXTime, posixSecondsToUTCTime)
-import           Data.Time.Format                            (formatTime)
+import qualified Codec.Archive.Zip as Zip
+import Control.Arrow (second)
+import Control.Lens hiding (transform, (.=))
+import Control.Monad (forM)
+import Control.Monad.ST
+import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy.Char8 ()
+import Data.List (foldl', mapAccumL)
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Maybe
+import Data.Maybe (maybeToList)
+import Data.Monoid ((<>))
+import Data.STRef
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime)
+import Data.Time.Format (formatTime)
 #if MIN_VERSION_time(1,5,0)
-import           Data.Time.Format                            (defaultTimeLocale)
+import Data.Time.Format (defaultTimeLocale)
 #else
-import           System.Locale                               (defaultTimeLocale)
+import System.Locale (defaultTimeLocale)
 #endif
-import           Safe
-import           Text.XML
+import Data.Tuple.Extra (fst3, snd3, thd3)
+import GHC.Generics (Generic)
+import Safe
+import Text.XML
 
 #if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
+import Control.Applicative
 #endif
 
-import           Codec.Xlsx.Types
-import           Codec.Xlsx.Types.Internal
-import           Codec.Xlsx.Types.Internal.CfPair
-import qualified Codec.Xlsx.Types.Internal.CommentTable      as CommentTable
-import           Codec.Xlsx.Types.Internal.CustomProperties
-import           Codec.Xlsx.Types.Internal.DvPair
-import           Codec.Xlsx.Types.Internal.Relationships     as Relationships hiding (lookup)
-import           Codec.Xlsx.Types.Internal.SharedStringTable
-import           Codec.Xlsx.Types.PivotTable.Internal
-import           Codec.Xlsx.Writer.Internal
-import           Codec.Xlsx.Writer.Internal.PivotTable
+import Codec.Xlsx.Types
+import Codec.Xlsx.Types.Internal
+import Codec.Xlsx.Types.Internal.CfPair
+import qualified Codec.Xlsx.Types.Internal.CommentTable
+       as CommentTable
+import Codec.Xlsx.Types.Internal.CustomProperties
+import Codec.Xlsx.Types.Internal.DvPair
+import Codec.Xlsx.Types.Internal.Relationships as Relationships
+       hiding (lookup)
+import Codec.Xlsx.Types.Internal.SharedStringTable
+import Codec.Xlsx.Types.PivotTable.Internal
+import Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Writer.Internal.PivotTable
 
 -- | Writes `Xlsx' to raw data (lazy bytestring)
 fromXlsx :: POSIXTime -> Xlsx -> L.ByteString

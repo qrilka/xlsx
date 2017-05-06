@@ -3,8 +3,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.CommentTable where
 
-import GHC.Generics (Generic)
-
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Lazy.Char8 as LBC8
@@ -15,6 +13,7 @@ import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
 import qualified Data.Text.Lazy.Builder as B
 import qualified Data.Text.Lazy.Builder.Int as B
+import GHC.Generics (Generic)
 import Safe
 import Text.XML
 import Text.XML.Cursor

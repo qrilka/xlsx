@@ -2,18 +2,17 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Variant where
 
+import Data.ByteString (ByteString)
+import Data.ByteString.Base64 as B64
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import GHC.Generics (Generic)
+import Text.XML
+import Text.XML.Cursor
 
-import           Data.ByteString            (ByteString)
-import           Data.ByteString.Base64     as B64
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.Encoding         as T
-import           Text.XML
-import           Text.XML.Cursor
-
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Writer.Internal
 
 data Variant
     = VtBlob ByteString

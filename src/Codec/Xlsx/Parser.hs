@@ -13,7 +13,6 @@ module Codec.Xlsx.Parser
   , Parser
   ) where
 
-import GHC.Generics (Generic)
 
 import qualified Codec.Archive.Zip as Zip
 import Control.Applicative
@@ -32,6 +31,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Read as T
 import Data.Traversable
+import GHC.Generics (Generic)
 import Prelude hiding (sequence)
 import System.FilePath.Posix
 import Text.XML as X

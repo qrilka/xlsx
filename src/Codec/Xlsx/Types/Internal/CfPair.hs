@@ -3,14 +3,12 @@
 module Codec.Xlsx.Types.Internal.CfPair where
 
 import GHC.Generics (Generic)
+import Text.XML.Cursor
 
-import           Text.XML.Cursor
-
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Common
-import           Codec.Xlsx.Types.ConditionalFormatting
-import           Codec.Xlsx.Writer.Internal
-
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Common
+import Codec.Xlsx.Types.ConditionalFormatting
+import Codec.Xlsx.Writer.Internal
 
 -- | Internal helper type for parsing "conditionalFormatting recods
 -- TODO: pivot, extList

@@ -127,28 +127,25 @@ module Codec.Xlsx.Types.StyleSheet (
   , firstUserNumFmtId
   ) where
 
+import Control.Lens hiding (element, elements, (.=))
+import Data.Default
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
+import Data.Maybe (catMaybes)
+import Data.Monoid
+import Data.Text (Text)
+import qualified Data.Text as T
 import GHC.Generics (Generic)
-
-import           Control.Lens                         hiding (element, elements,
-                                                       (.=))
-import           Data.Default
-import           Data.Map.Strict                      (Map)
-import qualified Data.Map.Strict                      as M
-import           Data.Maybe                           (catMaybes)
-import           Data.Monoid
-import           Data.Text                            (Text)
-import qualified Data.Text                            as T
-import           Text.XML
-import           Text.XML.Cursor
-
+import Text.XML
+import Text.XML.Cursor
 
 #if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
+import Control.Applicative
 #endif
 
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Internal.NumFmtPair
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Internal.NumFmtPair
+import Codec.Xlsx.Writer.Internal
 
 {-------------------------------------------------------------------------------
   The main types

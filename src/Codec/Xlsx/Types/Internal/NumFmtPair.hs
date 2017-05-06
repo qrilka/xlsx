@@ -2,12 +2,11 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.NumFmtPair where
 
+import Data.Text (Text)
 import GHC.Generics (Generic)
 
-import           Data.Text                  (Text)
-
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Writer.Internal
 
 -- | Internal helper type for parsing "numFmt" recods
 --

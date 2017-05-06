@@ -4,23 +4,22 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.ContentTypes where
 
+import Control.Arrow
+import Data.Foldable (asum)
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Text (Text)
+import qualified Data.Text as T
 import GHC.Generics (Generic)
-
-import           Control.Arrow
-import           Data.Foldable              (asum)
-import           Data.Map                   (Map)
-import qualified Data.Map                   as M
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import           System.FilePath.Posix      (takeExtension)
-import           Text.XML
-import           Text.XML.Cursor
+import System.FilePath.Posix (takeExtension)
+import Text.XML
+import Text.XML.Cursor
 
 #if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
+import Control.Applicative
 #endif
 
-import           Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Parser.Internal
 
 data CtDefault = CtDefault
     { dfltExtension   :: FilePath

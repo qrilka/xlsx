@@ -11,24 +11,22 @@ module Codec.Xlsx.Types.Internal.SharedStringTable (
   , sstEmpty
   ) where
 
+import Control.Monad
+import qualified Data.Map as Map
+import Data.Maybe (mapMaybe)
+import qualified Data.Set as Set
+import Data.Text (Text)
+import Data.Vector (Vector)
+import qualified Data.Vector as V
 import GHC.Generics (Generic)
+import Numeric.Search.Range (searchFromTo)
+import Safe (fromJustNote)
+import Text.XML
+import Text.XML.Cursor
 
-import           Control.Monad
-
-import qualified Data.Map                   as Map
-import           Data.Maybe                 (mapMaybe)
-import qualified Data.Set                   as Set
-import           Data.Text                  (Text)
-import           Data.Vector                (Vector)
-import qualified Data.Vector                as V
-import           Numeric.Search.Range       (searchFromTo)
-import           Safe                       (fromJustNote)
-import           Text.XML
-import           Text.XML.Cursor
-
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types
+import Codec.Xlsx.Writer.Internal
 
 -- | Shared string table
 --

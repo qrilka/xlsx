@@ -13,14 +13,13 @@ module Codec.Xlsx.Types.Cell
   , CellMap
   ) where
 
-import GHC.Generics (Generic)
-
 import Control.Lens.TH (makeLenses)
 import Data.Default
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
+import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Cursor
 

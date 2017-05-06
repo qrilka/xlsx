@@ -6,30 +6,29 @@
 -- | lenses to access sheets, cells and values of 'Xlsx'
 
 module Codec.Xlsx.Lens
-    ( ixSheet
-    , atSheet
-    , ixCell
-    , ixCellRC
-    , ixCellXY
-    , atCell
-    , atCellRC
-    , atCellXY
-    , cellValueAt
-    , cellValueAtRC
-    , cellValueAtXY
- ) where
+  ( ixSheet
+  , atSheet
+  , ixCell
+  , ixCellRC
+  , ixCellXY
+  , atCell
+  , atCellRC
+  , atCellXY
+  , cellValueAt
+  , cellValueAtRC
+  , cellValueAtXY
+  ) where
 
+import Codec.Xlsx.Types
+import Control.Lens
+import Data.Function (on)
+import Data.List (deleteBy)
+import Data.Text
+import Data.Tuple (swap)
 import GHC.Generics (Generic)
 
-import           Codec.Xlsx.Types
-import           Control.Lens
-import           Data.Function       (on)
-import           Data.List           (deleteBy)
-import           Data.Text
-import           Data.Tuple          (swap)
-
 #if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
+import Control.Applicative
 #endif
 
 newtype SheetList = SheetList{ unSheetList :: [(Text, Worksheet)] }

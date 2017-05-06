@@ -3,34 +3,33 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.ConditionalFormatting
-    ( ConditionalFormatting
-    , CfRule(..)
-    , Condition(..)
-    , OperatorExpression (..)
-    , TimePeriod (..)
+  ( ConditionalFormatting
+  , CfRule(..)
+  , Condition(..)
+  , OperatorExpression(..)
+  , TimePeriod(..)
     -- * Lenses
     -- ** CfRule
-    , cfrCondition
-    , cfrDxfId
-    , cfrPriority
-    , cfrStopIfTrue
+  , cfrCondition
+  , cfrDxfId
+  , cfrPriority
+  , cfrStopIfTrue
     -- * Misc
-    , topCfPriority
-    ) where
+  , topCfPriority
+  ) where
 
+import Control.Lens (makeLenses)
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Maybe
+import Data.Text (Text)
 import GHC.Generics (Generic)
+import Text.XML
+import Text.XML.Cursor
 
-import           Control.Lens               (makeLenses)
-import           Data.Map                   (Map)
-import qualified Data.Map                   as M
-import           Data.Maybe
-import           Data.Text                  (Text)
-import           Text.XML
-import           Text.XML.Cursor
-
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Common
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Common
+import Codec.Xlsx.Writer.Internal
 
 -- | Logical operation used in 'CellIs' condition
 --

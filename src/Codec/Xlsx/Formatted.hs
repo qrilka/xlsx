@@ -4,8 +4,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric #-}
-module Codec.Xlsx.Formatted (
-    FormattedCell(..)
+module Codec.Xlsx.Formatted
+  ( FormattedCell(..)
   , Formatted(..)
   , formatted
   , toFormattedCells
@@ -33,28 +33,27 @@ module Codec.Xlsx.Formatted (
   , condfmtStopIfTrue
   ) where
 
+import Control.Lens
+import Control.Monad.State hiding (forM_, mapM)
+import Data.Default
+import Data.Foldable (asum, forM_)
+import Data.Function (on)
+import Data.List (foldl', groupBy, sortBy, sortBy)
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Ord (comparing)
+import Data.Text (Text)
+import Data.Traversable (mapM)
+import Data.Tuple (swap)
 import GHC.Generics (Generic)
-
-import           Control.Lens
-import           Control.Monad.State hiding (forM_, mapM)
-import           Data.Default
-import           Data.Foldable       (asum, forM_)
-import           Data.Function       (on)
-import           Data.List           (foldl', groupBy, sortBy, sortBy)
-import           Data.Map            (Map)
-import qualified Data.Map            as M
-import           Data.Ord            (comparing)
-import           Data.Text           (Text)
-import           Data.Traversable    (mapM)
-import           Data.Tuple          (swap)
-import           Prelude             hiding (mapM)
-import           Safe                (headNote, fromJustNote)
+import Prelude hiding (mapM)
+import Safe (headNote, fromJustNote)
 
 #if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
+import Control.Applicative
 #endif
 
-import           Codec.Xlsx.Types
+import Codec.Xlsx.Types
 
 {-------------------------------------------------------------------------------
   Internal: formatting state

@@ -4,27 +4,26 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.Relationships where
 
+import Data.List (find)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Monoid ((<>))
+import Data.Text (Text)
+import qualified Data.Text as T
 import GHC.Generics (Generic)
-
-import           Data.List                  (find)
-import           Data.Map                   (Map)
-import qualified Data.Map                   as Map
-import           Data.Monoid                ((<>))
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import           Network.URI                hiding (path)
-import           Prelude                    hiding (abs, lookup)
-import           Safe
-import           Text.XML
-import           Text.XML.Cursor
+import Network.URI hiding (path)
+import Prelude hiding (abs, lookup)
+import Safe
+import Text.XML
+import Text.XML.Cursor
 
 #if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
+import Control.Applicative
 #endif
 
-import           Codec.Xlsx.Parser.Internal
-import           Codec.Xlsx.Types.Internal
-import           Codec.Xlsx.Writer.Internal
+import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Internal
+import Codec.Xlsx.Writer.Internal
 
 data Relationship = Relationship
     { relType   :: Text

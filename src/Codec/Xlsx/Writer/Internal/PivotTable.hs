@@ -6,18 +6,17 @@ module Codec.Xlsx.Writer.Internal.PivotTable
   , renderPivotTableFiles
   ) where
 
-import GHC.Generics (Generic)
-
 import Data.ByteString.Lazy (ByteString)
 import Data.List.Extra (nubOrd)
 import qualified Data.Map as M
 import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
 import Data.Text (Text)
+import GHC.Generics (Generic)
 import Safe (fromJustNote)
 import Text.XML
 
-import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Types.Cell
+import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Types.PivotTable
 import Codec.Xlsx.Types.PivotTable.Internal
 import Codec.Xlsx.Writer.Internal
