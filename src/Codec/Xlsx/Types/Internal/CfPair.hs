@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.CfPair where
+
+import GHC.Generics (Generic)
 
 import           Text.XML.Cursor
 
@@ -16,7 +19,7 @@ import           Codec.Xlsx.Writer.Internal
 -- See 18.3.1.18 "conditionalFormatting (Conditional Formatting)" (p. 1610)
 newtype CfPair = CfPair
     { unCfPair :: (SqRef, ConditionalFormatting)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 instance FromCursor CfPair where
     fromCursor cur = do

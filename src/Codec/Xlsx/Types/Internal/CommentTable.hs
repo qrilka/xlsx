@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.CommentTable where
+
+import GHC.Generics (Generic)
 
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
@@ -23,7 +26,7 @@ import Codec.Xlsx.Writer.Internal
 
 newtype CommentTable = CommentTable
     { _commentsTable :: Map CellRef Comment }
-    deriving (Show, Eq)
+    deriving (Eq, Show, Generic)
 
 fromList :: [(CellRef, Comment)] -> CommentTable
 fromList = CommentTable . M.fromList

@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.ConditionalFormatting
     ( ConditionalFormatting
     , CfRule(..)
@@ -16,6 +17,8 @@ module Codec.Xlsx.Types.ConditionalFormatting
     -- * Misc
     , topCfPriority
     ) where
+
+import GHC.Generics (Generic)
 
 import           Control.Lens               (makeLenses)
 import           Data.Map                   (Map)
@@ -46,7 +49,7 @@ data OperatorExpression
     | OpNotBetween Formula Formula -- ^ 'Not between' operator
     | OpNotContains Formula        -- ^ 'Does not contain' operator
     | OpNotEqual Formula           -- ^ 'Not equal to' operator
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
 
 -- | Used in a "contains dates" conditional formatting rule.
 -- These are dynamic time periods, which change based on
@@ -64,7 +67,7 @@ data TimePeriod
     | PerToday      -- ^ Today's date.
     | PerTomorrow   -- ^ Tomorrow's date.
     | PerYesterday  -- ^ Yesterday's date.
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
 
 -- | Conditions which could be used for conditional formatting
 --
@@ -129,7 +132,7 @@ data Condition
     -- TODO: timePeriod
     -- TODO: top10
     -- TODO: uniqueValues
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
 
 -- | This collection represents a description of a conditional formatting rule.
 --
@@ -149,7 +152,7 @@ data CfRule = CfRule
     -- be applied over this rule, when this rule
     -- evaluates to true.
     , _cfrStopIfTrue :: Maybe Bool
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Generic)
 
 makeLenses ''CfRule
 

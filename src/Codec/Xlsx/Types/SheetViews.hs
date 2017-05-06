@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.SheetViews (
     -- * Structured type to construct 'SheetViews'
     SheetView(..)
@@ -45,6 +46,8 @@ module Codec.Xlsx.Types.SheetViews (
   , paneXSplit
   , paneYSplit
   ) where
+
+import GHC.Generics (Generic)
 
 import Control.Lens (makeLenses)
 import Data.Default
@@ -176,7 +179,7 @@ data SheetView = SheetView {
     -- Minimum of 0, maximum of 4 elements
   , _sheetViewSelection :: [Selection]
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Worksheet view selection.
 --
@@ -199,7 +202,7 @@ data Selection = Selection {
     -- | Range of the selection. Can be non-contiguous set of ranges.
   , _selectionSqref :: Maybe SqRef
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Worksheet view pane
 --
@@ -226,7 +229,7 @@ data Pane = Pane {
     -- the left pane.
   , _paneYSplit :: Maybe Double
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Enumerations
@@ -244,7 +247,7 @@ data SheetViewType =
 
     -- | Page layout view
   | SheetViewTypePageLayout
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Pane type
 --
@@ -277,7 +280,7 @@ data PaneType =
     -- dividing the pane into right and left regions. In that case, this value
     -- specifies the right pane.
   | PaneTypeTopRight
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | State of the sheet's pane.
 --
@@ -295,7 +298,7 @@ data PaneState =
     -- | Panes are split, but not frozen. In this state, the split bars are
     -- adjustable by the user.
   | PaneStateSplit
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Lenses

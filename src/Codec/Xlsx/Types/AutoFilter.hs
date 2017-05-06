@@ -1,7 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.AutoFilter where
+
+import GHC.Generics (Generic)
 
 import Control.Lens (makeLenses)
 import Data.Default
@@ -30,12 +33,12 @@ data FilterColumn
                     CustomFilter
   | CustomFiltersAnd CustomFilter
                      CustomFilter
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 data CustomFilter = CustomFilter
   { cfltOperator :: CustomFilterOperator
   , cfltValue :: Text
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data CustomFilterOperator
   = FltrEqual
@@ -50,7 +53,7 @@ data CustomFilterOperator
     -- ^ Show results which are less than or equal to criteria.
   | FltrNotEqual
     -- ^ Show results which are not equal to criteria.
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | AutoFilter temporarily hides rows based on a filter criteria,
 -- which is applied column by column to a table of datain the
@@ -62,7 +65,7 @@ data CustomFilterOperator
 data AutoFilter = AutoFilter
   { _afRef :: Maybe CellRef
   , _afFilterColumns :: Map Int FilterColumn
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 makeLenses ''AutoFilter
 

@@ -1,4 +1,7 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Comment where
+
+import GHC.Generics (Generic)
 
 import           Data.Text               (Text)
 
@@ -17,4 +20,4 @@ data Comment = Comment
     , _commentAuthor  :: Text
     -- ^ comment author
     , _commentVisible :: Bool
-    } deriving (Show, Eq)
+    } deriving (Eq, Show, Generic)

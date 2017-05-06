@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Protection
   ( SheetProtection(..)
   , fullSheetProtection
@@ -27,6 +28,8 @@ module Codec.Xlsx.Types.Protection
   , sprSelectUnlockedCells
   ) where
 
+import GHC.Generics (Generic)
+
 import Control.Arrow (first)
 import Control.Lens (makeLenses)
 import Data.Bits
@@ -43,7 +46,7 @@ import Codec.Xlsx.Writer.Internal
 
 newtype LegacyPassword =
   LegacyPassword Text
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Creates legacy @XOR@ hashed password.
 --
@@ -125,7 +128,7 @@ data SheetProtection = SheetProtection
     -- sheet is protected
   , _sprSort :: Bool
     -- ^ sorting should not be allowed when the sheet is protected
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 makeLenses ''SheetProtection
 

@@ -1,7 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.DataValidation where
+
+import GHC.Generics (Generic)
 
 import           Control.Lens.TH            (makeLenses)
 import           Control.Monad              ((>=>))
@@ -29,7 +32,7 @@ data ValidationExpression
     | ValLessThanOrEqual Formula    -- ^ "Less than or equal to" operator
     | ValNotBetween Formula Formula -- ^ "Not between" operator
     | ValNotEqual Formula           -- ^ "Not equal to" operator
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 -- See 18.18.21 "ST_DataValidationType (Data Validation Type)" (p. 2440/2450)
 data ValidationType
@@ -41,14 +44,14 @@ data ValidationType
     | ValidationTypeTextLength ValidationExpression
     | ValidationTypeTime       ValidationExpression
     | ValidationTypeWhole      ValidationExpression
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 -- See 18.18.18 "ST_DataValidationErrorStyle (Data Validation Error Styles)" (p. 2438/2448)
 data ErrorStyle
     = ErrorStyleInformation
     | ErrorStyleStop
     | ErrorStyleWarning
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 -- See 18.3.1.32 "dataValidation (Data Validation)" (p. 1614/1624)
 data DataValidation = DataValidation
@@ -62,7 +65,7 @@ data DataValidation = DataValidation
     , _dvShowErrorMessage :: Bool
     , _dvShowInputMessage :: Bool
     , _dvValidationType   :: ValidationType
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 makeLenses ''DataValidation
 

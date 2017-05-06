@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.SharedStringTable (
     -- * Main types
     SharedStringTable(..)
@@ -9,6 +10,8 @@ module Codec.Xlsx.Types.Internal.SharedStringTable (
   , sstItem
   , sstEmpty
   ) where
+
+import GHC.Generics (Generic)
 
 import           Control.Monad
 
@@ -47,7 +50,7 @@ import           Codec.Xlsx.Writer.Internal
 newtype SharedStringTable = SharedStringTable {
     sstTable :: Vector XlsxText
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 sstEmpty :: SharedStringTable
 sstEmpty = SharedStringTable V.empty

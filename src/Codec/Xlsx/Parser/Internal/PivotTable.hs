@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Parser.Internal.PivotTable
   ( parsePivotTable
   , parseCache

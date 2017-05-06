@@ -1,9 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Writer.Internal.PivotTable
   ( PivotTableFiles(..)
   , renderPivotTableFiles
   ) where
+
+import GHC.Generics (Generic)
 
 import Data.ByteString.Lazy (ByteString)
 import Data.List.Extra (nubOrd)
@@ -22,13 +25,13 @@ import Codec.Xlsx.Writer.Internal
 data PivotTableFiles = PivotTableFiles
   { pvtfTable :: ByteString
   , pvtfCacheDefinition :: ByteString
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data CacheDefinition = CacheDefinition
   { cdSourceRef :: CellRef
   , cdSourceSheet :: Text
   , cdFields :: [CacheField]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 renderPivotTableFiles :: CellMap -> Int -> PivotTable -> PivotTableFiles
 renderPivotTableFiles cm cacheId t = PivotTableFiles {..}

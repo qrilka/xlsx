@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.CustomProperties where
+
+import GHC.Generics (Generic)
 
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
@@ -12,7 +15,7 @@ import           Codec.Xlsx.Types.Variant
 import           Codec.Xlsx.Writer.Internal
 
 newtype CustomProperties = CustomProperties (Map Text Variant)
-    deriving (Show, Eq)
+    deriving (Eq, Show, Generic)
 
 fromList :: [(Text, Variant)] -> CustomProperties
 fromList = CustomProperties . M.fromList

@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP          #-}
 {-# LANGUAGE RankNTypes   #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 -- | lenses to access sheets, cells and values of 'Xlsx'
 
@@ -18,6 +19,8 @@ module Codec.Xlsx.Lens
     , cellValueAtXY
  ) where
 
+import GHC.Generics (Generic)
+
 import           Codec.Xlsx.Types
 import           Control.Lens
 import           Data.Function       (on)
@@ -30,7 +33,7 @@ import           Control.Applicative
 #endif
 
 newtype SheetList = SheetList{ unSheetList :: [(Text, Worksheet)] }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 type instance IxValue (SheetList) = Worksheet
 type instance Index (SheetList) = Text

@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TupleSections             #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 -- | This module provides a function for reading .xlsx files
 module Codec.Xlsx.Parser
@@ -11,6 +12,8 @@ module Codec.Xlsx.Parser
   , ParseError(..)
   , Parser
   ) where
+
+import GHC.Generics (Generic)
 
 import qualified Codec.Archive.Zip as Zip
 import Control.Applicative
@@ -57,7 +60,7 @@ data ParseError = InvalidZipArchive
                 | InvalidFile FilePath
                 | InvalidRef FilePath RefId
                 | InconsistentXlsx Text
-                deriving (Show, Eq)
+                deriving (Eq, Show, Generic)
 
 type Parser = Either ParseError
 
@@ -77,7 +80,7 @@ toXlsxEither bs = do
 data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
                                    }
-                   deriving Show
+                   deriving (Show, Generic)
 
 type Caches = [(CacheId, (Text, CellRef, [CacheField]))]
 

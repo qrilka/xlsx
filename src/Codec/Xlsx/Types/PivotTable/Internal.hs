@@ -1,10 +1,13 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.PivotTable.Internal
   ( CacheId(..)
   , CacheField(..)
   ) where
+
+import GHC.Generics (Generic)
 
 import Control.Arrow (first)
 import Data.Maybe (catMaybes)
@@ -20,12 +23,12 @@ import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Types.PivotTable
 import Codec.Xlsx.Writer.Internal
 
-newtype CacheId = CacheId Int deriving Eq
+newtype CacheId = CacheId Int deriving (Eq, Generic)
 
 data CacheField = CacheField
   { cfName :: PivotFieldName
   , cfItems :: [CellValue]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Parsing

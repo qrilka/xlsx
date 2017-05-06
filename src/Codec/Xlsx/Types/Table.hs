@@ -2,7 +2,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Table where
+
+import GHC.Generics (Generic)
 
 import Control.Lens (makeLenses)
 import Data.Maybe (maybeToList)
@@ -59,7 +62,7 @@ data Table = Table
     -- ^ columns of this table, specification requires any table to
     -- include at least 1 column
   , tblAutoFilter :: Maybe AutoFilter
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Single table column
 --
@@ -72,7 +75,7 @@ data TableColumn = TableColumn
   -- column. This is what shall be displayed in the header row in the
   -- UI, and is referenced through functions. This name shall be
   -- unique per table.
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 makeLenses ''Table
 

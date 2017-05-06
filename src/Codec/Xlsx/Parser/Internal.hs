@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Parser.Internal
     ( ParseException(..)
     , n_
@@ -27,6 +28,8 @@ module Codec.Xlsx.Parser.Internal
     , rational
     ) where
 
+import GHC.Generics (Generic)
+
 import           Control.Exception       (Exception)
 import           Data.Maybe
 import           Data.Text               (Text)
@@ -41,7 +44,7 @@ import           Control.Applicative
 #endif
 
 data ParseException = ParseException String
-                    deriving (Show, Typeable)
+                    deriving (Show, Typeable, Generic)
 
 instance Exception ParseException
 

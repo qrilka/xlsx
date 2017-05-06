@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Variant where
+
+import GHC.Generics (Generic)
 
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Base64     as B64
@@ -22,7 +25,7 @@ data Variant
     -- vt_i4, vt_i8, vt_ui1, vt_ui2, vt_ui4, vt_ui8, vt_uint, vt_r4, vt_r8,
     -- vt_lpstr, vt_bstr, vt_date, vt_filetime, vt_cy, vt_error, vt_stream,
     -- vt_ostream, vt_storage, vt_ostorage, vt_vstream, vt_clsid
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Parsing

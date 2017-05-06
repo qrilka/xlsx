@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Writer.Internal (
     -- * Rendering documents
     ToDocument(..)
@@ -36,6 +37,8 @@ module Codec.Xlsx.Writer.Internal (
   , justTrue
   , justFalse
   ) where
+
+import GHC.Generics (Generic)
 
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T

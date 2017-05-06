@@ -2,10 +2,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DeriveGeneric #-}
 -- | This module provides a function for serializing structured `Xlsx` into lazy bytestring
 module Codec.Xlsx.Writer
     ( fromXlsx
     ) where
+
+import GHC.Generics (Generic)
 
 import qualified Codec.Archive.Zip                           as Zip
 import           Control.Arrow                               (second)
@@ -408,13 +411,13 @@ appXml sheetNames =
 data XlsxCellData = XlsxSS Int
                   | XlsxDouble Double
                   | XlsxBool Bool
-                    deriving (Show, Eq)
+                    deriving (Eq, Show, Generic)
 data XlsxCell = XlsxCell
     { xlsxCellStyle   :: Maybe Int
     , xlsxCellValue   :: Maybe XlsxCellData
     , xlsxComment     :: Maybe Comment
     , xlsxCellFormula :: Maybe CellFormula
-    } deriving (Show, Eq)
+    } deriving (Eq, Show, Generic)
 
 xlsxCellType :: XlsxCell -> Text
 xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxSS _)} = "s"

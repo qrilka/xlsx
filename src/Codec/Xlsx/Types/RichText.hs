@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.RichText (
     -- * Main types
     RichTextRun(..)
@@ -28,6 +29,8 @@ module Codec.Xlsx.Types.RichText (
   , runPropertiesUnderline
   , runPropertiesVertAlign
   ) where
+
+import GHC.Generics (Generic)
 
 import Control.Lens hiding (element)
 import Control.Monad
@@ -66,7 +69,7 @@ data RichTextRun = RichTextRun {
     -- Section 18.4.12, "t (Text)" (p. 1727)
   , _richTextRunText :: Text
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Run properties
 --
@@ -171,7 +174,7 @@ data RunProperties = RunProperties {
     -- Section 18.4.14, "vertAlign (Vertical Alignment)" (p. 1728)
   , _runPropertiesVertAlign :: Maybe FontVerticalAlignment
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord, Show, Generic)
 
 {-------------------------------------------------------------------------------
   Lenses

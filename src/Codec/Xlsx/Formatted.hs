@@ -3,6 +3,7 @@
 {-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Formatted (
     FormattedCell(..)
   , Formatted(..)
@@ -31,6 +32,8 @@ module Codec.Xlsx.Formatted (
   , condfmtPriority
   , condfmtStopIfTrue
   ) where
+
+import GHC.Generics (Generic)
 
 import           Control.Lens
 import           Control.Monad.State hiding (forM_, mapM)
@@ -118,7 +121,7 @@ data FormattedCondFmt = FormattedCondFmt
     , _condfmtDxf        :: Dxf
     , _condfmtPriority   :: Int
     , _condfmtStopIfTrue :: Maybe Bool
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 makeLenses ''FormattedCondFmt
 
@@ -141,7 +144,7 @@ data Format = Format
     , _formatProtection   :: Maybe Protection
     , _formatPivotButton  :: Maybe Bool
     , _formatQuotePrefix  :: Maybe Bool
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 makeLenses ''Format
 
@@ -153,7 +156,7 @@ data FormattedCell = FormattedCell
     , _formattedFormat  :: Format
     , _formattedColSpan :: Int
     , _formattedRowSpan :: Int
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 makeLenses ''FormattedCell
 
@@ -200,7 +203,7 @@ data Formatted = Formatted {
 
     -- | The final list of cell merges; see '_wsMerges'
   , formattedMerges     :: [Range]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 -- | Higher level API for creating formatted documents
 --
@@ -289,7 +292,7 @@ data CondFormatted = CondFormatted {
     condformattedStyleSheet    :: StyleSheet
     -- | The final map of conditional formatting rules applied to ranges
     , condformattedFormattings :: Map SqRef ConditionalFormatting
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 conditionallyFormatted :: Map CellRef [FormattedCondFmt] -> StyleSheet -> CondFormatted
 conditionallyFormatted cfs styleSheet = CondFormatted
