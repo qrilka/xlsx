@@ -89,17 +89,21 @@ import Codec.Xlsx.Writer.Internal
 
 -- | Properties of a row. See §18.3.1.73 "row (Row)" for more details
 data RowProperties = RowProps
-  { rowHeight :: Maybe Double
+  { rowHeight       :: Maybe Double
     -- ^ Row height in points
-  , rowStyle  :: Maybe Int
-  , rowHidden :: Bool
+  , rowCustomHeight :: Maybe Bool
+    -- ^ Custom height of a row. If set to @Nothing@ its value will be
+    --   inferred from 'rowHeight'. True if it's set.
+  , rowStyle        :: Maybe Int
+  , rowHidden       :: Bool
     -- ^ Whether row is visible or not
   } deriving (Eq, Ord, Show, Read, Generic)
 
 instance Default RowProperties where
-  def = RowProps { rowHeight = Nothing
-                 , rowStyle  = Nothing
-                 , rowHidden = False
+  def = RowProps { rowHeight       = Nothing
+                 , rowCustomHeight = Nothing
+                 , rowStyle        = Nothing
+                 , rowHidden       = False
                  }
 
 -- | Column range (from cwMin to cwMax) properties

@@ -176,7 +176,9 @@ sheetDataXml rows rh = map rowEl rows
                        $ map (cellEl r) cells
       where
         mProps    = M.lookup r rh
-        hasHeight = isJust $ rowHeight =<< mProps
+        hasHeight = case rowCustomHeight =<< mProps of
+                      Just b  -> b
+                      Nothing -> isJust $ rowHeight =<< mProps
         ht        = do Just h <- [rowHeight =<< mProps]
                        return ("ht", txtd h)
         s         = do Just st <- [rowStyle =<< mProps]
