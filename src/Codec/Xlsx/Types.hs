@@ -15,6 +15,7 @@ module Codec.Xlsx.Types (
     , CellValue(..)
     , CellFormula(..)
     , Cell(..)
+    , RowHeight(..)
     , RowProperties (..)
     -- * Lenses
     -- ** Workbook
@@ -87,21 +88,26 @@ import Codec.Xlsx.Types.Table as X
 import Codec.Xlsx.Types.Variant as X
 import Codec.Xlsx.Writer.Internal
 
+-- | Height of a row in points (1/72in)
+data RowHeight
+  = CustomHeight    !Double
+    -- ^ Row height is set by the user
+  | AutomaticHeight !Double
+    -- ^ Row height is set automatically by the program
+  deriving (Eq, Ord, Show, Read, Generic)
+
 -- | Properties of a row. See §18.3.1.73 "row (Row)" for more details
 data RowProperties = RowProps
-  { rowHeight       :: Maybe Double
+  { rowHeight       :: Maybe RowHeight
     -- ^ Row height in points
-  , rowCustomHeight :: Maybe Bool
-    -- ^ Custom height of a row. If set to @Nothing@ its value will be
-    --   inferred from 'rowHeight'. True if it's set.
   , rowStyle        :: Maybe Int
+    -- ^ Style to be applied to row
   , rowHidden       :: Bool
     -- ^ Whether row is visible or not
   } deriving (Eq, Ord, Show, Read, Generic)
 
 instance Default RowProperties where
   def = RowProps { rowHeight       = Nothing
-                 , rowCustomHeight = Nothing
                  , rowStyle        = Nothing
                  , rowHidden       = False
                  }

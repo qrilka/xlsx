@@ -100,8 +100,7 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
     sheet2 = def & wsCells .~ testCellMap2
     pvSheet = sheetWithPvCells & wsPivotTables .~ [testPivotTable]
     sheetWithPvCells = def & wsCells .~ testPivotSrcCells
-    rowProps = M.fromList [(1, RowProps { rowHeight       = Just 50
-                                        , rowCustomHeight = Just True
+    rowProps = M.fromList [(1, RowProps { rowHeight       = Just (CustomHeight 50)
                                         , rowStyle        = Just 3
                                         , rowHidden       = False
                                         })]

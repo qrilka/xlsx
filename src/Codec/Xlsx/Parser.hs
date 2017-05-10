@@ -122,9 +122,11 @@ extractSheet ar sst contentTypes caches wf = do
       parseRow c = do
         r <- fromAttribute "r" c
         let prop = RowProps
-              { rowHeight       = listToMaybe $ fromAttribute "ht" c
-              , rowCustomHeight = listToMaybe $ fromAttribute "customHeight" c
-              , rowStyle        = listToMaybe $ fromAttribute "s" c
+              { rowHeight = do h <- listToMaybe $ fromAttribute "ht" c
+                               case fromAttribute "customHeight" c of
+                                 [True] -> return $ CustomHeight    h
+                                 _      -> return $ AutomaticHeight h
+              , rowStyle  = listToMaybe $ fromAttribute "s" c
               , rowHidden =
                   case fromAttribute "hidden" c of
                     []  -> False

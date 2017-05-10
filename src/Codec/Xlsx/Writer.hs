@@ -176,10 +176,12 @@ sheetDataXml rows rh = map rowEl rows
                        $ map (cellEl r) cells
       where
         mProps    = M.lookup r rh
-        hasHeight = case rowCustomHeight =<< mProps of
-                      Just b  -> b
-                      Nothing -> isJust $ rowHeight =<< mProps
-        ht        = do Just h <- [rowHeight =<< mProps]
+        hasHeight = case rowHeight =<< mProps of
+                      Just CustomHeight{} -> True
+                      _                   -> False
+        ht        = do Just height <- [rowHeight =<< mProps]
+                       let h = case height of CustomHeight    x -> x
+                                              AutomaticHeight x -> x
                        return ("ht", txtd h)
         s         = do Just st <- [rowStyle =<< mProps]
                        return ("s", txti st)
