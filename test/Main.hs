@@ -100,7 +100,10 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
     sheet2 = def & wsCells .~ testCellMap2
     pvSheet = sheetWithPvCells & wsPivotTables .~ [testPivotTable]
     sheetWithPvCells = def & wsCells .~ testPivotSrcCells
-    rowProps = M.fromList [(1, RowProps (Just 50) (Just 3) False)]
+    rowProps = M.fromList [(1, RowProps { rowHeight       = Just (CustomHeight 50)
+                                        , rowStyle        = Just 3
+                                        , rowHidden       = False
+                                        })]
     cols = [ColumnsProperties 1 10 (Just 15) (Just 1) False False False]
     drawing = Just $ testDrawing { _xdrAnchors = map resolve $ _xdrAnchors testDrawing }
     resolve :: Anchor RefId RefId -> Anchor FileInfo ChartSpace
