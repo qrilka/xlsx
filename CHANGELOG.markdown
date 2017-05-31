@@ -1,3 +1,15 @@
+0.6.0
+-----
+* fixed reading files with optional table name (thanks Aleksey Khudyakov
+  <alexey.skladnoy@gmail.com> for reporting)
+* removed unnecessary 10cm offset from `simpleAnchorXY`
+* `customRowHeight` added to row properties (thanks Aleksey Khudyakov
+  <alexey.skladnoy@gmail.com>)
+* added `Generic` instances for library types (thanks Remy Goldschmidt
+  <taktoa@gmail.com>)
+* `hidden` property added for rows (thanks Aleksey Khudyakov
+  <alexey.skladnoy@gmail.com>)
+
 0.5.0
 -----
 * renamed `ColumnsWidth` to more intuitive `ColumnsProperties` and
