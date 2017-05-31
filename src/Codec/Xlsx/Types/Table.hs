@@ -6,7 +6,7 @@
 module Codec.Xlsx.Types.Table where
 
 import Control.Lens (makeLenses)
-import Data.Maybe (maybeToList)
+import Data.Maybe (catMaybes, maybeToList)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Text.XML
@@ -45,7 +45,7 @@ data Table = Table
     -- it, and it shall be unique amongst all other displayNames and
     -- definedNames in the workbook. The character lengths and
     -- restrictions are the same as for definedNames .
-  , tblName :: Text
+  , tblName :: Maybe Text
     -- ^ A string representing the name of the table that is used to
     -- reference the table programmatically through the spreadsheet
     -- applications object model. This string shall be unique per table
@@ -85,7 +85,7 @@ makeLenses ''Table
 instance FromCursor Table where
   fromCursor c = do
     tblDisplayName <- fromAttribute "displayName" c
-    tblName <- fromAttribute "name" c
+    tblName <- maybeAttribute "name" c
     tblRef <- fromAttribute "ref" c
     tblAutoFilter <- maybeFromElement (n_ "autoFilter") c
     let tblColumns =
@@ -108,8 +108,10 @@ tableToElement nm Table {..} i = elementList nm attrs subElements
     attrs =
       [ "id" .= i
       , "displayName" .= tblDisplayName
-      , "name" .= tblName
       , "ref" .= tblRef
+      ] ++
+      catMaybes
+      [ "name" .=? tblName
       ]
     subElements =
       maybeToList (toElement "autoFilter" <$> tblAutoFilter) ++

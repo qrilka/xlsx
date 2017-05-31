@@ -85,7 +85,7 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties
                            (CustomFilter FltrLessThan "42"))]
     tables =
       [ Table
-        { tblName = "Table1"
+        { tblName = Just "Table1"
         , tblDisplayName = "Table1"
         , tblRef = CellRef "A3"
         , tblColumns = [TableColumn "another text"]
