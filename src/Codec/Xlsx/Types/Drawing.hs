@@ -214,7 +214,7 @@ simpleAnchorXY :: (Int, Int) -- ^ x+y coordinates of a cell used as
 simpleAnchorXY (x, y) sz obj =
   Anchor
   { _anchAnchoring =
-      OneCellAnchor {onecaFrom = unqMarker (x, fromIntegral $ cm2emu 10) (y, 0), onecaExt = sz}
+      OneCellAnchor {onecaFrom = unqMarker (x, 0) (y, 0), onecaExt = sz}
   , _anchObject = obj
   , _anchClientData = def
   }
