@@ -13,6 +13,9 @@ module Codec.Xlsx.Types.Common
   , XlsxText(..)
   , Formula(..)
   , CellValue(..)
+  , DateBase(..)
+  , dateFromNumber
+  , dateToNumber
   , int2col
   , col2int
   ) where
@@ -26,6 +29,8 @@ import Data.Ix (inRange)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Time.Calendar (Day, fromGregorian, addDays, diffDays)
+import Data.Time.Clock (UTCTime(UTCTime), picosecondsToDiffTime)
 import Safe
 import Text.XML
 import Text.XML.Cursor
@@ -150,6 +155,36 @@ data CellValue
   | CellBool Bool
   | CellRich [RichTextRun]
   deriving (Eq, Ord, Show, Generic)
+
+-- | Specifies date base used for conversion of serial values to and
+-- from datetime values
+--
+-- See Annex L, L.2.16.9.1 "Date Conversion for Serial Values" (p. 4765)
+data DateBase
+  = DateBase1900
+  | DateBase1904 deriving (Eq, Show)
+
+baseDate :: DateBase -> Day
+baseDate DateBase1900 = fromGregorian 1899 12 30
+baseDate DateBase1904 = fromGregorian 1904 1 1
+
+-- | Convertts serial value into datetime according to the specified
+-- date base
+--
+-- > show (dateFromNumber DateBase1900 42929.75) == "2017-07-13 18:00:00 UTC"
+dateFromNumber :: RealFrac t => DateBase -> t -> UTCTime
+dateFromNumber b d = UTCTime day diffTime
+  where
+    (numberOfDays, fractionOfOneDay) = properFraction d
+    day = addDays numberOfDays $ baseDate b
+    diffTime = picosecondsToDiffTime (round (fractionOfOneDay * 24*60*60*1E12))
+
+-- | Converts datetime into serial value
+dateToNumber :: Fractional a => DateBase -> UTCTime -> a
+dateToNumber b (UTCTime day diffTime) = numberOfDays + fractionOfOneDay
+  where
+    numberOfDays = fromIntegral (diffDays day $ baseDate b)
+    fractionOfOneDay = realToFrac diffTime / (24 * 60 * 60)
 
 {-------------------------------------------------------------------------------
   Parsing
