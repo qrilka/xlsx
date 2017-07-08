@@ -13,6 +13,8 @@ module Codec.Xlsx.Types.Common
   , XlsxText(..)
   , Formula(..)
   , CellValue(..)
+  , dateFromNumber
+  , dateToNumber
   , int2col
   , col2int
   ) where
@@ -26,6 +28,8 @@ import Data.Ix (inRange)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Time.Calendar (Day, fromGregorian, addDays, diffDays)
+import Data.Time.Clock (UTCTime(UTCTime), picosecondsToDiffTime, diffTimeToPicoseconds)
 import Safe
 import Text.XML
 import Text.XML.Cursor
@@ -150,6 +154,31 @@ data CellValue
   | CellBool Bool
   | CellRich [RichTextRun]
   deriving (Eq, Ord, Show, Generic)
+
+-- | Base date for the 1900 date system
+base1900 :: Day
+base1900 = fromGregorian 1899 12 30
+
+-- | Base date for the 1904 date system
+base1904 :: Day
+base1904 = fromGregorian 1904 1 1
+
+-- | Deserialize a date value
+--
+-- > show (dateFromNumber 42929.75) == "2017-07-13 18:00:00 UTC"
+dateFromNumber :: RealFrac t => t -> UTCTime
+dateFromNumber d = UTCTime day diffTime
+  where
+    (numberOfDays, fractionOfOneDay) = properFraction d
+    day = addDays numberOfDays base1900
+    diffTime = picosecondsToDiffTime (round (fractionOfOneDay * 24*60*60*1E12))
+
+-- | Serialize a date value
+dateToNumber :: Fractional a => UTCTime -> a
+dateToNumber (UTCTime day diffTime) = numberOfDays + fractionOfOneDay
+  where
+    numberOfDays = fromIntegral (diffDays day base1900)
+    fractionOfOneDay =  fromIntegral (diffTimeToPicoseconds diffTime) / (24*60*60*1E12)
 
 {-------------------------------------------------------------------------------
   Parsing
