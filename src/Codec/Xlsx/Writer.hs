@@ -483,7 +483,7 @@ bookFiles xlsx = runST $ do
   let cacheRefsById = [ (cId, rId) | (cId, (rId, _)) <- cacheRefFDsById ]
       cacheRefs = map snd cacheRefFDsById
       bookFile = FileData "xl/workbook.xml" (smlCT "sheet.main") "officeDocument" $
-                 bookXml sheetNameByRId (xlsx ^. xlDefinedNames) cacheRefsById
+                 bookXml sheetNameByRId (xlsx ^. xlDefinedNames) cacheRefsById (xlsx ^. xlDateBase)
       rels = FileData "xl/_rels/workbook.xml.rels"
              "application/vnd.openxmlformats-package.relationships+xml"
              "relationships" relsXml
@@ -497,8 +497,9 @@ bookFiles xlsx = runST $ do
 bookXml :: [(RefId, Text)]
         -> DefinedNames
         -> [(CacheId, RefId)]
+        -> DateBase
         -> L.ByteString
-bookXml rIdNames (DefinedNames names) cacheIdRefs =
+bookXml rIdNames (DefinedNames names) cacheIdRefs dateBase =
   renderLBS def {rsNamespaces = nss} $ Document (Prologue [] Nothing []) root []
   where
     nss = [ ("r", "http://schemas.openxmlformats.org/officeDocument/2006/relationships") ]
@@ -511,22 +512,24 @@ bookXml rIdNames (DefinedNames names) cacheIdRefs =
       addNS "http://schemas.openxmlformats.org/spreadsheetml/2006/main" Nothing $
       elementListSimple
         "workbook"
-        ([ elementListSimple "bookViews" [emptyElement "workbookView"]
-         , elementListSimple
-             "sheets"
-             [ leafElement
-               "sheet"
-               ["name" .= name, "sheetId" .= i, (odr "id") .= rId]
-             | (i, (rId, name)) <- zip [(1 :: Int) ..] rIdNames
-             ]
-         , elementListSimple
-             "definedNames"
-             [ elementContent0 "definedName" (definedName name lsId) val
-             | (name, lsId, val) <- names
-             ]
-         ] ++
-         maybeToList
-           (nonEmptyElListSimple "pivotCaches" $ map pivotCacheEl cacheIdRefs))
+        ( [ leafElement "workbookPr" (catMaybes ["date1904" .=? justTrue (dateBase == DateBase1904) ])
+          , elementListSimple "bookViews" [emptyElement "workbookView"]
+          , elementListSimple
+            "sheets"
+            [ leafElement
+              "sheet"
+              ["name" .= name, "sheetId" .= i, (odr "id") .= rId]
+            | (i, (rId, name)) <- zip [(1 :: Int) ..] rIdNames
+            ]
+          , elementListSimple
+            "definedNames"
+            [ elementContent0 "definedName" (definedName name lsId) val
+            | (name, lsId, val) <- names
+            ]
+          ] ++
+          maybeToList
+          (nonEmptyElListSimple "pivotCaches" $ map pivotCacheEl cacheIdRefs)
+        )
 
     pivotCacheEl (CacheId cId, refId) =
       leafElement "pivotCache" ["cacheId" .= cId, (odr "id") .= refId]

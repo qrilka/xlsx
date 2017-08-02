@@ -71,7 +71,7 @@ main = defaultMain $
     ]
 
 testXlsx :: Xlsx
-testXlsx = Xlsx sheets minimalStyles definedNames customProperties
+testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
   where
     sheets =
       [("List1", sheet1), ("Another sheet", sheet2), ("with pivot table", pvSheet)]
