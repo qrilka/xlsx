@@ -18,7 +18,6 @@ import Test.Tasty (defaultMain, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Tasty.SmallCheck (testProperty)
 
-import Test.SmallCheck.Series (Positive(..))
 import Test.Tasty.HUnit ((@=?))
 
 import Codec.Xlsx
@@ -30,6 +29,7 @@ import Codec.Xlsx.Types.Internal.CustomProperties
 import Codec.Xlsx.Types.Internal.SharedStringTable
 
 import Common
+import CommonTests
 import Diff
 import PivotTableTests
 import DrawingTests
@@ -37,9 +37,7 @@ import DrawingTests
 main :: IO ()
 main = defaultMain $
   testGroup "Tests"
-    [ testProperty "col2int . int2col == id" $
-        \(Positive i) -> i == col2int (int2col i)
-    , testCase "write . read == id" $ do
+    [ testCase "write . read == id" $ do
         let bs = fromXlsx testTime testXlsx
         LB.writeFile "data-test.xlsx" bs
         testXlsx @==? toXlsx (fromXlsx testTime testXlsx)
@@ -67,6 +65,7 @@ main = defaultMain $
         Right testXlsx @==? toXlsxEither (fromXlsx testTime testXlsx)
     , testCase "toXlsxEither: invalid format" $
         Left InvalidZipArchive @==? toXlsxEither "this is not a valid XLSX file"
+    , CommonTests.tests
     , PivotTableTests.tests
     , DrawingTests.tests
     ]
