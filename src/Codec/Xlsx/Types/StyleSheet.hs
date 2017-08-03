@@ -658,7 +658,7 @@ data ImpliedNumberFormat =
   | NfThousandsNegativeParens         -- ^> 37 #,##0 ;(#,##0)
   | NfThousandsNegativeRed            -- ^> 38 #,##0 ;[Red](#,##0)
   | NfThousands2DecimalNegativeParens -- ^> 39 #,##0.00;(#,##0.00)
-  | NfTousands2DecimalNEgativeRed     -- ^> 40 #,##0.00;[Red](#,##0.00)
+  | NfThousands2DecimalNegativeRed    -- ^> 40 #,##0.00;[Red](#,##0.00)
   | NfMmSs                            -- ^> 45 mm:ss
   | NfOptHMmSs                        -- ^> 46 [h]:mm:ss
   | NfMmSs1Decimal                    -- ^> 47 mmss.0
@@ -690,7 +690,7 @@ stdNumberFormatId NfMdyHMm                          = 22 -- m/d/yy h:mm
 stdNumberFormatId NfThousandsNegativeParens         = 37 -- #,##0 ;(#,##0)
 stdNumberFormatId NfThousandsNegativeRed            = 38 -- #,##0 ;[Red](#,##0)
 stdNumberFormatId NfThousands2DecimalNegativeParens = 39 -- #,##0.00;(#,##0.00)
-stdNumberFormatId NfTousands2DecimalNEgativeRed     = 40 -- #,##0.00;[Red](#,##0.00)
+stdNumberFormatId NfThousands2DecimalNegativeRed    = 40 -- #,##0.00;[Red](#,##0.00)
 stdNumberFormatId NfMmSs                            = 45 -- mm:ss
 stdNumberFormatId NfOptHMmSs                        = 46 -- [h]:mm:ss
 stdNumberFormatId NfMmSs1Decimal                    = 47 -- mmss.0
@@ -721,7 +721,7 @@ idToStdNumberFormat 22 = Just NfMdyHMm                          -- m/d/yy h:mm
 idToStdNumberFormat 37 = Just NfThousandsNegativeParens         -- #,##0 ;(#,##0)
 idToStdNumberFormat 38 = Just NfThousandsNegativeRed            -- #,##0 ;[Red](#,##0)
 idToStdNumberFormat 39 = Just NfThousands2DecimalNegativeParens -- #,##0.00;(#,##0.00)
-idToStdNumberFormat 40 = Just NfTousands2DecimalNEgativeRed     -- #,##0.00;[Red](#,##0.00)
+idToStdNumberFormat 40 = Just NfThousands2DecimalNegativeRed    -- #,##0.00;[Red](#,##0.00)
 idToStdNumberFormat 45 = Just NfMmSs                            -- mm:ss
 idToStdNumberFormat 46 = Just NfOptHMmSs                        -- [h]:mm:ss
 idToStdNumberFormat 47 = Just NfMmSs1Decimal                    -- mmss.0
