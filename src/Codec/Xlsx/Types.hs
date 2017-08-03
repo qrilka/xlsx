@@ -23,6 +23,7 @@ module Codec.Xlsx.Types (
     , xlStyles
     , xlDefinedNames
     , xlCustomProperties
+    , xlDateBase
     -- ** Worksheet
     , wsColumnsProperties
     , wsRowPropertiesMap
@@ -193,11 +194,16 @@ newtype Styles = Styles {unStyles :: L.ByteString}
 
 -- | Structured representation of Xlsx file (currently a subset of its contents)
 data Xlsx = Xlsx
-    { _xlSheets           :: [(Text, Worksheet)]
-    , _xlStyles           :: Styles
-    , _xlDefinedNames     :: DefinedNames
-    , _xlCustomProperties :: Map Text Variant
-    } deriving (Eq, Show, Generic)
+  { _xlSheets :: [(Text, Worksheet)]
+  , _xlStyles :: Styles
+  , _xlDefinedNames :: DefinedNames
+  , _xlCustomProperties :: Map Text Variant
+  , _xlDateBase :: DateBase
+  -- ^ date base to use when converting serial value (i.e. 'CellDouble d')
+  -- into date-time. Default value is 'DateBase1900'
+  --
+  -- See also 18.17.4.1 "Date Conversion for Serial Date-Times" (p. 2067)
+  } deriving (Eq, Show, Generic)
 
 -- | Defined names
 --
@@ -226,7 +232,7 @@ newtype DefinedNames = DefinedNames [(Text, Maybe Text, Text)]
 makeLenses ''Xlsx
 
 instance Default Xlsx where
-    def = Xlsx [] emptyStyles def M.empty
+    def = Xlsx [] emptyStyles def M.empty DateBase1900
 
 instance Default DefinedNames where
     def = DefinedNames []

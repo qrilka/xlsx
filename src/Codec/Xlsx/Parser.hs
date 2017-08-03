@@ -21,6 +21,7 @@ import Control.Error.Safe (headErr)
 import Control.Error.Util (note)
 import Control.Lens hiding (element, views, (<.>))
 import Control.Monad.Except (catchError, throwError)
+import Data.Bool (bool)
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Char8 ()
 import Data.List
@@ -35,7 +36,7 @@ import GHC.Generics (Generic)
 import Prelude hiding (sequence)
 import System.FilePath.Posix
 import Text.XML as X
-import Text.XML.Cursor
+import Text.XML.Cursor hiding (bool)
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Parser.Internal.PivotTable
@@ -70,12 +71,12 @@ toXlsxEither bs = do
   ar <- left (const InvalidZipArchive) $ Zip.toArchiveOrFail bs
   sst <- getSharedStrings ar
   contentTypes <- getContentTypes ar
-  (wfs, names, cacheSources) <- readWorkbook ar
+  (wfs, names, cacheSources, dateBase) <- readWorkbook ar
   sheets <- forM wfs $ \wf -> do
       sheet <- extractSheet ar sst contentTypes cacheSources wf
       return (wfName wf, sheet)
   CustomProperties customPropMap <- getCustomProperties ar
-  return $ Xlsx sheets (getStyles ar) names customPropMap
+  return $ Xlsx sheets (getStyles ar) names customPropMap dateBase
 
 data WorksheetFile = WorksheetFile { wfName :: Text
                                    , wfPath :: FilePath
@@ -326,7 +327,7 @@ readChart :: Zip.Archive -> FilePath -> Parser ChartSpace
 readChart ar path = head . fromCursor <$> xmlCursorRequired ar path
 
 -- | readWorkbook pulls the names of the sheets and the defined names
-readWorkbook :: Zip.Archive -> Parser ([WorksheetFile], DefinedNames, Caches)
+readWorkbook :: Zip.Archive -> Parser ([WorksheetFile], DefinedNames, Caches, DateBase)
 readWorkbook ar = do
   let wbPath = "xl/workbook.xml"
   cur <- xmlCursorRequired ar wbPath
@@ -358,7 +359,9 @@ readWorkbook ar = do
         note (InconsistentXlsx $ "Bad pivot table cache in " <> T.pack path) $
         parseCache bs
       return (cacheId, sources)
-  return (sheets, DefinedNames names, caches)
+  let dateBase = bool DateBase1900 DateBase1904 . fromMaybe False . listToMaybe $
+                 cur $/ element (n_ "workbookPr") >=> fromAttribute "date1904"
+  return (sheets, DefinedNames names, caches, dateBase)
 
 getTable :: Zip.Archive -> FilePath -> Parser Table
 getTable ar fp = do
