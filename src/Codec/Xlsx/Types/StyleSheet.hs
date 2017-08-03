@@ -612,7 +612,7 @@ type NumFmt = Text
 -- | This element specifies number format properties which indicate
 -- how to format and render the numeric value of a cell.
 --
--- Section 18.2.30 "numFmt (Number Format)" (p. 1777)
+-- Section 18.8.30 "numFmt (Number Format)" (p. 1777)
 data NumberFormat
     = StdNumberFormat ImpliedNumberFormat
     | UserNumberFormat NumFmt
