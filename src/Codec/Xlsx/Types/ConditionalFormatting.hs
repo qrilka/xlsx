@@ -198,7 +198,7 @@ readCondition "endsWith" cur         = do
     txt <- fromAttribute "text" cur
     return $ EndsWith txt
 readCondition "expression" cur       = do
-    formula <- cur $/ element "formula" >=> fromCursor
+    formula <- cur $/ element (n_ "formula") >=> fromCursor
     return $ Expression formula
 readCondition "timePeriod" cur  = do
     period <- fromAttribute "timePeriod" cur
