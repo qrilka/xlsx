@@ -162,7 +162,18 @@ data CellValue
 -- See Annex L, L.2.16.9.1 "Date Conversion for Serial Values" (p. 4765)
 data DateBase
   = DateBase1900
-  | DateBase1904 deriving (Eq, Show)
+  -- ^ 1900 date base system, the lower limit is January 1, -9999
+  -- 00:00:00, which has serial value -4346018. The upper-limit is
+  -- December 31, 9999, 23:59:59, which has serial value
+  -- 2,958,465.9999884. The base date for this date base system is
+  -- December 30, 1899, which has a serial value of 0.
+  | DateBase1904
+  -- ^ 1904 backward compatibility date-base system, the lower limit
+  -- is January 1, 1904, 00:00:00, which has serial value 0. The upper
+  -- limit is December 31, 9999, 23:59:59, which has serial value
+  -- 2,957,003.9999884. The base date for this date base system is
+  -- January 1, 1904, which has a serial value of 0.
+  deriving (Eq, Show)
 
 baseDate :: DateBase -> Day
 baseDate DateBase1900 = fromGregorian 1899 12 30
