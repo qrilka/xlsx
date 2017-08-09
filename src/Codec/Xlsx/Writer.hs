@@ -413,10 +413,13 @@ appXml sheetNames =
     vTypeEl0 n = vTypeEl n M.empty
     vTypeEl = nEl . nm "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
 
-data XlsxCellData = XlsxSS Int
-                  | XlsxDouble Double
-                  | XlsxBool Bool
-                    deriving (Eq, Show, Generic)
+data XlsxCellData
+  = XlsxSS Int
+  | XlsxDouble Double
+  | XlsxBool Bool
+  | XlsxError ErrorType
+  deriving (Eq, Show, Generic)
+
 data XlsxCell = XlsxCell
     { xlsxCellStyle   :: Maybe Int
     , xlsxCellValue   :: Maybe XlsxCellData
@@ -427,6 +430,7 @@ data XlsxCell = XlsxCell
 xlsxCellType :: XlsxCell -> Text
 xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxSS _)} = "s"
 xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxBool _)} = "b"
+xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxError _)} = "e"
 xlsxCellType _ = "n" -- default in SpreadsheetML schema, TODO: add other types
 
 value :: XlsxCellData -> Text
@@ -434,6 +438,7 @@ value (XlsxSS i)       = txti i
 value (XlsxDouble d)   = txtd d
 value (XlsxBool True)  = "1"
 value (XlsxBool False) = "0"
+value (XlsxError eType) = toAttrVal eType
 
 transformSheetData :: SharedStringTable -> Worksheet -> Cells
 transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
@@ -445,6 +450,7 @@ transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
     transformValue (CellDouble dbl) =  XlsxDouble dbl
     transformValue (CellBool b) = XlsxBool b
     transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
+    transformValue (CellError e) = XlsxError e
 
 bookFiles :: Xlsx -> [FileData]
 bookFiles xlsx = runST $ do

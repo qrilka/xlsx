@@ -231,6 +231,10 @@ extractCellValue _ "n" v =
       _            -> []
 extractCellValue _ "b" "1" = [CellBool True]
 extractCellValue _ "b" "0" = [CellBool False]
+extractCellValue _ "e" v =
+  case fromAttrVal v of
+    Right (e, "") -> [CellError e]
+    _ -> []
 extractCellValue _ _ _ = []
 
 -- | Get xml cursor from the specified file inside the zip archive.

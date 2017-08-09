@@ -13,6 +13,7 @@ module Codec.Xlsx.Types.Common
   , XlsxText(..)
   , Formula(..)
   , CellValue(..)
+  , ErrorType(..)
   , DateBase(..)
   , dateFromNumber
   , dateToNumber
@@ -154,6 +155,61 @@ data CellValue
   | CellDouble Double
   | CellBool Bool
   | CellRich [RichTextRun]
+  | CellError ErrorType
+  deriving (Eq, Ord, Show, Generic)
+
+-- | The evaluation of an expression can result in an error having one
+-- of a number of error values.
+--
+-- See Annex L, L.2.16.8 "Error values" (p. 4764)
+data ErrorType
+  = ErrorDiv0
+  -- ^ @#DIV/0!@ - Intended to indicate when any number, including
+  -- zero, is divided by zero.
+  | ErrorNA
+  -- ^ @#N/A@ - Intended to indicate when a designated value is not
+  -- available. For example, some functions, such as @SUMX2MY2@,
+  -- perform a series of operations on corresponding elements in two
+  -- arrays. If those arrays do not have the same number of elements,
+  -- then for some elements in the longer array, there are no
+  -- corresponding elements in the shorter one; that is, one or more
+  -- values in the shorter array are not available. This error value
+  -- can be produced by calling the function @NA@.
+  | ErrorName
+  -- ^ @#NAME?@ - Intended to indicate when what looks like a name is
+  -- used, but no such name has been defined. For example, @XYZ/3@,
+  -- where @XYZ@ is not a defined name. @Total is & A10@, where
+  -- neither @Total@ nor @is@ is a defined name. Presumably, @"Total
+  -- is " & A10@ was intended. @SUM(A1C10)@, where the range @A1:C10@
+  -- was intended.
+  | ErrorNull
+  -- ^ @#NULL!@ - Intended to indicate when two areas are required to
+  -- intersect, but do not. For example, In the case of @SUM(B1 C1)@,
+  -- the space between @B1@ and @C1@ is treated as the binary
+  -- intersection operator, when a comma was intended.
+  | ErrorNum
+  -- ^ @#NUM!@ - Intended to indicate when an argument to a function
+  -- has a compatible type, but has a value that is outside the domain
+  -- over which that function is defined. (This is known as a domain
+  -- error.) For example, Certain calls to @ASIN@, @ATANH@, @FACT@,
+  -- and @SQRT@ might result in domain errors. Intended to indicate
+  -- that the result of a function cannot be represented in a value of
+  -- the specified type, typically due to extreme magnitude. (This is
+  -- known as a range error.) For example, @FACT(1000)@ might result
+  -- in a range error.
+  | ErrorRef
+  -- ^ @#REF!@ - Intended to indicate when a cell reference is
+  -- invalid. For example, If a formula contains a reference to a
+  -- cell, and then the row or column containing that cell is deleted,
+  -- a @#REF!@ error results. If a worksheet does not support 20,001
+  -- columns, @OFFSET(A1,0,20000)@ results in a @#REF!@ error.
+  | ErrorValue
+  -- ^ @#VALUE!@ - Intended to indicate when an incompatible type
+  -- argument is passed to a function, or an incompatible type operand
+  -- is used with an operator. For example, In the case of a function
+  -- argument, a number was expected, but text was provided. In the
+  -- case of @1+"ABC"@, the binary addition operator is not defined for
+  -- text.
   deriving (Eq, Ord, Show, Generic)
 
 -- | Specifies date base used for conversion of serial values to and
@@ -227,6 +283,16 @@ instance FromAttrVal SqRef where
 instance FromCursor Formula where
     fromCursor cur = [Formula . T.concat $ cur $/ content]
 
+instance FromAttrVal ErrorType where
+  fromAttrVal "#DIV/0!" = readSuccess ErrorDiv0
+  fromAttrVal "#N/A" = readSuccess ErrorNA
+  fromAttrVal "#NAME?" = readSuccess ErrorName
+  fromAttrVal "#NULL!" = readSuccess ErrorNull
+  fromAttrVal "#NUM!" = readSuccess ErrorNum
+  fromAttrVal "#REF!" = readSuccess ErrorRef
+  fromAttrVal "#VALUE!" = readSuccess ErrorValue
+  fromAttrVal t = invalidText "ErrorType" t
+
 {-------------------------------------------------------------------------------
   Rendering
 -------------------------------------------------------------------------------}
@@ -252,3 +318,12 @@ instance ToAttrVal SqRef where
 -- | See @ST_Formula@, p. 3873
 instance ToElement Formula where
     toElement nm (Formula txt) = elementContent nm txt
+
+instance ToAttrVal ErrorType where
+  toAttrVal ErrorDiv0 = "#DIV/0!"
+  toAttrVal ErrorNA = "#N/A"
+  toAttrVal ErrorName = "#NAME?"
+  toAttrVal ErrorNull = "#NULL!"
+  toAttrVal ErrorNum = "#NUM!"
+  toAttrVal ErrorRef = "#REF!"
+  toAttrVal ErrorValue = "#VALUE!"
