@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE QuasiQuotes       #-}
-module Main (main) where
+module Main
+  ( main
+  ) where
 
 import Control.Lens
 import Control.Monad.State.Lazy
@@ -16,7 +18,6 @@ import Text.XML
 
 import Test.Tasty (defaultMain, testGroup)
 import Test.Tasty.HUnit (testCase)
-import Test.Tasty.SmallCheck (testProperty)
 
 import Test.Tasty.HUnit ((@=?))
 
@@ -30,6 +31,7 @@ import Codec.Xlsx.Types.Internal.SharedStringTable
 
 import Common
 import CommonTests
+import CondFmtTests
 import Diff
 import PivotTableTests
 import DrawingTests
@@ -66,6 +68,7 @@ main = defaultMain $
     , testCase "toXlsxEither: invalid format" $
         Left InvalidZipArchive @==? toXlsxEither "this is not a valid XLSX file"
     , CommonTests.tests
+    , CondFmtTests.tests
     , PivotTableTests.tests
     , DrawingTests.tests
     ]

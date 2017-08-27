@@ -283,6 +283,9 @@ instance FromAttrVal SqRef where
 instance FromCursor Formula where
     fromCursor cur = [Formula . T.concat $ cur $/ content]
 
+instance FromAttrVal Formula where
+  fromAttrVal t = readSuccess $ Formula t
+
 instance FromAttrVal ErrorType where
   fromAttrVal "#DIV/0!" = readSuccess ErrorDiv0
   fromAttrVal "#N/A" = readSuccess ErrorNA
