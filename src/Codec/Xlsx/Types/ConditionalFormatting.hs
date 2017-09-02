@@ -6,6 +6,8 @@
 module Codec.Xlsx.Types.ConditionalFormatting
   ( ConditionalFormatting
   , CfRule(..)
+  , NStdDev(..)
+  , Inclusion(..)
   , CfValue(..)
   , MinCfValue(..)
   , MaxCfValue(..)
@@ -37,6 +39,8 @@ module Codec.Xlsx.Types.ConditionalFormatting
   , topCfPriority
   ) where
 
+import Data.Bool (bool)
+import Control.Arrow (first, right)
 import Control.Lens (makeLenses)
 import Data.Default
 import Data.Map (Map)
@@ -45,7 +49,7 @@ import Data.Maybe
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Text.XML
-import Text.XML.Cursor
+import Text.XML.Cursor hiding (bool)
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
@@ -93,20 +97,34 @@ data TimePeriod
     | PerYesterday  -- ^ Yesterday's date.
     deriving (Eq, Ord, Show, Generic)
 
+-- | Flag indicating whether the 'aboveAverage' and 'belowAverage'
+-- criteria is inclusive of the average itself, or exclusive of that
+-- value.
+data Inclusion
+  = Inclusive
+  | Exclusive
+  deriving (Eq, Ord, Show, Generic)
+
+-- | The number of standard deviations to include above or below the
+-- average in the conditional formatting rule.
+newtype NStdDev =
+  NStdDev Int
+  deriving (Eq, Ord, Show, Generic)
+
 -- | Conditions which could be used for conditional formatting
 --
 -- See 18.18.12 "ST_CfType (Conditional Format Type)" (p. 2443)
 data Condition
     -- | This conditional formatting rule highlights cells that are
-    -- above the average for all values in the range.
-    = AboveAverage
+    -- above (or maybe equal to) the average for all values in the range.
+    = AboveAverage Inclusion (Maybe NStdDev)
     -- | This conditional formatting rule highlights cells in the
     -- range that begin with the given text. Equivalent to
     -- using the LEFT() sheet function and comparing values.
     | BeginsWith Text
     -- | This conditional formatting rule highlights cells that are
     -- below the average for all values in the range.
-    | BelowAverage
+    | BelowAverage Inclusion (Maybe NStdDev)
     -- | This conditional formatting rule highlights cells whose
     -- values fall in the bottom N percent bracket.
     | BottomNPercent Int
@@ -366,7 +384,11 @@ instance FromCursor CfRule where
 readCondition :: Text -> Cursor -> [Condition]
 readCondition "aboveAverage" cur       = do
   above <- fromAttributeDef "aboveAverage" True cur
-  if above then return AboveAverage else return BelowAverage
+  inclusion <- fromAttributeDef "equalAverage" Exclusive cur
+  nStdDev <- maybeAttribute "stdDev" cur
+  if above
+    then return $ AboveAverage inclusion nStdDev
+    else return $ BelowAverage inclusion nStdDev
 readCondition "beginsWith" cur = do
   txt <- fromAttribute "text" cur
   return $ BeginsWith txt
@@ -565,6 +587,12 @@ instance FromCursor DataBarOptions where
         fail $ "expected minimum and maximum cfvo nodes but see instead " ++
           show (length ns) ++ " cfvo nodes"
 
+instance FromAttrVal Inclusion where
+  fromAttrVal = right (first $ bool Exclusive Inclusive) . fromAttrVal
+
+instance FromAttrVal NStdDev where
+  fromAttrVal = right (first NStdDev) . fromAttrVal
+
 {-------------------------------------------------------------------------------
   Rendering
 -------------------------------------------------------------------------------}
@@ -585,9 +613,15 @@ instance ToElement CfRule where
            }
 
 conditionData :: Condition -> (Text, Map Name Text, [Node])
-conditionData AboveAverage           = ("aboveAverage", M.fromList ["aboveAverage" .= True], [])
+conditionData (AboveAverage i sDevs) =
+  ("aboveAverage", M.fromList $ ["aboveAverage" .= True] ++
+                   catMaybes [ "equalAverage" .=? justNonDef Exclusive i
+                             , "stdDev" .=? sDevs], [])
 conditionData (BeginsWith t)         = ("beginsWith", M.fromList [ "text" .= t], [])
-conditionData BelowAverage           = ("aboveAverage", M.fromList ["aboveAverage" .= False], [])
+conditionData (BelowAverage i sDevs) =
+  ("aboveAverage", M.fromList $ ["aboveAverage" .= False] ++
+                   catMaybes [ "equalAverage" .=? justNonDef Exclusive i
+                             , "stdDev" .=? sDevs], [])
 conditionData (BottomNPercent n)     = ("top10", M.fromList [ "bottom" .= True, "rank" .= n, "percent" .= True ], [])
 conditionData (BottomNValues n)      = ("top10", M.fromList [ "bottom" .= True, "rank" .= n ], [])
 conditionData (CellIs opExpr)        = ("cellIs", M.fromList [ "operator" .= op], formulas)
@@ -746,3 +780,9 @@ instance ToAttrVal TimePeriod where
     toAttrVal PerToday     = "today"
     toAttrVal PerTomorrow  = "tomorrow"
     toAttrVal PerYesterday = "yesterday"
+
+instance ToAttrVal Inclusion where
+  toAttrVal = toAttrVal . (== Inclusive)
+
+instance ToAttrVal NStdDev where
+  toAttrVal (NStdDev n) = toAttrVal n

@@ -39,9 +39,9 @@ instance Monad m  => Serial m CfRule where
   series = cons4 CfRule
 
 instance Monad m  => Serial m Condition where
-  series = localDepth (const 2) $ cons0 AboveAverage
+  series = localDepth (const 2) $ cons2 AboveAverage
     \/ cons1 BeginsWith
-    \/ cons0 BelowAverage
+    \/ cons2 BelowAverage
     \/ cons1 BottomNPercent
     \/ cons1 BottomNValues
     \/ cons1 CellIs
@@ -65,6 +65,12 @@ instance Monad m  => Serial m Condition where
 
 instance Monad m => Serial m Text where
   series = T.pack <$> series
+
+instance Monad m => Serial m NStdDev where
+  series = NStdDev <$> series
+
+instance Monad m => Serial m Inclusion where
+  series = cons0 Exclusive \/ cons0 Inclusive
 
 instance Monad m => Serial m OperatorExpression where
   series = cons1 OpBeginsWith
