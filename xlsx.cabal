@@ -115,6 +115,7 @@ test-suite data-test
                , Diff
                , DrawingTests
                , PivotTableTests
+               , Test.SmallCheck.Series.Instances
   Build-Depends: base
                , bytestring
                , containers
