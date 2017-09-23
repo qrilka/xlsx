@@ -36,7 +36,7 @@ data PivotTable = PivotTable
   } deriving (Eq, Show, Generic)
 
 data PivotFieldInfo = PivotFieldInfo
-  { _pfiName :: PivotFieldName
+  { _pfiName :: Maybe PivotFieldName
   , _pfiOutline :: Bool
   , _pfiSortType :: FieldSortType
   , _pfiHiddenItems :: [CellValue]

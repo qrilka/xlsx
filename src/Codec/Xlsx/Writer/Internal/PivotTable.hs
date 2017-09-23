@@ -70,40 +70,41 @@ ptDefinitionElement nm cacheId cache PivotTable {..} =
         , "firstDataRow" .= (2 :: Int)
         , "firstDataCol" .= (1 :: Int)
         ]
-    name2x = M.fromList $ zip (map _pfiName _pvtFields) [0 ..]
+    name2x = M.fromList $ zip (mapMaybe _pfiName _pvtFields) [0 ..]
     mapFieldToX f = fromJustNote "no field" $ M.lookup f name2x
     pivotFields = elementListSimple "pivotFields" $ map pFieldEl _pvtFields
+    maybeFieldIn Nothing _ = False
+    maybeFieldIn (Just name) positions = FieldPosition name `elem` positions
     pFieldEl PivotFieldInfo { _pfiName = fName
                             , _pfiOutline = outline
                             , _pfiSortType = sortType
                             , _pfiHiddenItems = hidden
                             }
-      | FieldPosition fName `elem` _pvtRowFields =
+      | fName `maybeFieldIn` _pvtRowFields =
         pFieldEl' fName outline ("axisRow" :: Text) hidden sortType
-      | FieldPosition fName `elem` _pvtColumnFields =
+      | fName `maybeFieldIn` _pvtColumnFields =
         pFieldEl' fName outline ("axisCol" :: Text) hidden sortType
       | otherwise =
-        leafElement
-          "pivotField"
-          [ "name" .= fName
-          , "dataField" .= True
-          , "showAll" .= False
-          , "outline" .= outline
-          ]
+        leafElement "pivotField" $
+        [ "dataField" .= True
+        , "showAll" .= False
+        , "outline" .= outline] ++
+        catMaybes ["name" .=? fName]
     pFieldEl' fName outline axis hidden sortType =
       elementList
         "pivotField"
-        ([ "name" .= fName
-         , "axis" .= axis
+        ([ "axis" .= axis
          , "showAll" .= False
          , "outline" .= outline
          ] ++
-         catMaybes ["sortType" .=? justNonDef FieldSortManual sortType])
+         catMaybes [ "name" .=? fName
+                   , "sortType" .=? justNonDef FieldSortManual sortType])
         [ elementListSimple "items" $
           items fName hidden ++
           [leafElement "item" ["t" .= ("default" :: Text)]]
         ]
-    items fName hidden =
+    items Nothing _ = []
+    items (Just fName) hidden =
       [ itemEl x item hidden
       | (x, item) <- zip [0 ..] . fromMaybe [] $ M.lookup fName cachedItems
       ]
@@ -138,7 +139,7 @@ generateCache cm PivotTable {..} =
   , cdFields = cachedFields
   }
   where
-    cachedFields = map (cache . _pfiName) _pvtFields
+    cachedFields = mapMaybe (fmap cache . _pfiName) _pvtFields
     cache name =
       CacheField
       { cfName = name

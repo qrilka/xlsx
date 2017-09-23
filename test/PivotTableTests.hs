@@ -67,10 +67,10 @@ testPivotTable =
         }
       ]
   , _pvtFields =
-      [ PivotFieldInfo colorField False FieldSortAscending [CellText "green"]
-      , PivotFieldInfo yearField True FieldSortManual []
-      , PivotFieldInfo priceField False FieldSortManual []
-      , PivotFieldInfo countField False FieldSortManual []
+      [ PivotFieldInfo (Just $ colorField) False FieldSortAscending [CellText "green"]
+      , PivotFieldInfo (Just $ yearField) True FieldSortManual []
+      , PivotFieldInfo (Just $ priceField) False FieldSortManual []
+      , PivotFieldInfo (Just $ countField) False FieldSortManual []
       ]
   , _pvtRowGrandTotals = True
   , _pvtColumnGrandTotals = False

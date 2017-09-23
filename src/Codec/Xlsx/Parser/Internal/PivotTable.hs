@@ -7,10 +7,10 @@ module Codec.Xlsx.Parser.Internal.PivotTable
   ) where
 
 import Control.Applicative
-import Control.Arrow ((&&&))
 import Data.ByteString.Lazy (ByteString)
 import Data.Maybe (listToMaybe, maybeToList)
 import Data.Text (Text)
+import Safe (atMay)
 import Text.XML
 import Text.XML.Cursor
 
@@ -38,20 +38,26 @@ parsePivotTable srcByCacheId bs =
           _pvtColumnGrandTotals <- fromAttributeDef "colGrandTotals" True cur
           _pvtOutline <- fromAttributeDef "outline" False cur
           _pvtOutlineData <- fromAttributeDef "outlineData" False cur
-          let name2CacheField = map (cfName &&& id) cacheFields
-              _pvtFields =
+          let pvtFieldsWithHidden =
                 cur $/ element (n_ "pivotFields") &/ element (n_ "pivotField") >=> \c -> do
-                  _pfiName <- fromAttribute "name" c
+                  -- actually gets overwritten from cache to have consistent field names
+                  _pfiName <- maybeAttribute "name" c
                   _pfiSortType <- fromAttributeDef "sortType" FieldSortManual c
                   _pfiOutline <- fromAttributeDef "outline" True c
                   let hidden =
                         c $/ element (n_ "items") &/ element (n_ "item") >=>
                         attrValIs "h" True >=> fromAttribute "x"
-                      items = maybe [] cfItems $ lookup _pfiName name2CacheField
-                      _pfiHiddenItems =
-                        [item | (n, item) <- zip [(0 :: Int) ..] items, n `elem` hidden]
-                  return PivotFieldInfo {..}
-              nToFieldName = zip [0 ..] $ map _pfiName _pvtFields
+                      _pfiHiddenItems = []
+                  return (PivotFieldInfo {..}, hidden)
+              _pvtFields = flip map (zip [0.. ] pvtFieldsWithHidden) $
+                           \(i, (PivotFieldInfo {..}, hidden)) ->
+                             let  _pfiHiddenItems =
+                                    [item | (n, item) <- zip [(0 :: Int) ..] items, n `elem` hidden]
+                                  (_pfiName, items) = case atMay cacheFields i of
+                                    Just CacheField{..} -> (Just cfName, cfItems)
+                                    Nothing -> (Nothing, [])
+                             in PivotFieldInfo {..}
+              nToFieldName = zip [0 ..] $ map cfName cacheFields
               fieldNameList fld = maybeToList $ lookup fld nToFieldName
               _pvtRowFields =
                 cur $/ element (n_ "rowFields") &/ element (n_ "field") >=>
