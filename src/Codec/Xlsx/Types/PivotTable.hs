@@ -12,6 +12,7 @@ module Codec.Xlsx.Types.PivotTable
   ) where
 
 import Control.Arrow (first)
+import Control.DeepSeq (NFData)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -34,6 +35,7 @@ data PivotTable = PivotTable
   , _pvtSrcSheet :: Text
   , _pvtSrcRef :: Range
   } deriving (Eq, Show, Generic)
+instance NFData PivotTable
 
 data PivotFieldInfo = PivotFieldInfo
   { _pfiName :: PivotFieldName
@@ -41,6 +43,7 @@ data PivotFieldInfo = PivotFieldInfo
   , _pfiSortType :: FieldSortType
   , _pfiHiddenItems :: [CellValue]
   } deriving (Eq, Show, Generic)
+instance NFData PivotFieldInfo
 
 -- | Sort orders that can be applied to fields in a PivotTable
 --
@@ -50,21 +53,25 @@ data FieldSortType
   | FieldSortDescending
   | FieldSortManual
   deriving (Eq, Ord, Show, Generic)
+instance NFData FieldSortType
 
 newtype PivotFieldName =
   PivotFieldName Text
   deriving (Eq, Ord, Show, Generic)
+instance NFData PivotFieldName
 
 data PositionedField
   = DataPosition
   | FieldPosition PivotFieldName
   deriving (Eq, Ord, Show, Generic)
+instance NFData PositionedField
 
 data DataField = DataField
   { _dfField :: PivotFieldName
   , _dfName :: Text
   , _dfFunction :: ConsolidateFunction
   } deriving (Eq, Show, Generic)
+instance NFData DataField
 
 -- | Data consolidation functions specified by the user and used to
 -- consolidate ranges of data
@@ -102,6 +109,7 @@ data ConsolidateFunction
     -- ^ The variance of a population, where the population is all of
     -- the data to be summarized.
   deriving (Eq, Show, Generic)
+instance NFData ConsolidateFunction
 
 {-------------------------------------------------------------------------------
   Rendering

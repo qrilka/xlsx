@@ -10,6 +10,7 @@ import GHC.Generics (Generic)
 import Control.Arrow (first)
 import Control.Lens.TH
 import Control.Monad (join)
+import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Maybe (catMaybes, listToMaybe)
 import Data.Monoid ((<>))
@@ -32,6 +33,7 @@ import Codec.Xlsx.Writer.Internal
 newtype Angle =
   Angle Int
   deriving (Eq, Show, Generic)
+instance NFData Angle
 
 -- | A string with rich text formatting
 --
@@ -62,6 +64,8 @@ data TextBody = TextBody
   , _txbdParagraphs :: [TextParagraph]
     -- ^ Paragraphs of text within the containing text body
   } deriving (Eq, Show, Generic)
+instance NFData TextBody
+
 
 -- | Text vertical overflow
 -- See 20.1.10.83 "ST_TextVertOverflowType (Text Vertical Overflow)" (p. 3083)
@@ -75,6 +79,7 @@ data TextVertOverflow
   | TextVertOverflow
     -- ^ Overflow the text and pay no attention to top and bottom barriers.
   deriving (Eq, Show, Generic)
+instance NFData TextVertOverflow
 
 -- | If there is vertical text, determines what kind of vertical text is going to be used.
 --
@@ -104,6 +109,7 @@ data TextVertical
     -- ^  Specifies that vertical WordArt should be shown from right to left rather than
     -- left to right.
   deriving (Eq, Show, Generic)
+instance NFData TextVertical
 
 -- | Text wrapping types
 --
@@ -115,6 +121,7 @@ data TextWrap
     | TextWrapSquare
     -- ^ Determines whether we wrap words within the bounding rectangle.
     deriving (Eq, Show, Generic)
+instance NFData TextWrap
 
 -- | This type specifies a list of available anchoring types for text.
 --
@@ -141,12 +148,14 @@ data TextAnchoring
   | TextAnchoringTop
     -- ^ Anchor the text at the top of the bounding rectangle.
   deriving (Eq, Show, Generic)
+instance NFData TextAnchoring
 
 -- See 21.1.2.2.6 "p (Text Paragraphs)" (p. 3211)
 data TextParagraph = TextParagraph
   { _txpaDefCharProps :: Maybe TextCharacterProperties
   , _txpaRuns :: [TextRun]
   } deriving (Eq, Show, Generic)
+instance NFData TextParagraph
 
 -- | Text character properties
 --
@@ -162,6 +171,7 @@ data TextCharacterProperties = TextCharacterProperties
   , _txchItalic :: Bool
   , _txchUnderline :: Bool
   } deriving (Eq, Show, Generic)
+instance NFData TextCharacterProperties
 
 -- | Text run
 --
@@ -170,6 +180,7 @@ data TextRun = RegularRun
   { _txrCharProps :: Maybe TextCharacterProperties
   , _txrText :: Text
   } deriving (Eq, Show, Generic)
+instance NFData TextRun
 
 -- | This simple type represents a one dimensional position or length
 --
@@ -181,6 +192,7 @@ data Coordinate
                      Double
     -- ^ see 22.9.2.15 "ST_UniversalMeasure (Universal Measurement)" (p. 3793)
   deriving (Eq, Show, Generic)
+instance NFData Coordinate
 
 -- | Units used in "Universal measure" coordinates
 -- see 22.9.2.15 "ST_UniversalMeasure (Universal Measurement)" (p. 3793)
@@ -192,12 +204,14 @@ data UnitIdentifier
   | UnitPc -- "pc" 1 pc = 12 pt (informative)
   | UnitPi -- "pi" 1 pi = 12 pt (informative)
   deriving (Eq, Show, Generic)
+instance NFData UnitIdentifier
 
 -- See @CT_Point2D@ (p. 3989)
 data Point2D = Point2D
   { _pt2dX :: Coordinate
   , _pt2dY :: Coordinate
   } deriving (Eq, Show, Generic)
+instance NFData Point2D
 
 unqPoint2D :: Int -> Int -> Point2D
 unqPoint2D x y = Point2D (UnqCoordinate x) (UnqCoordinate y)
@@ -207,11 +221,13 @@ unqPoint2D x y = Point2D (UnqCoordinate x) (UnqCoordinate y)
 newtype PositiveCoordinate =
   PositiveCoordinate Integer
   deriving (Eq, Ord, Show, Generic)
+instance NFData PositiveCoordinate
 
 data PositiveSize2D = PositiveSize2D
   { _ps2dX :: PositiveCoordinate
   , _ps2dY :: PositiveCoordinate
   } deriving (Eq, Show, Generic)
+instance NFData PositiveSize2D
 
 positiveSize2D :: Integer -> Integer -> PositiveSize2D
 positiveSize2D x y =
@@ -239,6 +255,7 @@ data Transform2D = Transform2D
     -- ^ See 20.1.7.3 "ext (Extents)" (p. 2846) or
     -- 20.5.2.14 "ext (Shape Extent)" (p. 3165)
   } deriving (Eq, Show, Generic)
+instance NFData Transform2D
 
 -- TODO: custGeom
 data Geometry =
@@ -246,6 +263,7 @@ data Geometry =
   -- TODO: prst, avList
   -- currently uses "rect" with empty avList
   deriving (Eq, Show, Generic)
+instance NFData Geometry
 
 -- See 20.1.2.2.35 "spPr (Shape Properties)" (p. 2751)
 data ShapeProperties = ShapeProperties
@@ -255,6 +273,7 @@ data ShapeProperties = ShapeProperties
   , _spOutline :: Maybe LineProperties
     -- TODO: bwMode, a_EG_EffectProperties, scene3d, sp3d, extLst
   } deriving (Eq, Show, Generic)
+instance NFData ShapeProperties
 
 -- | Specifies an outline style that can be applied to a number of
 -- different objects such as shapes and text.
@@ -270,6 +289,7 @@ data LineProperties = LineProperties
   -- value is in EMU, is greater of equal to 0 and maximum value is
   -- 20116800.
   } deriving (Eq, Show, Generic)
+instance NFData LineProperties
 
 -- | Color choice for some drawing element
 --
@@ -284,6 +304,7 @@ data ColorChoice =
   --
   -- See 20.1.2.3.32 "srgbClr (RGB Color Model - Hex Variant)" (p. 2773)
   deriving (Eq, Show, Generic)
+instance NFData ColorChoice
 
 -- TODO: gradFill, pattFill
 data FillProperties =
@@ -293,6 +314,7 @@ data FillProperties =
   -- ^ Solid fill
   -- See 20.1.8.54 "solidFill (Solid Fill)" (p. 2879)
   deriving (Eq, Show, Generic)
+instance NFData FillProperties
 
 -- | solid fill with color specified by hexadecimal RGB color
 solidRgb :: Text -> FillProperties

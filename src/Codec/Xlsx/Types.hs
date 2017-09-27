@@ -57,6 +57,7 @@ module Codec.Xlsx.Types (
 
 import Control.Exception (SomeException, toException)
 import Control.Lens.TH
+import Control.DeepSeq (NFData)
 import qualified Data.ByteString.Lazy as L
 import Data.Default
 import Data.Function (on)
@@ -96,6 +97,7 @@ data RowHeight
   | AutomaticHeight !Double
     -- ^ Row height is set automatically by the program
   deriving (Eq, Ord, Show, Read, Generic)
+instance NFData RowHeight
 
 -- | Properties of a row. See §18.3.1.73 "row (Row)" for more details
 data RowProperties = RowProps
@@ -106,6 +108,7 @@ data RowProperties = RowProps
   , rowHidden       :: Bool
     -- ^ Whether row is visible or not
   } deriving (Eq, Ord, Show, Read, Generic)
+instance NFData RowProperties
 
 instance Default RowProperties where
   def = RowProps { rowHeight       = Nothing
@@ -140,6 +143,7 @@ data ColumnsProperties = ColumnsProperties
   -- ^ Flag indicating if the specified column(s) is set to 'best
   -- fit'.
   } deriving (Eq, Show, Generic)
+instance NFData ColumnsProperties
 
 instance FromCursor ColumnsProperties where
   fromCursor c = do
@@ -168,6 +172,7 @@ data Worksheet = Worksheet
   , _wsTables :: [Table]
   , _wsProtection :: Maybe SheetProtection
   } deriving (Eq, Show, Generic)
+instance NFData Worksheet
 
 makeLenses ''Worksheet
 
@@ -191,6 +196,7 @@ instance Default Worksheet where
 
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show, Generic)
+instance NFData Styles
 
 -- | Structured representation of Xlsx file (currently a subset of its contents)
 data Xlsx = Xlsx
@@ -204,6 +210,8 @@ data Xlsx = Xlsx
   --
   -- See also 18.17.4.1 "Date Conversion for Serial Date-Times" (p. 2067)
   } deriving (Eq, Show, Generic)
+instance NFData Xlsx
+
 
 -- | Defined names
 --
@@ -228,6 +236,7 @@ data Xlsx = Xlsx
 -- NOTE: Right now this is only a minimal implementation of defined names.
 newtype DefinedNames = DefinedNames [(Text, Maybe Text, Text)]
   deriving (Eq, Show, Generic)
+instance NFData DefinedNames
 
 makeLenses ''Xlsx
 

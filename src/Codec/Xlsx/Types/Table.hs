@@ -6,6 +6,7 @@
 module Codec.Xlsx.Types.Table where
 
 import Control.Lens (makeLenses)
+import Control.DeepSeq (NFData)
 import Data.Maybe (catMaybes, maybeToList)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -62,6 +63,7 @@ data Table = Table
     -- include at least 1 column
   , tblAutoFilter :: Maybe AutoFilter
   } deriving (Eq, Show, Generic)
+instance NFData Table
 
 -- | Single table column
 --
@@ -75,6 +77,7 @@ data TableColumn = TableColumn
   -- UI, and is referenced through functions. This name shall be
   -- unique per table.
   } deriving (Eq, Show, Generic)
+instance NFData TableColumn
 
 makeLenses ''Table
 

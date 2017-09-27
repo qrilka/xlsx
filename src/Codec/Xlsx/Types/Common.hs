@@ -25,6 +25,7 @@ import GHC.Generics (Generic)
 
 import Control.Arrow
 import Control.Monad (guard)
+import Control.DeepSeq (NFData)
 import Data.Char
 import Data.Ix (inRange)
 import qualified Data.Map as Map
@@ -66,6 +67,8 @@ col2int = T.foldl' (\i c -> i * 26 + let2int c) 0
 newtype CellRef = CellRef
   { unCellRef :: Text
   } deriving (Eq, Ord, Show, Generic)
+
+instance NFData CellRef
 
 -- | Render position in @(row, col)@ format to an Excel reference.
 --
@@ -118,6 +121,8 @@ fromRange r =
 newtype SqRef = SqRef [CellRef]
     deriving (Eq, Ord, Show, Generic)
 
+instance NFData SqRef
+
 -- | Common type containing either simple string or rich formatted text.
 -- Used in @si@, @comment@ and @is@ elements
 --
@@ -140,11 +145,15 @@ data XlsxText = XlsxText Text
               | XlsxRichText [RichTextRun]
               deriving (Eq, Ord, Show, Generic)
 
+instance NFData XlsxText
+
 -- | A formula
 --
 -- See 18.18.35 "ST_Formula (Formula)" (p. 2457)
 newtype Formula = Formula {unFormula :: Text}
     deriving (Eq, Ord, Show, Generic)
+
+instance NFData Formula
 
 -- | Cell values include text, numbers and booleans,
 -- standard includes date format also but actually dates
@@ -157,6 +166,8 @@ data CellValue
   | CellRich [RichTextRun]
   | CellError ErrorType
   deriving (Eq, Ord, Show, Generic)
+
+instance NFData CellValue
 
 -- | The evaluation of an expression can result in an error having one
 -- of a number of error values.
@@ -212,6 +223,8 @@ data ErrorType
   -- text.
   deriving (Eq, Ord, Show, Generic)
 
+instance NFData ErrorType
+
 -- | Specifies date base used for conversion of serial values to and
 -- from datetime values
 --
@@ -229,7 +242,8 @@ data DateBase
   -- limit is December 31, 9999, 23:59:59, which has serial value
   -- 2,957,003.9999884. The base date for this date base system is
   -- January 1, 1904, which has a serial value of 0.
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+instance NFData DateBase
 
 baseDate :: DateBase -> Day
 baseDate DateBase1900 = fromGregorian 1899 12 30

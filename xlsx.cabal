@@ -73,6 +73,7 @@ Library
 
   Build-depends:     base         == 4.*
                    , binary-search
+                   , deepseq      >= 1.4
                    , bytestring   >= 0.10.0.2
                    , conduit      >= 1.0.0
                    , containers   >= 0.5.0.0

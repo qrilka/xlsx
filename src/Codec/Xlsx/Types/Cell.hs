@@ -14,6 +14,7 @@ module Codec.Xlsx.Types.Cell
   ) where
 
 import Control.Lens.TH (makeLenses)
+import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -44,6 +45,7 @@ data CellFormula
       -- [/Example/: This is always set on volatile functions,
       -- like =RAND(), and circular references. /end example/]
       } deriving (Eq, Show, Generic)
+instance NFData CellFormula
 
 simpleCellFormula :: Text -> CellFormula
 simpleCellFormula expr = NormalCellFormula
@@ -60,6 +62,7 @@ data Cell = Cell
     , _cellComment :: Maybe Comment
     , _cellFormula :: Maybe CellFormula
     } deriving (Eq, Show, Generic)
+instance NFData Cell
 
 instance Default Cell where
     def = Cell Nothing Nothing Nothing Nothing

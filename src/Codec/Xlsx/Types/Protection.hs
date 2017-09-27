@@ -32,6 +32,7 @@ import GHC.Generics (Generic)
 
 import Control.Arrow (first)
 import Control.Lens (makeLenses)
+import Control.DeepSeq (NFData)
 import Data.Bits
 import Data.Char
 import Data.Maybe (catMaybes)
@@ -47,6 +48,7 @@ import Codec.Xlsx.Writer.Internal
 newtype LegacyPassword =
   LegacyPassword Text
   deriving (Eq, Show, Generic)
+instance NFData LegacyPassword
 
 -- | Creates legacy @XOR@ hashed password.
 --
@@ -129,6 +131,7 @@ data SheetProtection = SheetProtection
   , _sprSort :: Bool
     -- ^ sorting should not be allowed when the sheet is protected
   } deriving (Eq, Show, Generic)
+instance NFData SheetProtection
 
 makeLenses ''SheetProtection
 

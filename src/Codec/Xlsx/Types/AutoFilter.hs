@@ -7,6 +7,7 @@ module Codec.Xlsx.Types.AutoFilter where
 import GHC.Generics (Generic)
 
 import Control.Lens (makeLenses)
+import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Map (Map)
 import Data.Maybe (catMaybes)
@@ -34,11 +35,13 @@ data FilterColumn
   | CustomFiltersAnd CustomFilter
                      CustomFilter
   deriving (Eq, Show, Generic)
+instance NFData FilterColumn
 
 data CustomFilter = CustomFilter
   { cfltOperator :: CustomFilterOperator
   , cfltValue :: Text
   } deriving (Eq, Show, Generic)
+instance NFData CustomFilter
 
 data CustomFilterOperator
   = FltrEqual
@@ -54,6 +57,7 @@ data CustomFilterOperator
   | FltrNotEqual
     -- ^ Show results which are not equal to criteria.
   deriving (Eq, Show, Generic)
+instance NFData CustomFilterOperator
 
 -- | AutoFilter temporarily hides rows based on a filter criteria,
 -- which is applied column by column to a table of datain the
@@ -66,6 +70,7 @@ data AutoFilter = AutoFilter
   { _afRef :: Maybe CellRef
   , _afFilterColumns :: Map Int FilterColumn
   } deriving (Eq, Show, Generic)
+instance NFData AutoFilter
 
 makeLenses ''AutoFilter
 

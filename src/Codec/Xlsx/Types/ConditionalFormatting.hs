@@ -42,6 +42,7 @@ module Codec.Xlsx.Types.ConditionalFormatting
 import Data.Bool (bool)
 import Control.Arrow (first, right)
 import Control.Lens (makeLenses)
+import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -78,6 +79,7 @@ data OperatorExpression
     | OpNotContains Formula        -- ^ 'Does not contain' operator
     | OpNotEqual Formula           -- ^ 'Not equal to' operator
     deriving (Eq, Ord, Show, Generic)
+instance NFData OperatorExpression
 
 -- | Used in a "contains dates" conditional formatting rule.
 -- These are dynamic time periods, which change based on
@@ -96,6 +98,7 @@ data TimePeriod
     | PerTomorrow   -- ^ Tomorrow's date.
     | PerYesterday  -- ^ Yesterday's date.
     deriving (Eq, Ord, Show, Generic)
+instance NFData TimePeriod
 
 -- | Flag indicating whether the 'aboveAverage' and 'belowAverage'
 -- criteria is inclusive of the average itself, or exclusive of that
@@ -104,12 +107,14 @@ data Inclusion
   = Inclusive
   | Exclusive
   deriving (Eq, Ord, Show, Generic)
+instance NFData Inclusion
 
 -- | The number of standard deviations to include above or below the
 -- average in the conditional formatting rule.
 newtype NStdDev =
   NStdDev Int
   deriving (Eq, Ord, Show, Generic)
+instance NFData NStdDev
 
 -- | Conditions which could be used for conditional formatting
 --
@@ -205,6 +210,7 @@ data Condition
     -- | This conditional formatting rule highlights unique values in the range.
     | UniqueValues
     deriving (Eq, Ord, Show, Generic)
+instance NFData Condition
 
 -- | Describes the values of the interpolation points in a color
 -- scale, data bar or icon set conditional formatting rules.
@@ -216,16 +222,19 @@ data CfValue
   | CfPercentile Double
   | CfFormula Formula
   deriving (Eq, Ord, Show, Generic)
+instance NFData CfValue
 
 data MinCfValue
   = CfvMin
   | MinCfValue CfValue
   deriving (Eq, Ord, Show, Generic)
+instance NFData MinCfValue
 
 data MaxCfValue
   = CfvMax
   | MaxCfValue CfValue
   deriving (Eq, Ord, Show, Generic)
+instance NFData MaxCfValue
 
 -- | internal type for (de)serialization
 --
@@ -250,6 +259,8 @@ data CfvType =
   | CfvtPercentile
   -- ^ Value indicates a percentile ranking in the range shall be used
   -- as the minimum \/ midpoint \/ maximum value for the gradient.
+  deriving (Eq, Ord, Show, Generic)
+instance NFData CfvType
 
 -- | Describes an icon set conditional formatting rule.
 --
@@ -263,6 +274,7 @@ data IconSetOptions = IconSetOptions
   -- ^ indicates whether to show the values of the cells on which this
   -- icon set is applied.
   } deriving (Eq, Ord, Show, Generic)
+instance NFData IconSetOptions
 
 -- | Icon set type for conditional formatting. 'CfValue' fields
 -- determine lower range bounds. I.e. @IconSet3Signs (CfPercent 0)
@@ -291,6 +303,7 @@ data IconSetType =
   | IconSet5Quarters CfValue CfValue CfValue CfValue CfValue
   | IconSet5Rating CfValue CfValue CfValue CfValue CfValue
   deriving  (Eq, Ord, Show, Generic)
+instance NFData IconSetType
 
 -- | Describes a data bar conditional formatting rule.
 --
@@ -309,6 +322,7 @@ data DataBarOptions = DataBarOptions
   , _dboMaximum :: MaxCfValue
   , _dboColor :: Color
   } deriving (Eq, Ord, Show, Generic)
+instance NFData DataBarOptions
 
 defaultDboMaxLength :: Int
 defaultDboMaxLength = 90
@@ -347,6 +361,7 @@ data CfRule = CfRule
     -- evaluates to true.
     , _cfrStopIfTrue :: Maybe Bool
     } deriving (Eq, Ord, Show, Generic)
+instance NFData CfRule
 
 instance Default IconSetOptions where
   def =
