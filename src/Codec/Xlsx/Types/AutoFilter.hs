@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -16,6 +17,10 @@ import qualified Data.Map as M
 import Data.Text (Text)
 import Text.XML
 import Text.XML.Cursor hiding (bool)
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative
+#endif
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.Common
