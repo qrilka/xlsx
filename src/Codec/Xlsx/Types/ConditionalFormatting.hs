@@ -1,8 +1,8 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types.ConditionalFormatting
   ( ConditionalFormatting
   , CfRule(..)
@@ -26,6 +26,7 @@ module Codec.Xlsx.Types.ConditionalFormatting
   , cfrStopIfTrue
     -- ** IconSetOptions
   , isoIconSet
+  , isoValues
   , isoReverse
   , isoShowValue
     -- ** DataBarOptions
@@ -257,6 +258,8 @@ data CfvType =
 data IconSetOptions = IconSetOptions
   { _isoIconSet :: IconSetType
   -- ^ icon set used, default value is 'IconSet3Trafficlights1'
+  , _isoValues :: [CfValue]
+  -- ^ values describing per icon ranges
   , _isoReverse :: Bool
   -- ^ reverses the default order of the icons in the specified icon set
   , _isoShowValue :: Bool
@@ -272,24 +275,24 @@ data IconSetOptions = IconSetOptions
 --
 -- 18.18.42 "ST_IconSetType (Icon Set Type)" (p. 2463)
 data IconSetType =
-  IconSet3Arrows CfValue CfValue CfValue
-  | IconSet3ArrowsGray CfValue CfValue CfValue
-  | IconSet3Flags CfValue CfValue CfValue
-  | IconSet3Signs CfValue CfValue CfValue
-  | IconSet3Symbols CfValue CfValue CfValue
-  | IconSet3Symbols2 CfValue CfValue CfValue
-  | IconSet3TrafficLights1 CfValue CfValue CfValue
-  | IconSet3TrafficLights2 CfValue CfValue CfValue
+  IconSet3Arrows -- CfValue CfValue CfValue
+  | IconSet3ArrowsGray -- CfValue CfValue CfValue
+  | IconSet3Flags -- CfValue CfValue CfValue
+  | IconSet3Signs -- CfValue CfValue CfValue
+  | IconSet3Symbols -- CfValue CfValue CfValue
+  | IconSet3Symbols2 -- CfValue CfValue CfValue
+  | IconSet3TrafficLights1 -- CfValue CfValue CfValue
+  | IconSet3TrafficLights2 -- CfValue CfValue CfValue
   -- ^ 3 traffic lights icon set with thick black border.
-  | IconSet4Arrows CfValue CfValue CfValue CfValue
-  | IconSet4ArrowsGray CfValue CfValue CfValue CfValue
-  | IconSet4Rating CfValue CfValue CfValue CfValue
-  | IconSet4RedToBlack CfValue CfValue CfValue CfValue
-  | IconSet4TrafficLights CfValue CfValue CfValue CfValue
-  | IconSet5Arrows CfValue CfValue CfValue CfValue CfValue
-  | IconSet5ArrowsGray CfValue CfValue CfValue CfValue CfValue
-  | IconSet5Quarters CfValue CfValue CfValue CfValue CfValue
-  | IconSet5Rating CfValue CfValue CfValue CfValue CfValue
+  | IconSet4Arrows -- CfValue CfValue CfValue CfValue
+  | IconSet4ArrowsGray -- CfValue CfValue CfValue CfValue
+  | IconSet4Rating -- CfValue CfValue CfValue CfValue
+  | IconSet4RedToBlack -- CfValue CfValue CfValue CfValue
+  | IconSet4TrafficLights -- CfValue CfValue CfValue CfValue
+  | IconSet5Arrows -- CfValue CfValue CfValue CfValue CfValue
+  | IconSet5ArrowsGray -- CfValue CfValue CfValue CfValue CfValue
+  | IconSet5Quarters -- CfValue CfValue CfValue CfValue CfValue
+  | IconSet5Rating -- CfValue CfValue CfValue CfValue CfValue
   deriving  (Eq, Ord, Show, Generic)
 
 -- | Describes a data bar conditional formatting rule.
@@ -351,8 +354,9 @@ data CfRule = CfRule
 instance Default IconSetOptions where
   def =
     IconSetOptions
-    { _isoIconSet =
-        IconSet3TrafficLights1 (CfPercent 0) (CfPercent 33.33) (CfPercent 66.67)
+    { _isoIconSet = IconSet3TrafficLights1
+    , _isoValues = [CfPercent 0, CfPercent 33.33, CfPercent 66.67]
+--        IconSet3TrafficLights1 (CfPercent 0) (CfPercent 33.33) (CfPercent 66.67)
     , _isoReverse = False
     , _isoShowValue = True
     }
@@ -522,54 +526,36 @@ instance FromCursor MinCfValue where
 instance FromCursor MaxCfValue where
   fromCursor = readCfValue MaxCfValue failMinCfvType (return CfvMax)
 
-defaultIconSet :: Text
-defaultIconSet =  "3TrafficLights1"
+defaultIconSet :: IconSetType
+defaultIconSet =  IconSet3TrafficLights1
 
 instance FromCursor IconSetOptions where
   fromCursor cur = do
-    isType <- fromAttributeDef "iconSet" defaultIconSet cur
+    _isoIconSet <- fromAttributeDef "iconSet" defaultIconSet cur
+    let _isoValues = cur $/ element (n_ "cfvo") >=> fromCursor
     _isoReverse <- fromAttributeDef "reverse" False cur
     _isoShowValue <- fromAttributeDef "showValue" True cur
-    let cfvoEls = cur $/ element (n_ "cfvo")
-    _isoIconSet <- case (isType, cfvoEls) of
-      ("3Arrows", [e1, e2, e3]) ->
-        IconSet3Arrows <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3
-      ("3ArrowsGray", [e1, e2, e3]) ->
-        IconSet3ArrowsGray <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3
-      ("3Flags", [e1, e2, e3]) ->
-        IconSet3Flags <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3
-      ("3Signs", [e1, e2, e3]) ->
-        IconSet3Signs <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3
-      ("3Symbols", [e1, e2, e3]) ->
-        IconSet3Symbols <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3
-      ("3Symbols2", [e1, e2, e3]) ->
-        IconSet3Symbols2 <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3
-      ("3TrafficLights1", [e1, e2, e3]) ->
-        IconSet3TrafficLights1 <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3
-      ("3TrafficLights2", [e1, e2, e3]) ->
-        IconSet3TrafficLights2 <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3
-      ("4Arrows", [e1, e2, e3, e4]) ->
-        IconSet4Arrows <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3 <*> fromCursor e4
-      ("4ArrowsGray", [e1, e2, e3, e4]) ->
-        IconSet4ArrowsGray <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3 <*> fromCursor e4
-      ("4Rating", [e1, e2, e3, e4]) ->
-        IconSet4Rating <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3 <*> fromCursor e4
-      ("4RedToBlack", [e1, e2, e3, e4]) ->
-        IconSet4RedToBlack <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3 <*> fromCursor e4
-      ("4TrafficLights", [e1, e2, e3, e4]) ->
-        IconSet4TrafficLights <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3 <*> fromCursor e4
-      ("5Arrows", [e1, e2, e3, e4, e5]) ->
-        IconSet5Arrows <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3 <*> fromCursor e4 <*> fromCursor e5
-      ("5ArrowsGray", [e1, e2, e3, e4, e5]) ->
-        IconSet5ArrowsGray <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3 <*> fromCursor e4 <*> fromCursor e5
-      ("5Quarters", [e1, e2, e3, e4, e5]) ->
-        IconSet5Quarters <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3 <*> fromCursor e4 <*> fromCursor e5
-      ("5Rating", [e1, e2, e3, e4, e5]) ->
-        IconSet5Rating <$> fromCursor e1 <*> fromCursor e2 <*> fromCursor e3 <*> fromCursor e4 <*> fromCursor e5
-      _ ->
-        fail $ "unexpected combination of icon set type " ++ show isType ++ " and " ++
-                   show (length cfvoEls) ++ " cfvo elements"
-    return IconSetOptions{..}
+    return IconSetOptions {..}
+
+instance FromAttrVal IconSetType where
+  fromAttrVal "3Arrows" = readSuccess IconSet3Arrows
+  fromAttrVal "3ArrowsGray" = readSuccess IconSet3ArrowsGray
+  fromAttrVal "3Flags" = readSuccess IconSet3Flags
+  fromAttrVal "3Signs" = readSuccess IconSet3Signs
+  fromAttrVal "3Symbols" = readSuccess IconSet3Symbols
+  fromAttrVal "3Symbols2" = readSuccess IconSet3Symbols2
+  fromAttrVal "3TrafficLights1" = readSuccess IconSet3TrafficLights1
+  fromAttrVal "3TrafficLights2" = readSuccess IconSet3TrafficLights2
+  fromAttrVal "4Arrows" = readSuccess IconSet4Arrows
+  fromAttrVal "4ArrowsGray" = readSuccess IconSet4ArrowsGray
+  fromAttrVal "4Rating" = readSuccess IconSet4Rating
+  fromAttrVal "4RedToBlack" = readSuccess IconSet4RedToBlack
+  fromAttrVal "4TrafficLights" = readSuccess IconSet4TrafficLights
+  fromAttrVal "5Arrows" = readSuccess IconSet5Arrows
+  fromAttrVal "5ArrowsGray" = readSuccess IconSet5ArrowsGray
+  fromAttrVal "5Quarters" = readSuccess IconSet5Quarters
+  fromAttrVal "5Rating" = readSuccess IconSet5Rating
+  fromAttrVal t = invalidText "IconSetType" t
 
 instance FromCursor DataBarOptions where
   fromCursor cur = do
@@ -709,45 +695,32 @@ instance ToAttrVal CfvType where
 
 instance ToElement IconSetOptions where
   toElement nm IconSetOptions {..} =
-    elementList nm attrs $ map (toElement "cfvo") cfvs
+    elementList nm attrs $ map (toElement "cfvo") _isoValues
     where
       attrs = catMaybes
-        [ "iconSet" .=? justNonDef defaultIconSet iconSet
+        [ "iconSet" .=? justNonDef defaultIconSet _isoIconSet
         , "reverse" .=? justTrue _isoReverse
         , "showValue" .=? justFalse _isoShowValue
         ]
-      (iconSet, cfvs) =
-        case _isoIconSet of
-          IconSet3Arrows cfv1 cfv2 cfv3 ->
-            ("3Arrows" :: Text, [cfv1, cfv2, cfv3])
-          IconSet3ArrowsGray cfv1 cfv2 cfv3 ->
-            ("3ArrowsGray", [cfv1, cfv2, cfv3])
-          IconSet3Flags cfv1 cfv2 cfv3 -> ("3Flags", [cfv1, cfv2, cfv3])
-          IconSet3Signs cfv1 cfv2 cfv3 -> ("3Signs", [cfv1, cfv2, cfv3])
-          IconSet3Symbols cfv1 cfv2 cfv3 -> ("3Symbols", [cfv1, cfv2, cfv3])
-          IconSet3Symbols2 cfv1 cfv2 cfv3 -> ("3Symbols2", [cfv1, cfv2, cfv3])
-          IconSet3TrafficLights1 cfv1 cfv2 cfv3 ->
-            ("3TrafficLights1", [cfv1, cfv2, cfv3])
-          IconSet3TrafficLights2 cfv1 cfv2 cfv3 ->
-            ("3TrafficLights2", [cfv1, cfv2, cfv3])
-          IconSet4Arrows cfv1 cfv2 cfv3 cfv4 ->
-            ("4Arrows", [cfv1, cfv2, cfv3, cfv4])
-          IconSet4ArrowsGray cfv1 cfv2 cfv3 cfv4 ->
-            ("4ArrowsGray", [cfv1, cfv2, cfv3, cfv4])
-          IconSet4Rating cfv1 cfv2 cfv3 cfv4 ->
-            ("4Rating", [cfv1, cfv2, cfv3, cfv4])
-          IconSet4RedToBlack cfv1 cfv2 cfv3 cfv4 ->
-            ("4RedToBlack", [cfv1, cfv2, cfv3, cfv4])
-          IconSet4TrafficLights cfv1 cfv2 cfv3 cfv4 ->
-            ("4TrafficLights", [cfv1, cfv2, cfv3, cfv4])
-          IconSet5Arrows cfv1 cfv2 cfv3 cfv4 cfv5 ->
-            ("5Arrows", [cfv1, cfv2, cfv3, cfv4, cfv5])
-          IconSet5ArrowsGray cfv1 cfv2 cfv3 cfv4 cfv5 ->
-            ("5ArrowsGray", [cfv1, cfv2, cfv3, cfv4, cfv5])
-          IconSet5Quarters cfv1 cfv2 cfv3 cfv4 cfv5 ->
-            ("5Quarters", [cfv1, cfv2, cfv3, cfv4, cfv5])
-          IconSet5Rating cfv1 cfv2 cfv3 cfv4 cfv5 ->
-            ("5Rating", [cfv1, cfv2, cfv3, cfv4, cfv5])
+
+instance ToAttrVal IconSetType where
+  toAttrVal IconSet3Arrows = "3Arrows"
+  toAttrVal IconSet3ArrowsGray = "3ArrowsGray"
+  toAttrVal IconSet3Flags = "3Flags"
+  toAttrVal IconSet3Signs = "3Signs"
+  toAttrVal IconSet3Symbols = "3Symbols"
+  toAttrVal IconSet3Symbols2 = "3Symbols2"
+  toAttrVal IconSet3TrafficLights1 = "3TrafficLights1"
+  toAttrVal IconSet3TrafficLights2 = "3TrafficLights2"
+  toAttrVal IconSet4Arrows = "4Arrows"
+  toAttrVal IconSet4ArrowsGray = "4ArrowsGray"
+  toAttrVal IconSet4Rating = "4Rating"
+  toAttrVal IconSet4RedToBlack = "4RedToBlack"
+  toAttrVal IconSet4TrafficLights = "4TrafficLights"
+  toAttrVal IconSet5Arrows = "5Arrows"
+  toAttrVal IconSet5ArrowsGray = "5ArrowsGray"
+  toAttrVal IconSet5Quarters = "5Quarters"
+  toAttrVal IconSet5Rating = "5Rating"
 
 instance ToElement DataBarOptions where
   toElement nm DataBarOptions {..} = elementList nm attrs elements

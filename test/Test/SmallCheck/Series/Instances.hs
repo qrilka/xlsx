@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -6,9 +7,15 @@ module Test.SmallCheck.Series.Instances
   (
   ) where
 
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 import Test.SmallCheck.Series
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative
+#endif
 
 import Codec.Xlsx
 
@@ -33,6 +40,8 @@ cons6 f = decDepth $
 instance Monad m => Serial m Text where
   series = T.pack <$> series
 
+instance (Serial m k, Serial m v) => Serial m (Map k v) where
+  series = Map.singleton <$> series <~> series
 
 {-------------------------------------------------------------------------------
   Conditional formatting
@@ -89,3 +98,32 @@ instance Monad m => Serial m IconSetType
 instance Monad m => Serial m CfValue
 
 instance Monad m => Serial m TimePeriod
+
+{-------------------------------------------------------------------------------
+  Autofilter
+-------------------------------------------------------------------------------}
+
+instance Monad m => Serial m AutoFilter where
+  series = localDepth (const 4) $ cons2 AutoFilter
+
+instance Monad m => Serial m CellRef
+
+instance Monad m => Serial m FilterColumn
+
+instance Monad m => Serial m EdgeFilterOptions
+
+instance Monad m => Serial m CustomFilter
+
+instance Monad m => Serial m CustomFilterOperator
+
+instance Monad m => Serial m FilterCriterion
+
+instance Monad m => Serial m DateGroup
+
+instance Monad m => Serial m FilterByBlank
+
+instance Monad m => Serial m ColorFilterOptions
+
+instance Monad m => Serial m DynFilterOptions
+
+instance Monad m => Serial m DynFilterType

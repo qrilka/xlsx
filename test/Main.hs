@@ -29,6 +29,7 @@ import Codec.Xlsx.Types.Internal.CustomProperties
        as CustomProperties
 import Codec.Xlsx.Types.Internal.SharedStringTable
 
+import AutoFilterTests
 import Common
 import CommonTests
 import CondFmtTests
@@ -71,6 +72,7 @@ main = defaultMain $
     , CondFmtTests.tests
     , PivotTableTests.tests
     , DrawingTests.tests
+    , AutoFilterTests.tests
     ]
 
 testXlsx :: Xlsx
@@ -82,7 +84,8 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
       sheetViews pageSetup cFormatting validations [] (Just autoFilter) tables (Just protection)
     autoFilter = def & afRef ?~ CellRef "A1:E10"
                      & afFilterColumns .~ fCols
-    fCols = M.fromList [ (1, Filters ["a","b","ZZZ"])
+    fCols = M.fromList [ (1, Filters DontFilterByBlank
+                             [FilterValue "a", FilterValue "b",FilterValue "ZZZ"])
                        , (2, CustomFiltersAnd (CustomFilter FltrGreaterThanOrEqual "0")
                            (CustomFilter FltrLessThan "42"))]
     tables =
