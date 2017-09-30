@@ -1,83 +1,96 @@
-# This file has been generated -- see https://github.com/hvr/multi-ghc-travis
-language: c
+# Created from
+#
+# https://docs.haskellstack.org/en/stable/travis_ci/
+#
+# Use new container infrastructure to enable caching
 sudo: false
 
+# Do not choose a language; we provide our own build tools.
+language: generic
+
+# Caching so the next build will be fast too.
 cache:
   directories:
-    - $HOME/.cabsnap
-    - $HOME/.cabal/packages
+  - $HOME/.ghc
+  - $HOME/.cabal
+  - $HOME/.stack
 
-before_cache:
-  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/build-reports.log
-  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/00-index.tar
-
+# The different configurations we want to test. We have BUILD=cabal which uses
+# cabal-install, and BUILD=stack which uses Stack. More documentation on each
+# of those below.
+#
+# We set the compiler values here to tell Travis to use a different
+# cache file per set of arguments.
+#
+# If you need to have different apt packages for each combination in the
+# matrix, you can use a line such as:
+#     addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
 matrix:
   include:
-    - env: CABALVER=1.18 GHCVER=7.8.4
-      compiler: ": #GHC 7.8.4"
-      addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,happy-1.19.5], sources: [hvr-ghc]}}
-    - env: CABALVER=1.22 GHCVER=7.10.3
-      compiler: ": #GHC 7.10.3"
-      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,happy-1.19.5], sources: [hvr-ghc]}}
-    - env: CABALVER=1.24 GHCVER=8.0.1
-      compiler: ": #GHC 8.0.1"
-      addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1,happy-1.19.5], sources: [hvr-ghc]}}
+  # The Stack builds. We can pass in arbitrary Stack arguments via the ARGS
+  # variable, such as using --stack-yaml to point to a different file.
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-2.yaml" GHCVER=7.8.4 HAPPYVER=1.19.4
+    compiler: ": #stack 7.8.4"
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-7.8.4
+        - happy-1.19.4
+
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-6.yaml" GHCVER=7.10.3 HAPPYVER=1.19.4
+    compiler: ": #stack 7.10.3"
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-7.10.3
+        - happy-1.19.4
+
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-7.yaml" GHCVER=8.0.1 HAPPYVER=1.19.4
+    compiler: ": #stack 8.0.1"
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-8.0.1
+        - happy-1.19.4
 
 before_install:
- - unset CC
- - export HAPPYVER=1.19.5
- - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/happy/$HAPPYVER/bin:$PATH
+# Using compiler above sets CC to an invalid value, so unset it
+- unset CC
+
+# Download and unpack the stack executable
+- export PATH=/opt/ghc/$GHCVER/bin:$HOME/.local/bin:/opt/happy/$HAPPYVER/bin:$HOME/.cabal/bin:$PATH
+- mkdir -p ~/.local/bin
+- |
+  travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+
+  stack config set system-ghc --global true
+
+  # Use the more reliable S3 mirror of Hackage
+  mkdir -p $HOME/.cabal
+  echo 'remote-repo: hackage.haskell.org:http://hackage.fpcomplete.com/' > $HOME/.cabal/config
+  echo 'remote-repo-cache: $HOME/.cabal/packages' >> $HOME/.cabal/config
+
+  if [ "$CABALVER" != "1.16" ]
+  then
+    echo 'jobs: $ncpus' >> $HOME/.cabal/config
+  fi
 
 install:
- - cabal --version
- - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
- - if [ -f $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz ];
-   then
-     zcat $HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz >
-          $HOME/.cabal/packages/hackage.haskell.org/00-index.tar;
-   fi
- - travis_retry cabal update -v
- - sed -i 's/^jobs:/-- jobs:/' ${HOME}/.cabal/config
- - cabal install --only-dependencies --enable-tests --enable-benchmarks --dry -v > installplan.txt
- - sed -i -e '1,/^Resolving /d' installplan.txt; cat installplan.txt
+- echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
+- if [ -f configure.ac ]; then autoreconf -i; fi
+- |
+  set -ex
+  stack --no-terminal --skip-ghc-check $ARGS test --bench --only-dependencies
+  set +ex
 
-# check whether current requested install-plan matches cached package-db snapshot
- - if diff -u installplan.txt $HOME/.cabsnap/installplan.txt;
-   then
-     echo "cabal build-cache HIT";
-     rm -rfv .ghc;
-     cp -a $HOME/.cabsnap/ghc $HOME/.ghc;
-     cp -a $HOME/.cabsnap/lib $HOME/.cabsnap/share $HOME/.cabsnap/bin $HOME/.cabal/;
-   else
-     echo "cabal build-cache MISS";
-     rm -rf $HOME/.cabsnap;
-     mkdir -p $HOME/.ghc $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin;
-     cabal install --only-dependencies --enable-tests --enable-benchmarks;
-   fi
-
-# snapshot package-db on cache miss
- - if [ ! -d $HOME/.cabsnap ];
-   then
-      echo "snapshotting package-db to build-cache";
-      mkdir $HOME/.cabsnap;
-      cp -a $HOME/.ghc $HOME/.cabsnap/ghc;
-      cp -a $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin installplan.txt $HOME/.cabsnap/;
-   fi
-
-# Here starts the actual work to be performed for the package under test;
-# any command which exits with a non-zero exit code causes the build to fail.
 script:
- - if [ -f configure.ac ]; then autoreconf -i; fi
- - cabal configure --enable-tests --enable-benchmarks -v2  # -v2 provides useful information for debugging
- - cabal build   # this builds all libraries and executables (including tests/benchmarks)
- - cabal test
- - cabal check
- - cabal sdist   # tests that a source-distribution can be generated
-
-# Check that the resulting source distribution can be built & installed.
-# If there are no other `.tar.gz` files in `dist`, this can be even simpler:
-# `cabal install --force-reinstalls dist/*-*.tar.gz`
- - SRC_TGZ=$(cabal info . | awk '{print $2;exit}').tar.gz &&
-   (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
-
-# EOF
+- |
+  set -ex
+  stack --no-terminal --skip-ghc-check $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
+  set +ex
