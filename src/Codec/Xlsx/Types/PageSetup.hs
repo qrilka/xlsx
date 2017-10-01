@@ -36,6 +36,7 @@ module Codec.Xlsx.Types.PageSetup (
   ) where
 
 import Control.Lens (makeLenses)
+import Control.DeepSeq (NFData)
 import Data.Default
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
@@ -137,6 +138,7 @@ data PageSetup = PageSetup {
   , _pageSetupVerticalDpi :: Maybe Int
   }
   deriving (Eq, Ord, Show, Generic)
+instance NFData PageSetup
 
 {-------------------------------------------------------------------------------
   Enumerations
@@ -158,6 +160,7 @@ data CellComments =
     -- | Do not print cell comments
   | CellCommentsNone
   deriving (Eq, Ord, Show, Generic)
+instance NFData CellComments
 
 -- | Print errors
 --
@@ -176,6 +179,7 @@ data PrintErrors =
      -- | Display cell errors as @#N/A@
    | PrintErrorsNA
   deriving (Eq, Ord, Show, Generic)
+instance NFData PrintErrors
 
 -- | Print orientation for this sheet
 data Orientation =
@@ -183,6 +187,7 @@ data Orientation =
   | OrientationLandscape
   | OrientationPortrait
   deriving (Eq, Ord, Show, Generic)
+instance NFData Orientation
 
 -- | Specifies printed page order
 data PageOrder =
@@ -192,6 +197,7 @@ data PageOrder =
     -- | Order pages horizontally first, then move vertically
   | PageOrderOverThenDown
   deriving (Eq, Ord, Show, Generic)
+instance NFData PageOrder
 
 -- | Paper size
 data PaperSize =
@@ -262,6 +268,7 @@ data PaperSize =
   | EnvelopeItaly                -- ^ Italy envelope (110 mm by 230 mm)
   | EnvelopeMonarch              -- ^ Monarch envelope (3.875 in. by 7.5 in.).
   deriving (Eq, Ord, Show, Generic)
+instance NFData PaperSize
 
 {-------------------------------------------------------------------------------
   Default instances

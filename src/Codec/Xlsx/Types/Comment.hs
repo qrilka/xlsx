@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Comment where
 
+import Control.DeepSeq (NFData)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -20,3 +21,4 @@ data Comment = Comment
     -- ^ comment author
     , _commentVisible :: Bool
     } deriving (Eq, Show, Generic)
+instance NFData Comment

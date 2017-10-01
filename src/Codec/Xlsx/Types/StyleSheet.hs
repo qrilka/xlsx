@@ -128,6 +128,7 @@ module Codec.Xlsx.Types.StyleSheet (
   ) where
 
 import Control.Lens hiding (element, elements, (.=))
+import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
@@ -231,6 +232,8 @@ data StyleSheet = StyleSheet
     -- Section 18.8.31, "numFmts (Number Formats)" (p. 1784)
     } deriving (Eq, Ord, Show, Generic)
 
+instance NFData StyleSheet
+
 -- | Cell formatting
 --
 -- TODO: The @extLst@ field is currently unsupported.
@@ -318,6 +321,8 @@ data CellXf = CellXf {
   }
   deriving (Eq, Ord, Show, Generic)
 
+instance NFData CellXf
+
 {-------------------------------------------------------------------------------
   Supporting record types
 -------------------------------------------------------------------------------}
@@ -366,6 +371,8 @@ data Alignment = Alignment {
   , _alignmentWrapText        :: Maybe Bool
   }
   deriving (Eq, Ord, Show, Generic)
+
+instance NFData Alignment
 
 -- | Expresses a single set of cell border formats (left, right, top, bottom,
 -- diagonal). Color is optional. When missing, 'automatic' is implied.
@@ -425,6 +432,8 @@ data Border = Border {
   }
   deriving (Eq, Ord, Show, Generic)
 
+instance NFData Border
+
 -- | Border style
 -- See @CT_BorderPr@ (p. 3934)
 data BorderStyle = BorderStyle {
@@ -432,6 +441,8 @@ data BorderStyle = BorderStyle {
   , _borderStyleLine  :: Maybe LineStyle
   }
   deriving (Eq, Ord, Show, Generic)
+
+instance NFData BorderStyle
 
 -- | One of the colors associated with the data bar or color scale.
 --
@@ -467,6 +478,8 @@ data Color = Color {
   }
   deriving (Eq, Ord, Show, Generic)
 
+instance NFData Color
+
 -- | This element specifies fill formatting.
 --
 -- TODO: Gradient fills (18.8.4) are currently unsupported. If we add them,
@@ -478,6 +491,8 @@ data Fill = Fill {
     _fillPattern :: Maybe FillPattern
   }
   deriving (Eq, Ord, Show, Generic)
+
+instance NFData Fill
 
 -- | This element is used to specify cell fill information for pattern and solid
 -- color cell fills. For solid cell fills (no pattern), fgColor is used. For
@@ -491,6 +506,8 @@ data FillPattern = FillPattern {
   , _fillPatternType    :: Maybe PatternType
   }
   deriving (Eq, Ord, Show, Generic)
+
+instance NFData FillPattern
 
 -- | This element defines the properties for one of the fonts used in this
 -- workbook.
@@ -594,6 +611,8 @@ data Font = Font {
   }
   deriving (Eq, Ord, Show, Generic)
 
+instance NFData Font
+
 -- | A single dxf record, expressing incremental formatting to be applied.
 --
 -- Section 18.8.14, "dxf (Formatting)" (p. 1765)
@@ -607,6 +626,8 @@ data Dxf = Dxf
     -- TODO: extList
     } deriving (Eq, Ord, Show, Generic)
 
+instance NFData Dxf
+
 type NumFmt = Text
 
 -- | This element specifies number format properties which indicate
@@ -617,6 +638,8 @@ data NumberFormat
     = StdNumberFormat ImpliedNumberFormat
     | UserNumberFormat NumFmt
     deriving (Eq, Ord, Show, Generic)
+
+instance NFData NumberFormat
 
 -- | Basic number format with predefined number of decimals
 -- as format code of number format in xlsx should be less than 255 characters
@@ -666,6 +689,8 @@ data ImpliedNumberFormat =
   | NfTextPlaceHolder                 -- ^> 49 @
   | NfOtherImplied Int                -- ^ other (non local-neutral?) built-in format (id < 164)
   deriving (Eq, Ord, Show, Generic)
+
+instance NFData ImpliedNumberFormat
 
 stdNumberFormatId :: ImpliedNumberFormat -> Int
 stdNumberFormatId NfGeneral                         = 0 -- General
@@ -744,6 +769,7 @@ data Protection = Protection {
   , _protectionLocked :: Maybe Bool
   }
   deriving (Eq, Ord, Show, Generic)
+instance NFData Protection
 
 {-------------------------------------------------------------------------------
   Enumerations
@@ -762,6 +788,7 @@ data CellHorizontalAlignment =
   | CellHorizontalAlignmentLeft
   | CellHorizontalAlignmentRight
   deriving (Eq, Ord, Show, Generic)
+instance NFData CellHorizontalAlignment
 
 -- | Vertical alignment in cells
 --
@@ -773,6 +800,7 @@ data CellVerticalAlignment =
   | CellVerticalAlignmentJustify
   | CellVerticalAlignmentTop
   deriving (Eq, Ord, Show, Generic)
+instance NFData CellVerticalAlignment
 
 -- | Font family
 --
@@ -797,6 +825,7 @@ data FontFamily =
     -- | Novelty font
   | FontFamilyDecorative
   deriving (Eq, Ord, Show, Generic)
+instance NFData FontFamily
 
 -- | Font scheme
 --
@@ -811,6 +840,7 @@ data FontScheme =
     -- | This font is not a theme font.
   | FontSchemeNone
   deriving (Eq, Ord, Show, Generic)
+instance NFData FontScheme
 
 -- | Font underline property
 --
@@ -822,6 +852,7 @@ data FontUnderline =
   | FontUnderlineDoubleAccounting
   | FontUnderlineNone
   deriving (Eq, Ord, Show, Generic)
+instance NFData FontUnderline
 
 -- | Vertical alignment
 --
@@ -831,6 +862,7 @@ data FontVerticalAlignment =
   | FontVerticalAlignmentSubscript
   | FontVerticalAlignmentSuperscript
   deriving (Eq, Ord, Show, Generic)
+instance NFData FontVerticalAlignment
 
 data LineStyle =
     LineStyleDashDot
@@ -848,6 +880,7 @@ data LineStyle =
   | LineStyleThick
   | LineStyleThin
   deriving (Eq, Ord, Show, Generic)
+instance NFData LineStyle
 
 -- | Indicates the style of fill pattern being used for a cell format.
 --
@@ -873,6 +906,7 @@ data PatternType =
   | PatternTypeNone
   | PatternTypeSolid
   deriving (Eq, Ord, Show, Generic)
+instance NFData PatternType
 
 -- | Reading order
 --
@@ -882,6 +916,7 @@ data ReadingOrder =
   | ReadingOrderLeftToRight
   | ReadingOrderRightToLeft
   deriving (Eq, Ord, Show, Generic)
+instance NFData ReadingOrder
 
 {-------------------------------------------------------------------------------
   Lenses

@@ -6,6 +6,7 @@ module Codec.Xlsx.Types.DataValidation where
 
 import Control.Lens.TH (makeLenses)
 import Control.Monad ((>=>))
+import Control.DeepSeq (NFData)
 import Data.Char (isSpace)
 import Data.Default
 import qualified Data.Map as M
@@ -32,6 +33,7 @@ data ValidationExpression
     | ValNotBetween Formula Formula -- ^ "Not between" operator
     | ValNotEqual Formula           -- ^ "Not equal to" operator
     deriving (Eq, Show, Generic)
+instance NFData ValidationExpression
 
 -- See 18.18.21 "ST_DataValidationType (Data Validation Type)" (p. 2440/2450)
 data ValidationType
@@ -44,6 +46,7 @@ data ValidationType
     | ValidationTypeTime       ValidationExpression
     | ValidationTypeWhole      ValidationExpression
     deriving (Eq, Show, Generic)
+instance NFData ValidationType
 
 -- See 18.18.18 "ST_DataValidationErrorStyle (Data Validation Error Styles)" (p. 2438/2448)
 data ErrorStyle
@@ -51,6 +54,7 @@ data ErrorStyle
     | ErrorStyleStop
     | ErrorStyleWarning
     deriving (Eq, Show, Generic)
+instance NFData ErrorStyle
 
 -- See 18.3.1.32 "dataValidation (Data Validation)" (p. 1614/1624)
 data DataValidation = DataValidation
@@ -65,6 +69,7 @@ data DataValidation = DataValidation
     , _dvShowInputMessage :: Bool
     , _dvValidationType   :: ValidationType
     } deriving (Eq, Show, Generic)
+instance NFData DataValidation
 
 makeLenses ''DataValidation
 

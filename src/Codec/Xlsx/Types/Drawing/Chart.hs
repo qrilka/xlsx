@@ -8,6 +8,7 @@ module Codec.Xlsx.Types.Drawing.Chart where
 import GHC.Generics (Generic)
 
 import Control.Lens.TH
+import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Maybe (catMaybes, maybeToList)
 import Data.Text (Text)
@@ -33,6 +34,7 @@ data ChartSpace = ChartSpace
   , _chspPlotVisOnly :: Maybe Bool
   , _chspDispBlanksAs :: Maybe DispBlanksAs
   } deriving (Eq, Show, Generic)
+instance NFData ChartSpace
 
 -- | Chart title
 --
@@ -40,6 +42,7 @@ data ChartSpace = ChartSpace
 newtype ChartTitle =
   ChartTitle TextBody
   deriving (Eq, Show, Generic)
+instance NFData ChartTitle
 
 -- | This simple type specifies the possible ways to display blanks.
 --
@@ -52,12 +55,14 @@ data DispBlanksAs
   | DispBlanksAsZero
     -- ^ Specifies that blank values shall be treated as zero.
   deriving (Eq, Show, Generic)
+instance NFData DispBlanksAs
 
 -- TODO: legendEntry, layout, overlay, spPr, txPr, extLst
 data Legend = Legend
     { _legendPos     :: Maybe LegendPos
     , _legendOverlay :: Maybe Bool
     } deriving (Eq, Show, Generic)
+instance NFData Legend
 
 -- See 21.2.3.24 "ST_LegendPos (Legend Position)" (p. 3449)
 data LegendPos
@@ -77,6 +82,7 @@ data LegendPos
     -- ^ tr (Top Right) Specifies that the legend shall be drawn at
     -- the top right of the chart.
   deriving (Eq, Show, Generic)
+instance NFData LegendPos
 
 -- | Specific Chart
 -- TODO:
@@ -105,6 +111,7 @@ data Chart
                  , _scchSeries :: [ScatterSeries]
                  }
   deriving (Eq, Show, Generic)
+instance NFData Chart
 
 -- | Possible groupings for a bar chart
 --
@@ -120,6 +127,7 @@ data ChartGrouping
     -- ^(Standard) Specifies that the chart series are drawn on the value
     -- axis.
   deriving (Eq, Show, Generic)
+instance NFData ChartGrouping
 
 -- | Possible directions for a bar chart
 --
@@ -128,6 +136,7 @@ data BarDirection
   = DirectionBar
   | DirectionColumn
   deriving (Eq, Show, Generic)
+instance NFData BarDirection
 
 -- | Possible styles of scatter chart
 --
@@ -144,6 +153,7 @@ data ScatterStyle
   | ScatterSmooth
   | ScatterSmoothMarker
   deriving (Eq, Show, Generic)
+instance NFData ScatterStyle
 
 -- | Single data point options
 --
@@ -154,6 +164,7 @@ data DataPoint = DataPoint
   { _dpMarker :: Maybe DataMarker
   , _dpShapeProperties :: Maybe ShapeProperties
   } deriving (Eq, Show, Generic)
+instance NFData DataPoint
 
 -- | Specifies common series options
 -- TODO: spPr
@@ -165,6 +176,7 @@ data Series = Series
     -- currently only reference formula is supported
   , _serShapeProperties :: Maybe ShapeProperties
   } deriving (Eq, Show, Generic)
+instance NFData Series
 
 -- | A series on a line chart
 --
@@ -179,6 +191,7 @@ data LineSeries = LineSeries
     -- ^ currently only reference formula is supported
   , _lnserSmooth :: Maybe Bool
   } deriving (Eq, Show, Generic)
+instance NFData LineSeries
 
 -- | A series on an area chart
 --
@@ -190,6 +203,7 @@ data AreaSeries = AreaSeries
   , _arserDataLblProps :: Maybe DataLblProps
   , _arserVal :: Maybe Formula
   } deriving (Eq, Show, Generic)
+instance NFData AreaSeries
 
 -- | A series on a bar chart
 --
@@ -202,6 +216,7 @@ data BarSeries = BarSeries
   , _brserDataLblProps :: Maybe DataLblProps
   , _brserVal :: Maybe Formula
   } deriving (Eq, Show, Generic)
+instance NFData BarSeries
 
 -- | A series on a pie chart
 --
@@ -216,6 +231,7 @@ data PieSeries = PieSeries
   , _piserDataLblProps :: Maybe DataLblProps
   , _piserVal :: Maybe Formula
   } deriving (Eq, Show, Generic)
+instance NFData PieSeries
 
 -- | A series on a scatter chart
 --
@@ -230,6 +246,7 @@ data ScatterSeries = ScatterSeries
   , _scserYVal :: Maybe Formula
   , _scserSmooth :: Maybe Bool
   } deriving (Eq, Show, Generic)
+instance NFData ScatterSeries
 
 -- See @CT_Marker@ (p. 4061)
 data DataMarker = DataMarker
@@ -237,6 +254,7 @@ data DataMarker = DataMarker
   , _dmrkSize :: Maybe Int
     -- ^ integer between 2 and 72, specifying a size in points
   } deriving (Eq, Show, Generic)
+instance NFData DataMarker
 
 data DataMarkerSymbol
   = DataMarkerCircle
@@ -252,6 +270,7 @@ data DataMarkerSymbol
   | DataMarkerX
   | DataMarkerAuto
   deriving (Eq, Show, Generic)
+instance NFData DataMarkerSymbol
 
 -- | Settings for the data labels for an entire series or the
 -- entire chart
@@ -266,6 +285,7 @@ data DataLblProps = DataLblProps
   , _dlblShowSerName :: Maybe Bool
   , _dlblShowPercent :: Maybe Bool
   } deriving (Eq, Show, Generic)
+instance NFData DataLblProps
 
 -- | Specifies the possible positions for tick marks.
 
@@ -280,6 +300,7 @@ data TickMark
   | TickMarkOut
     -- ^ (Outside) Specifies the tick marks shall be outside the plot area.
   deriving (Eq, Show, Generic)
+instance NFData TickMark
 
 makeLenses ''DataPoint
 

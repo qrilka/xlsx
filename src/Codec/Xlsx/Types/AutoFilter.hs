@@ -9,6 +9,7 @@ import GHC.Generics (Generic)
 
 import Control.Arrow (first)
 import Control.Lens (makeLenses)
+import Control.DeepSeq (NFData)
 import Data.Bool (bool)
 import Data.Default
 import Data.Map (Map)
@@ -56,16 +57,19 @@ data FilterColumn
   --
   -- DynamicFilter, ColorFilter, IconFilter
   deriving (Eq, Show, Generic)
+instance NFData FilterColumn
 
 data FilterByBlank
   = FilterByBlank
   | DontFilterByBlank
   deriving (Eq, Show, Generic)
+instance NFData FilterByBlank
 
 data FilterCriterion
   = FilterValue Text
   | FilterDateGroup DateGroup
   deriving (Eq, Show, Generic)
+instance NFData FilterCriterion
 
 -- | Used to express a group of dates or times which are used in an
 -- AutoFilter criteria
@@ -79,11 +83,13 @@ data DateGroup
   | DateGroupByMinute Int Int Int Int Int
   | DateGroupBySecond Int Int Int Int Int Int
   deriving (Eq, Show, Generic)
+instance NFData DateGroup
 
 data CustomFilter = CustomFilter
   { cfltOperator :: CustomFilterOperator
   , cfltValue :: Text
   } deriving (Eq, Show, Generic)
+instance NFData CustomFilter
 
 data CustomFilterOperator
   = FltrEqual
@@ -99,6 +105,7 @@ data CustomFilterOperator
   | FltrNotEqual
     -- ^ Show results which are not equal to criteria.
   deriving (Eq, Show, Generic)
+instance NFData CustomFilterOperator
 
 data EdgeFilterOptions = EdgeFilterOptions
   { _efoUsePercents :: Bool
@@ -111,6 +118,7 @@ data EdgeFilterOptions = EdgeFilterOptions
   -- ^ The actual cell value in the range which is used to perform the
   -- comparison for this filter.
   } deriving (Eq, Show, Generic)
+instance NFData EdgeFilterOptions
 
 -- | Specifies the color to filter by and whether to use the cell's
 -- fill or font color in the filter criteria. If the cell's font or
@@ -130,6 +138,7 @@ data ColorFilterOptions = ColorFilterOptions
   -- ^ Id of differential format record (dxf) in the Styles Part (see
   -- '_styleSheetDxfs') which expresses the color value to filter by.
   } deriving (Eq, Show, Generic)
+instance NFData ColorFilterOptions
 
 -- | Specifies dynamic filter criteria. These criteria are considered
 -- dynamic because they can change, either with the data itself (e.g.,
@@ -177,6 +186,7 @@ data DynFilterOptions = DynFilterOptions
   , _dfoMaxVal :: Maybe Double
   -- ^ A maximum value for dynamic filter.
   } deriving (Eq, Show, Generic)
+instance NFData DynFilterOptions
 
 -- | Specifies concrete type of dynamic filter used
 --
@@ -257,6 +267,7 @@ data DynFilterType
   | DynFilterYesterday
   -- ^ Shows yesterday's dates.
   deriving (Eq, Show, Generic)
+instance NFData DynFilterType
 
 -- | AutoFilter temporarily hides rows based on a filter criteria,
 -- which is applied column by column to a table of datain the
@@ -269,6 +280,7 @@ data AutoFilter = AutoFilter
   { _afRef :: Maybe CellRef
   , _afFilterColumns :: Map Int FilterColumn
   } deriving (Eq, Show, Generic)
+instance NFData AutoFilter
 
 makeLenses ''AutoFilter
 

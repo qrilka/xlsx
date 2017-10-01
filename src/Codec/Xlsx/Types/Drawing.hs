@@ -12,6 +12,7 @@
 module Codec.Xlsx.Types.Drawing where
 
 import Control.Arrow (first)
+import Control.DeepSeq (NFData)
 import Control.Lens.TH
 import Data.ByteString.Lazy (ByteString)
 import Data.Default
@@ -44,6 +45,7 @@ data FileInfo = FileInfo
     , _fiContents    :: ByteString
     -- ^ image file contents
     } deriving (Eq, Show, Generic)
+instance NFData FileInfo
 
 data Marker = Marker
     { _mrkCol    :: Int
@@ -51,6 +53,7 @@ data Marker = Marker
     , _mrkRow    :: Int
     , _mrkRowOff :: Coordinate
     } deriving (Eq, Show, Generic)
+instance NFData Marker
 
 unqMarker :: (Int, Int) -> (Int, Int) -> Marker
 unqMarker (col, colOff) (row, rowOff) =
@@ -61,6 +64,7 @@ data EditAs
     | EditAsOneCell
     | EditAsAbsolute
     deriving (Eq, Show, Generic)
+instance NFData EditAs
 
 data Anchoring
     = AbsoluteAnchor
@@ -77,6 +81,7 @@ data Anchoring
       , tcaEditAs :: EditAs
       }
     deriving (Eq, Show, Generic)
+instance NFData Anchoring
 
 data DrawingObject p g
   = Picture { _picMacro :: Maybe Text
@@ -91,6 +96,7 @@ data DrawingObject p g
            ,  _grTransform :: Transform2D}
     -- TODO: sp, grpSp, graphicFrame, cxnSp, contentPart
   deriving (Eq, Show, Generic)
+instance (NFData p, NFData g) => NFData (DrawingObject p g)
 
 -- | basic function to create picture drawing object
 --
@@ -150,20 +156,24 @@ data ClientData = ClientData
     -- ^ This attribute indicates whether to print drawing elements
     -- when printing the sheet.
     } deriving (Eq, Show, Generic)
+instance NFData ClientData
 
 data PicNonVisual = PicNonVisual
   { _pnvDrawingProps :: NonVisualDrawingProperties
     -- TODO: cNvPicPr
   } deriving (Eq, Show, Generic)
+instance NFData PicNonVisual
 
 data GraphNonVisual = GraphNonVisual
   { _gnvDrawingProps :: NonVisualDrawingProperties
     -- TODO cNvGraphicFramePr
   } deriving (Eq, Show, Generic)
+instance NFData GraphNonVisual
 
 newtype DrawingElementId = DrawingElementId
   { unDrawingElementId :: Int
   } deriving (Eq, Show, Generic)
+instance NFData DrawingElementId
 
 -- see 20.1.2.2.8 "cNvPr (Non-Visual Drawing Properties)" (p. 2731)
 data NonVisualDrawingProperties = NonVisualDrawingProperties
@@ -181,12 +191,14 @@ data NonVisualDrawingProperties = NonVisualDrawingProperties
     , _nvdpHidden      :: Bool
     , _nvdpTitle       :: Maybe Text
     } deriving (Eq, Show, Generic)
+instance NFData NonVisualDrawingProperties
 
 data BlipFillProperties a = BlipFillProperties
     { _bfpImageInfo :: Maybe a
     , _bfpFillMode  :: Maybe FillMode
     -- TODO: dpi, rotWithShape, srcRect
     } deriving (Eq, Show, Generic)
+instance NFData a => NFData (BlipFillProperties a)
 
 -- see @a_EG_FillModeProperties@ (p. 4319)
 data FillMode
@@ -195,6 +207,7 @@ data FillMode
     -- See 20.1.8.56 "stretch (Stretch)" (p. 2879)
     | FillStretch -- TODO: srcRect
     deriving (Eq, Show, Generic)
+instance NFData FillMode
 
 -- See @EG_Anchor@ (p. 4052)
 data Anchor p g = Anchor
@@ -202,6 +215,7 @@ data Anchor p g = Anchor
     , _anchObject     :: DrawingObject p g
     , _anchClientData :: ClientData
     } deriving (Eq, Show, Generic)
+instance (NFData p, NFData g) => NFData (Anchor p g)
 
 -- | simple drawing object anchoring using one cell as a top lelft
 -- corner and dimensions of that object
@@ -222,6 +236,7 @@ simpleAnchorXY (x, y) sz obj =
 data GenericDrawing p g = Drawing
     { _xdrAnchors :: [Anchor p g]
     } deriving (Eq, Show, Generic)
+instance (NFData p, NFData g) => NFData (GenericDrawing p g)
 
 -- See 20.5.2.35 "wsDr (Worksheet Drawing)" (p. 3176)
 type Drawing = GenericDrawing FileInfo ChartSpace

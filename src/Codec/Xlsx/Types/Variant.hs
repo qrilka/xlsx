@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Variant where
 
+import Control.DeepSeq (NFData)
 import Data.ByteString (ByteString)
 import Data.ByteString.Base64 as B64
 import Data.Text (Text)
@@ -25,6 +26,8 @@ data Variant
     -- vt_lpstr, vt_bstr, vt_date, vt_filetime, vt_cy, vt_error, vt_stream,
     -- vt_ostream, vt_storage, vt_ostorage, vt_vstream, vt_clsid
     deriving (Eq, Show, Generic)
+
+instance NFData Variant
 
 {-------------------------------------------------------------------------------
   Parsing

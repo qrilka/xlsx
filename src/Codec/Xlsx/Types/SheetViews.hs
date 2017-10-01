@@ -50,6 +50,7 @@ module Codec.Xlsx.Types.SheetViews (
 import GHC.Generics (Generic)
 
 import Control.Lens (makeLenses)
+import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Maybe (catMaybes, maybeToList, listToMaybe)
 import Text.XML
@@ -180,6 +181,7 @@ data SheetView = SheetView {
   , _sheetViewSelection :: [Selection]
   }
   deriving (Eq, Ord, Show, Generic)
+instance NFData SheetView
 
 -- | Worksheet view selection.
 --
@@ -203,6 +205,7 @@ data Selection = Selection {
   , _selectionSqref :: Maybe SqRef
   }
   deriving (Eq, Ord, Show, Generic)
+instance NFData Selection
 
 -- | Worksheet view pane
 --
@@ -230,6 +233,7 @@ data Pane = Pane {
   , _paneYSplit :: Maybe Double
   }
   deriving (Eq, Ord, Show, Generic)
+instance NFData Pane
 
 {-------------------------------------------------------------------------------
   Enumerations
@@ -248,6 +252,7 @@ data SheetViewType =
     -- | Page layout view
   | SheetViewTypePageLayout
   deriving (Eq, Ord, Show, Generic)
+instance NFData SheetViewType
 
 -- | Pane type
 --
@@ -281,6 +286,7 @@ data PaneType =
     -- specifies the right pane.
   | PaneTypeTopRight
   deriving (Eq, Ord, Show, Generic)
+instance NFData PaneType
 
 -- | State of the sheet's pane.
 --
@@ -299,6 +305,7 @@ data PaneState =
     -- adjustable by the user.
   | PaneStateSplit
   deriving (Eq, Ord, Show, Generic)
+instance NFData PaneState
 
 {-------------------------------------------------------------------------------
   Lenses

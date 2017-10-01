@@ -34,6 +34,7 @@ import GHC.Generics (Generic)
 
 import Control.Lens hiding (element)
 import Control.Monad
+import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
@@ -70,6 +71,8 @@ data RichTextRun = RichTextRun {
   , _richTextRunText :: Text
   }
   deriving (Eq, Ord, Show, Generic)
+
+instance NFData RichTextRun
 
 -- | Run properties
 --
@@ -175,6 +178,8 @@ data RunProperties = RunProperties {
   , _runPropertiesVertAlign :: Maybe FontVerticalAlignment
   }
   deriving (Eq, Ord, Show, Generic)
+
+instance NFData RunProperties
 
 {-------------------------------------------------------------------------------
   Lenses
