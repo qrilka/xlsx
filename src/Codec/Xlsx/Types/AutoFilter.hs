@@ -36,26 +36,20 @@ import Codec.Xlsx.Writer.Internal
 --
 -- See 18.3.2.7 "filterColumn (AutoFilter Column)" (p. 1717)
 data FilterColumn
-  = Filters FilterByBlank
-            [FilterCriterion]
+  = Filters FilterByBlank [FilterCriterion]
   | ColorFilter ColorFilterOptions
   | ACustomFilter CustomFilter
-  | CustomFiltersOr CustomFilter
-                    CustomFilter
-  | CustomFiltersAnd CustomFilter
-                     CustomFilter
+  | CustomFiltersOr CustomFilter CustomFilter
+  | CustomFiltersAnd CustomFilter CustomFilter
   | DynamicFilter DynFilterOptions
-  | IconFilter (Maybe Int) -- ^ Zero-based index of an icon in an icon
-                           -- set. 'Nothing' means "no icon"
-               IconSetType
+  | IconFilter (Maybe Int) IconSetType
   -- ^ Specifies the icon set and particular icon within that set to
-  -- filter by
+  -- filter by. Icon is specified using zero-based index of an icon in
+  -- an icon set. 'Nothing' means "no icon"
   | BottomNFilter EdgeFilterOptions
   -- ^ Specifies the bottom N (percent or number of items) to filter by
   | TopNFilter EdgeFilterOptions
   -- ^ Specifies the top N (percent or number of items) to filter by
-  --
-  -- DynamicFilter, ColorFilter, IconFilter
   deriving (Eq, Show, Generic)
 instance NFData FilterColumn
 
