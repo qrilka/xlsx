@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -52,10 +51,6 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Cursor hiding (bool)
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-#endif
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.Common
