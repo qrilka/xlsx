@@ -81,7 +81,13 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
     sheets =
       [("List1", sheet1), ("Another sheet", sheet2), ("with pivot table", pvSheet)]
     sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges
-      sheetViews pageSetup cFormatting validations [] (Just autoFilter) tables (Just protection)
+      sheetViews pageSetup cFormatting validations [] (Just autoFilter)
+      tables (Just protection) sharedFormulas
+    sharedFormulas =
+      M.fromList
+        [ (SharedFormulaIndex 0, SharedFormulaOptions (CellRef "A5:C5") (Formula "A4"))
+        , (SharedFormulaIndex 1, SharedFormulaOptions (CellRef "B6:C6") (Formula "B3+12"))
+        ]
     autoFilter = def & afRef ?~ CellRef "A1:E10"
                      & afFilterColumns .~ fCols
     fCols = M.fromList [ (1, Filters DontFilterByBlank
@@ -167,6 +173,8 @@ testCellMap1 :: CellMap
 testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5)
                           , ((3, 1), cd3_1), ((3, 2), cd3_2), ((3, 3), cd3_3), ((3, 7), cd3_7)
                           , ((4, 1), cd4_1), ((4, 2), cd4_2), ((4, 3), cd4_3)
+                          , ((5, 1), cd5_1), ((5, 2), cd5_2), ((5, 3), cd5_3)
+                          , ((6, 2), cd6_2), ((6, 3), cd6_3)
                           ]
   where
     cd v = def {_cellValue=Just v}
@@ -182,6 +190,11 @@ testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5)
     cd4_3 = (cd (CellDouble (1+2))) { _cellFormula =
                                             Just $ simpleCellFormula "A4+B4"
                                     }
+    cd5_1 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 0)
+    cd5_2 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 0)
+    cd5_3 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 0)
+    cd6_2 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 1)
+    cd6_3 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 1)
 
 testCellMap2 :: CellMap
 testCellMap2 = M.fromList [ ((1, 2), def & cellValue ?~ CellText "something here")

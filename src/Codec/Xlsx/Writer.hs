@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
@@ -13,6 +14,7 @@ import Control.Arrow (second)
 import Control.Lens hiding (transform, (.=))
 import Control.Monad (forM)
 import Control.Monad.ST
+import Control.Monad.State (evalState, get, put)
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Char8 ()
 import Data.List (foldl', mapAccumL)
@@ -41,6 +43,7 @@ import Control.Applicative
 #endif
 
 import Codec.Xlsx.Types
+import Codec.Xlsx.Types.Cell (applySharedFormulaOpts)
 import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CfPair
 import qualified Codec.Xlsx.Types.Internal.CommentTable
@@ -121,7 +124,8 @@ singleSheetFiles n cells pivFileDatas ws tblIdRef = do
         rootEls = catMaybes $
             [ elementListSimple "sheetViews" . map (toElement "sheetView") <$> ws ^. wsSheetViews
             , nonEmptyElListSimple "cols" . map (toElement "col") $ ws ^. wsColumnsProperties
-            , Just . elementListSimple "sheetData" $ sheetDataXml cells (ws ^. wsRowPropertiesMap)
+            , Just . elementListSimple "sheetData" $
+              sheetDataXml cells (ws ^. wsRowPropertiesMap) (ws ^. wsSharedFormulas)
             , toElement "sheetProtection" <$> (ws ^. wsProtection)
             , toElement "autoFilter" <$> (ws ^. wsAutoFilter)
             , nonEmptyElListSimple "mergeCells" . map mergeE1 $ ws ^. wsMerges
@@ -164,35 +168,57 @@ nextRefId r = do
 unsafeRefId :: Int -> RefId
 unsafeRefId num = RefId $ "rId" <> txti num
 
-sheetDataXml :: Cells -> Map Int RowProperties -> [Element]
-sheetDataXml rows rh = map rowEl rows
+sheetDataXml ::
+     Cells
+  -> Map Int RowProperties
+  -> Map SharedFormulaIndex SharedFormulaOptions
+  -> [Element]
+sheetDataXml rows rh sharedFormulas =
+  evalState (mapM rowEl rows) sharedFormulas
   where
-    rowEl (r, cells) = elementList "row"
-                         (ht ++ s ++
-                         [("r", txti r), ("hidden", txtb hidden), ("outlineLevel", "0"),
-                          ("collapsed", "false"), ("customFormat", "true"),
-                          ("customHeight", txtb hasHeight)])
-                       $ map (cellEl r) cells
-      where
-        mProps    = M.lookup r rh
-        hasHeight = case rowHeight =<< mProps of
-                      Just CustomHeight{} -> True
-                      _                   -> False
-        ht        = do Just height <- [rowHeight =<< mProps]
-                       let h = case height of CustomHeight    x -> x
-                                              AutomaticHeight x -> x
-                       return ("ht", txtd h)
-        s         = do Just st <- [rowStyle =<< mProps]
-                       return ("s", txti st)
-        hidden    = fromMaybe False $ rowHidden <$> mProps
-    cellEl r (icol, cell) =
-      elementList "c" (cellAttrs (singleCellRef (r, icol)) cell)
-              (catMaybes [ elementContent "v" . value <$> xlsxCellValue cell
-                         , toElement "f" <$> xlsxCellFormula cell
-                         ])
-    cellAttrs ref cell = cellStyleAttr cell ++ [("r" .= ref), ("t" .= xlsxCellType cell)]
-    cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
-    cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
+    rowEl (r, cells) = do
+      let mProps    = M.lookup r rh
+          hasHeight = case rowHeight =<< mProps of
+                        Just CustomHeight{} -> True
+                        _                   -> False
+          ht        = do Just height <- [rowHeight =<< mProps]
+                         let h = case height of CustomHeight    x -> x
+                                                AutomaticHeight x -> x
+                         return ("ht", txtd h)
+          s         = do Just st <- [rowStyle =<< mProps]
+                         return ("s", txti st)
+          hidden    = fromMaybe False $ rowHidden <$> mProps
+          attrs = ht ++
+            s ++
+            [ ("r", txti r)
+            , ("hidden", txtb hidden)
+            , ("outlineLevel", "0")
+            , ("collapsed", "false")
+            , ("customFormat", "true")
+            , ("customHeight", txtb hasHeight)
+            ]
+      cellEls <- mapM (cellEl r) cells
+      return $ elementList "row" attrs cellEls
+    cellEl r (icol, cell) = do
+      let cellAttrs ref c =
+            cellStyleAttr c ++ [("r" .= ref), ("t" .= xlsxCellType c)]
+          cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
+          cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
+          formula = xlsxCellFormula cell
+          fEl0 = toElement "f" <$> formula
+      fEl <- case formula of
+        Just CellFormula{_cellfExpression=SharedFormula si} -> do
+          shared <- get
+          case M.lookup si shared of
+            Just fOpts -> do
+              put $ M.delete si shared
+              return $ applySharedFormulaOpts fOpts <$> fEl0
+            Nothing ->
+              return fEl0
+        _ ->
+          return fEl0
+      return $ elementList "c" (cellAttrs (singleCellRef (r, icol)) cell) $
+        catMaybes [elementContent "v" . value <$> xlsxCellValue cell, fEl]
 
 genComments :: Int -> Cells -> STRef s Int -> ST s (Maybe (Element, [ReferencedFileData]))
 genComments n cells ref =

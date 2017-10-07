@@ -14,6 +14,9 @@ module Codec.Xlsx.Types (
     , CellMap
     , CellValue(..)
     , CellFormula(..)
+    , FormulaExpression(..)
+    , Cell.SharedFormulaIndex(..)
+    , Cell.SharedFormulaOptions(..)
     , Cell(..)
     , RowHeight(..)
     , RowProperties (..)
@@ -38,6 +41,7 @@ module Codec.Xlsx.Types (
     , wsAutoFilter
     , wsTables
     , wsProtection
+    , wsSharedFormulas
     -- ** Cells
     , Cell.cellValue
     , Cell.cellStyle
@@ -49,6 +53,7 @@ module Codec.Xlsx.Types (
     , parseStyleSheet
     -- * Misc
     , simpleCellFormula
+    , sharedFormulaByIndex
     , def
     , toRows
     , fromRows
@@ -171,6 +176,7 @@ data Worksheet = Worksheet
   , _wsAutoFilter :: Maybe AutoFilter
   , _wsTables :: [Table]
   , _wsProtection :: Maybe SheetProtection
+  , _wsSharedFormulas :: Map SharedFormulaIndex SharedFormulaOptions
   } deriving (Eq, Show, Generic)
 instance NFData Worksheet
 
@@ -192,6 +198,7 @@ instance Default Worksheet where
     , _wsAutoFilter = Nothing
     , _wsTables = []
     , _wsProtection = Nothing
+    , _wsSharedFormulas = M.empty
     }
 
 newtype Styles = Styles {unStyles :: L.ByteString}

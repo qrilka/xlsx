@@ -13,7 +13,6 @@ module Codec.Xlsx.Parser
   , Parser
   ) where
 
-
 import qualified Codec.Archive.Zip as Zip
 import Control.Applicative
 import Control.Arrow (left)
@@ -25,6 +24,7 @@ import Data.Bool (bool)
 import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Char8 ()
 import Data.List
+import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
@@ -41,6 +41,7 @@ import Text.XML.Cursor hiding (bool)
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Parser.Internal.PivotTable
 import Codec.Xlsx.Types
+import Codec.Xlsx.Types.Cell (formulaDataFromCursor)
 import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CfPair
 import Codec.Xlsx.Types.Internal.CommentTable as CommentTable
@@ -118,8 +119,13 @@ extractSheet ar sst contentTypes caches wf = do
 
       cws = cur $/ element (n_ "cols") &/ element (n_ "col") >=> fromCursor
 
-      (rowProps, cells0) = collect $ cur $/ element (n_ "sheetData") &/ element (n_ "row") >=> parseRow
-      parseRow :: Cursor -> [(Int, Maybe RowProperties, [(Int, Int, Cell)])]
+      (rowProps, cells0, sharedFormulas) =
+        collect $ cur $/ element (n_ "sheetData") &/ element (n_ "row") >=> parseRow
+      parseRow ::
+           Cursor
+        -> [( Int
+            , Maybe RowProperties
+            , [(Int, Int, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))])]
       parseRow c = do
         r <- fromAttribute "r" c
         let prop = RowProps
@@ -137,23 +143,38 @@ extractSheet ar sst contentTypes caches wf = do
                , if prop == def then Nothing else Just prop
                , c $/ element (n_ "c") >=> parseCell
                )
-      parseCell :: Cursor -> [(Int, Int, Cell)]
+      parseCell ::
+           Cursor
+        -> [(Int, Int, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))]
       parseCell cell = do
         ref <- fromAttribute "r" cell
-        let
-          s = listToMaybe $ cell $| attribute "s" >=> decimal
-          t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
-          d = listToMaybe $ cell $/ element (n_ "v") &/ content >=> extractCellValue sst t
-          f = listToMaybe $ cell $/ element (n_ "f") >=> fromCursor
-          (r, c) = fromSingleCellRefNoting ref
-          comment = commentsMap >>= lookupComment ref
-        return (r, c, Cell s d comment f)
-      collect = foldr collectRow (M.empty, M.empty)
-      collectRow (_, Nothing, rowCells) (rowMap, cellMap) =
-        (rowMap, foldr collectCell cellMap rowCells)
-      collectRow (r, Just h, rowCells) (rowMap, cellMap) =
-        (M.insert r h rowMap, foldr collectCell cellMap rowCells)
-      collectCell (x, y, cd) = M.insert (x,y) cd
+        let s = listToMaybe $ cell $| attribute "s" >=> decimal
+            t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
+            d =
+              listToMaybe $
+              cell $/ element (n_ "v") &/ content >=> extractCellValue sst t
+            mFormulaData = listToMaybe $ cell $/ element (n_ "f") >=> formulaDataFromCursor
+            f = fst <$> mFormulaData
+            shared = snd =<< mFormulaData
+            (r, c) = fromSingleCellRefNoting ref
+            comment = commentsMap >>= lookupComment ref
+        return (r, c, Cell s d comment f, shared)
+      collect = foldr collectRow (M.empty, M.empty, M.empty)
+      collectRow ::
+           ( Int
+           , Maybe RowProperties
+           , [(Int, Int, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))])
+        -> (Map Int RowProperties, CellMap, Map SharedFormulaIndex SharedFormulaOptions)
+        -> (Map Int RowProperties, CellMap, Map SharedFormulaIndex SharedFormulaOptions)
+      collectRow (r, mRP, rowCells) (rowMap, cellMap, sharedF) =
+        let (newCells0, newSharedF0) =
+              unzip [(((x,y),cd), shared) | (x, y, cd, shared) <- rowCells]
+            newCells = M.fromList newCells0
+            newSharedF = M.fromList $ catMaybes newSharedF0
+            newRowMap = case mRP of
+              Just rp -> M.insert r rp rowMap
+              Nothing -> rowMap
+        in (newRowMap, cellMap <> newCells, sharedF <> newSharedF)
 
       commentCells =
         M.fromList
@@ -214,6 +235,7 @@ extractSheet ar sst contentTypes caches wf = do
       mAutoFilter
       tables
       mProtection
+      sharedFormulas
 
 extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
 extractCellValue sst "s" v =
