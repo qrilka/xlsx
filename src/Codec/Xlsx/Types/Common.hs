@@ -11,6 +11,7 @@ module Codec.Xlsx.Types.Common
   , fromRange
   , SqRef(..)
   , XlsxText(..)
+  , xlsxTextToCellValue
   , Formula(..)
   , CellValue(..)
   , ErrorType(..)
@@ -146,6 +147,10 @@ data XlsxText = XlsxText Text
               deriving (Eq, Ord, Show, Generic)
 
 instance NFData XlsxText
+
+xlsxTextToCellValue :: XlsxText -> CellValue
+xlsxTextToCellValue (XlsxText txt) = CellText txt
+xlsxTextToCellValue (XlsxRichText rich) = CellRich rich
 
 -- | A formula
 --

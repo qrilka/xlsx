@@ -30,7 +30,6 @@ import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Read as T
 import Data.Traversable
 import GHC.Generics (Generic)
 import Prelude hiding (sequence)
@@ -42,6 +41,7 @@ import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Parser.Internal.PivotTable
 import Codec.Xlsx.Types
 import Codec.Xlsx.Types.Cell (formulaDataFromCursor)
+import Codec.Xlsx.Types.Common (xlsxTextToCellValue)
 import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CfPair
 import Codec.Xlsx.Types.Internal.CommentTable as CommentTable
@@ -150,9 +150,7 @@ extractSheet ar sst contentTypes caches wf = do
         ref <- fromAttribute "r" cell
         let s = listToMaybe $ cell $| attribute "s" >=> decimal
             t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
-            d =
-              listToMaybe $
-              cell $/ element (n_ "v") &/ content >=> extractCellValue sst t
+            d = listToMaybe $ extractCellValue sst t cell
             mFormulaData = listToMaybe $ cell $/ element (n_ "f") >=> formulaDataFromCursor
             f = fst <$> mFormulaData
             shared = snd =<< mFormulaData
@@ -237,27 +235,26 @@ extractSheet ar sst contentTypes caches wf = do
       mProtection
       sharedFormulas
 
-extractCellValue :: SharedStringTable -> Text -> Text -> [CellValue]
-extractCellValue sst "s" v =
-    case T.decimal v of
-      Right (d, _) ->
-        case sstItem sst d of
-          XlsxText     txt  -> [CellText txt]
-          XlsxRichText rich -> [CellRich rich]
-      _ ->
-        []
-extractCellValue _ "str" str = [CellText str]
-extractCellValue _ "n" v =
-    case T.rational v of
-      Right (d, _) -> [CellDouble d]
-      _            -> []
-extractCellValue _ "b" "1" = [CellBool True]
-extractCellValue _ "b" "0" = [CellBool False]
-extractCellValue _ "e" v =
-  case fromAttrVal v of
-    Right (e, "") -> [CellError e]
-    _ -> []
-extractCellValue _ _ _ = []
+extractCellValue :: SharedStringTable -> Text -> Cursor -> [CellValue]
+extractCellValue sst t cur
+  | t == "s" = do
+    si <- vConverted "shared string"
+    case sstItem sst si of
+      Just xlTxt -> return $ xlsxTextToCellValue xlTxt
+      Nothing -> fail "bad shared string index"
+  | t == "inlineStr" =
+    cur $/ element (n_ "is") >=> fmap xlsxTextToCellValue . fromCursor
+  | t == "str" = CellText <$> vConverted "string"
+  | t == "n" = CellDouble <$> vConverted "double"
+  | t == "b" = CellBool <$> vConverted "boolean"
+  | t == "e" = CellError <$> vConverted "error"
+  | otherwise = fail "bad cell value"
+  where
+    vConverted typeStr = do
+      vContent <- cur $/ element (n_ "v") &/ content
+      case fromAttrVal vContent of
+        Right (val, _) -> return $ val
+        _ -> fail $ "bad " ++ typeStr ++ " cell value"
 
 -- | Get xml cursor from the specified file inside the zip archive.
 xmlCursorOptional :: Zip.Archive -> FilePath -> Parser (Maybe Cursor)

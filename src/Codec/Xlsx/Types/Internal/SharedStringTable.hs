@@ -117,5 +117,5 @@ sstLookup SharedStringTable{sstTable = shared} si =
     fromJustNote ("SST entry for " ++ show si ++ " not found") $
     searchFromTo (\p -> shared V.! p >= si) 0 (V.length shared - 1)
 
-sstItem :: SharedStringTable -> Int -> XlsxText
-sstItem (SharedStringTable shared) = (V.!) shared
+sstItem :: SharedStringTable -> Int -> Maybe XlsxText
+sstItem (SharedStringTable shared) = (V.!?) shared
