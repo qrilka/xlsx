@@ -19,6 +19,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , FillPattern(..)
   , Font(..)
   , NumberFormat(..)
+  , NumberFormat'(..)
   , ImpliedNumberFormat (..)
   , NumFmt
   , Protection(..)
@@ -61,6 +62,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , dxfBorder
   , dxfFill
   , dxfFont
+  , dxfNumFmt
   , dxfProtection
     -- ** Alignment
   , alignmentHorizontal
@@ -618,7 +620,7 @@ instance NFData Font
 -- Section 18.8.14, "dxf (Formatting)" (p. 1765)
 data Dxf = Dxf
     { _dxfFont       :: Maybe Font
-    -- TODO: numFmt
+    , _dxfNumFmt     :: Maybe NumberFormat'
     , _dxfFill       :: Maybe Fill
     , _dxfAlignment  :: Maybe Alignment
     , _dxfBorder     :: Maybe Border
@@ -640,6 +642,17 @@ data NumberFormat
     deriving (Eq, Ord, Show, Generic)
 
 instance NFData NumberFormat
+
+-- | This element specifies number format properties which indicate
+-- how to format and render the numeric value of a cell.
+--
+-- Section 18.8.30 "numFmt (Number Format)" (p. 1777)
+data NumberFormat' = NumberFormat'
+  { _numFmtId :: Int
+  , _numFmtCode :: NumFmt
+  } deriving (Eq, Ord, Show, Generic)
+
+instance NFData NumberFormat'
 
 -- | Basic number format with predefined number of decimals
 -- as format code of number format in xlsx should be less than 255 characters
@@ -1017,6 +1030,7 @@ instance Default CellXf where
 instance Default Dxf where
     def = Dxf
           { _dxfFont       = Nothing
+          , _dxfNumFmt     = Nothing
           , _dxfFill       = Nothing
           , _dxfAlignment  = Nothing
           , _dxfBorder     = Nothing
@@ -1167,6 +1181,7 @@ instance ToElement Dxf where
         { elementName       = nm
         , elementNodes      = map NodeElement $
                               catMaybes [ toElement "font"       <$> _dxfFont
+                                        , toElement "numFmt"     <$> _dxfNumFmt
                                         , toElement "fill"       <$> _dxfFill
                                         , toElement "alignment"  <$> _dxfAlignment
                                         , toElement "border"     <$> _dxfBorder
@@ -1285,6 +1300,17 @@ instance ToElement Font where
         , elementValue "vertAlign" <$> _fontVertAlign
         , elementValue "scheme"    <$> _fontScheme
         ]
+    }
+
+-- | See @CT_NumFmt@, p. 3936
+instance ToElement NumberFormat' where
+  toElement nm NumberFormat'{..} = Element {
+      elementName       = nm
+    , elementAttributes = M.fromList [
+          "numFmtId"   .= _numFmtId
+        , "formatCode" .= _numFmtCode
+        ]
+    , elementNodes      = []
     }
 
 -- | See @CT_CellProtection@, p. 4484
@@ -1568,11 +1594,19 @@ instance FromCursor CellXf where
 instance FromCursor Dxf where
     fromCursor cur = do
       _dxfFont         <- maybeFromElement (n_ "font") cur
+      _dxfNumFmt       <- maybeFromElement (n_ "numFmt") cur
       _dxfFill         <- maybeFromElement (n_ "fill") cur
       _dxfAlignment    <- maybeFromElement (n_ "alignment") cur
       _dxfBorder       <- maybeFromElement (n_ "border") cur
       _dxfProtection   <- maybeFromElement (n_ "protection") cur
       return Dxf{..}
+
+-- | See @CT_NumFmt@, p. 3936
+instance FromCursor NumberFormat' where
+  fromCursor cur = do
+    _numFmtCode <- fromAttribute "formatCode" cur
+    _numFmtId   <- fromAttribute "numFmtId" cur
+    return NumberFormat'{..}
 
 -- | See @CT_CellAlignment@, p. 4482
 instance FromCursor Alignment where
