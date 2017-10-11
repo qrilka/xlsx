@@ -21,7 +21,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , NumberFormat(..)
   , NumberFormat'(..)
   , ImpliedNumberFormat (..)
-  , NumFmt
+  , FormatCode
   , Protection(..)
     -- * Supporting enumerations
   , CellHorizontalAlignment(..)
@@ -226,7 +226,7 @@ data StyleSheet = StyleSheet
     --
     -- Section 18.8.15, "dxfs (Formats)" (p. 1765)
 
-    , _styleSheetNumFmts :: Map Int NumFmt
+    , _styleSheetNumFmts :: Map Int FormatCode
     -- ^ Number formats
     --
     -- This element contains custom number formats defined in this style sheet
@@ -630,7 +630,10 @@ data Dxf = Dxf
 
 instance NFData Dxf
 
-type NumFmt = Text
+-- | A number format code.
+--
+-- Section 18.8.30, "numFmt (Number Format)" (p. 1777)
+type FormatCode = Text
 
 -- | This element specifies number format properties which indicate
 -- how to format and render the numeric value of a cell.
@@ -638,7 +641,7 @@ type NumFmt = Text
 -- Section 18.8.30 "numFmt (Number Format)" (p. 1777)
 data NumberFormat
     = StdNumberFormat ImpliedNumberFormat
-    | UserNumberFormat NumFmt
+    | UserNumberFormat FormatCode
     deriving (Eq, Ord, Show, Generic)
 
 instance NFData NumberFormat
@@ -649,7 +652,7 @@ instance NFData NumberFormat
 -- Section 18.8.30 "numFmt (Number Format)" (p. 1777)
 data NumberFormat' = NumberFormat'
   { _numFmtId :: Int
-  , _numFmtCode :: NumFmt
+  , _numFmtCode :: FormatCode
   } deriving (Eq, Ord, Show, Generic)
 
 instance NFData NumberFormat'
