@@ -619,6 +619,9 @@ instance NFData Font
 -- Section 18.8.14, "dxf (Formatting)" (p. 1765)
 data Dxf = Dxf
     { _dxfFont       :: Maybe Font
+      -- | It seems to be required that this number format entry is duplicated
+      -- in '_styleSheetNumFmts' of the style sheet, though the spec says
+      -- nothing explicitly about it.
     , _dxfNumFmt     :: Maybe NumFmt
     , _dxfFill       :: Maybe Fill
     , _dxfAlignment  :: Maybe Alignment
