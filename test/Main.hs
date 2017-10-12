@@ -237,7 +237,7 @@ testStyleSheet = minimalStyleSheet & styleSheetDxfs .~ [dxf1, dxf2, dxf3]
     dxf1 = def & dxfFont ?~ (def & fontBold ?~ True
                                  & fontSize ?~ 12)
     dxf2 = def & dxfFill ?~ (def & fillPattern ?~ (def & fillPatternBgColor ?~ red))
-    dxf3 = def & dxfNumFmt ?~ NumFmt 164 "YYYY/MM/DD"
+    dxf3 = def & dxfNumFmt ?~ NumFmt 164 "0.000"
     red = def & colorARGB ?~ "FFFF0000"
     cellXf1 = def
         { _cellXfApplyNumberFormat = Just True
