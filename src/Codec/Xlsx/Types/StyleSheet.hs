@@ -19,8 +19,9 @@ module Codec.Xlsx.Types.StyleSheet (
   , FillPattern(..)
   , Font(..)
   , NumberFormat(..)
+  , NumFmt(..)
   , ImpliedNumberFormat (..)
-  , NumFmt
+  , FormatCode
   , Protection(..)
     -- * Supporting enumerations
   , CellHorizontalAlignment(..)
@@ -61,6 +62,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , dxfBorder
   , dxfFill
   , dxfFont
+  , dxfNumFmt
   , dxfProtection
     -- ** Alignment
   , alignmentHorizontal
@@ -145,7 +147,6 @@ import Control.Applicative
 #endif
 
 import Codec.Xlsx.Parser.Internal
-import Codec.Xlsx.Types.Internal.NumFmtPair
 import Codec.Xlsx.Writer.Internal
 
 {-------------------------------------------------------------------------------
@@ -224,7 +225,7 @@ data StyleSheet = StyleSheet
     --
     -- Section 18.8.15, "dxfs (Formats)" (p. 1765)
 
-    , _styleSheetNumFmts :: Map Int NumFmt
+    , _styleSheetNumFmts :: Map Int FormatCode
     -- ^ Number formats
     --
     -- This element contains custom number formats defined in this style sheet
@@ -618,7 +619,10 @@ instance NFData Font
 -- Section 18.8.14, "dxf (Formatting)" (p. 1765)
 data Dxf = Dxf
     { _dxfFont       :: Maybe Font
-    -- TODO: numFmt
+      -- | It seems to be required that this number format entry is duplicated
+      -- in '_styleSheetNumFmts' of the style sheet, though the spec says
+      -- nothing explicitly about it.
+    , _dxfNumFmt     :: Maybe NumFmt
     , _dxfFill       :: Maybe Fill
     , _dxfAlignment  :: Maybe Alignment
     , _dxfBorder     :: Maybe Border
@@ -628,15 +632,30 @@ data Dxf = Dxf
 
 instance NFData Dxf
 
-type NumFmt = Text
+-- | A number format code.
+--
+-- Section 18.8.30, "numFmt (Number Format)" (p. 1777)
+type FormatCode = Text
 
 -- | This element specifies number format properties which indicate
 -- how to format and render the numeric value of a cell.
 --
 -- Section 18.8.30 "numFmt (Number Format)" (p. 1777)
+data NumFmt = NumFmt
+  { _numFmtId :: Int
+  , _numFmtCode :: FormatCode
+  } deriving (Eq, Ord, Show, Generic)
+
+instance NFData NumFmt
+
+mkNumFmtPair :: NumFmt -> (Int, FormatCode)
+mkNumFmtPair NumFmt{..} = (_numFmtId, _numFmtCode)
+
+-- | This type gives a high-level version of representation of number format
+-- used in 'Codec.Xlsx.Formatted.Format'.
 data NumberFormat
     = StdNumberFormat ImpliedNumberFormat
-    | UserNumberFormat NumFmt
+    | UserNumberFormat FormatCode
     deriving (Eq, Ord, Show, Generic)
 
 instance NFData NumberFormat
@@ -1017,6 +1036,7 @@ instance Default CellXf where
 instance Default Dxf where
     def = Dxf
           { _dxfFont       = Nothing
+          , _dxfNumFmt     = Nothing
           , _dxfFill       = Nothing
           , _dxfAlignment  = Nothing
           , _dxfBorder     = Nothing
@@ -1133,7 +1153,7 @@ instance ToElement StyleSheet where
                  -- TODO: colors
                  -- TODO: extLst
                  ]
-      numFmts = map NumFmtPair $ M.toList _styleSheetNumFmts
+      numFmts = map (uncurry NumFmt) $ M.toList _styleSheetNumFmts
 
 -- | See @CT_Xf@, p. 4486
 instance ToElement CellXf where
@@ -1167,6 +1187,7 @@ instance ToElement Dxf where
         { elementName       = nm
         , elementNodes      = map NodeElement $
                               catMaybes [ toElement "font"       <$> _dxfFont
+                                        , toElement "numFmt"     <$> _dxfNumFmt
                                         , toElement "fill"       <$> _dxfFill
                                         , toElement "alignment"  <$> _dxfAlignment
                                         , toElement "border"     <$> _dxfBorder
@@ -1287,6 +1308,14 @@ instance ToElement Font where
         ]
     }
 
+-- | See @CT_NumFmt@, p. 3936
+instance ToElement NumFmt where
+  toElement nm (NumFmt {..}) =
+    leafElement nm
+      [ "numFmtId"   .= toAttrVal _numFmtId
+      , "formatCode" .= toAttrVal _numFmtCode
+      ]
+
 -- | See @CT_CellProtection@, p. 4484
 instance ToElement Protection where
   toElement nm Protection{..} = Element {
@@ -1401,7 +1430,7 @@ instance FromCursor StyleSheet where
       _styleSheetCellXfs = cur $/ element (n_ "cellXfs") &/ element (n_ "xf") >=> fromCursor
          -- TODO: cellStyles
       _styleSheetDxfs = cur $/ element (n_ "dxfs") &/ element (n_ "dxf") >=> fromCursor
-      _styleSheetNumFmts = M.fromList . map unNumFmtPair $
+      _styleSheetNumFmts = M.fromList . map mkNumFmtPair $
           cur $/ element (n_ "numFmts")&/ element (n_ "numFmt") >=> fromCursor
          -- TODO: tableStyles
          -- TODO: colors
@@ -1568,11 +1597,19 @@ instance FromCursor CellXf where
 instance FromCursor Dxf where
     fromCursor cur = do
       _dxfFont         <- maybeFromElement (n_ "font") cur
+      _dxfNumFmt       <- maybeFromElement (n_ "numFmt") cur
       _dxfFill         <- maybeFromElement (n_ "fill") cur
       _dxfAlignment    <- maybeFromElement (n_ "alignment") cur
       _dxfBorder       <- maybeFromElement (n_ "border") cur
       _dxfProtection   <- maybeFromElement (n_ "protection") cur
       return Dxf{..}
+
+-- | See @CT_NumFmt@, p. 3936
+instance FromCursor NumFmt where
+  fromCursor cur = do
+    _numFmtCode <- fromAttribute "formatCode" cur
+    _numFmtId   <- fromAttribute "numFmtId" cur
+    return NumFmt{..}
 
 -- | See @CT_CellAlignment@, p. 4482
 instance FromCursor Alignment where

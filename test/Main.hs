@@ -230,13 +230,14 @@ fromRight (Right b) = b
 fromRight (Left x) = error $ "Right _ was expected but Left " ++ show x ++ " found"
 
 testStyleSheet :: StyleSheet
-testStyleSheet = minimalStyleSheet & styleSheetDxfs .~ [dxf1, dxf2]
+testStyleSheet = minimalStyleSheet & styleSheetDxfs .~ [dxf1, dxf2, dxf3]
                                    & styleSheetNumFmts .~ M.fromList [(164, "0.000")]
                                    & styleSheetCellXfs %~ (++ [cellXf1, cellXf2])
   where
     dxf1 = def & dxfFont ?~ (def & fontBold ?~ True
                                  & fontSize ?~ 12)
     dxf2 = def & dxfFill ?~ (def & fillPattern ?~ (def & fillPatternBgColor ?~ red))
+    dxf3 = def & dxfNumFmt ?~ NumFmt 164 "0.000"
     red = def & colorARGB ?~ "FFFF0000"
     cellXf1 = def
         { _cellXfApplyNumberFormat = Just True
