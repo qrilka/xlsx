@@ -1,14 +1,15 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TupleSections             #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 -- | This module provides a function for reading .xlsx files
 module Codec.Xlsx.Parser
   ( toXlsx
   , toXlsxEither
+  , toXlsxFast
   , ParseError(..)
   , Parser
   ) where
@@ -18,10 +19,14 @@ import Control.Applicative
 import Control.Arrow (left)
 import Control.Error.Safe (headErr)
 import Control.Error.Util (note)
-import Control.Lens hiding (element, views, (<.>))
+import Control.Exception (Exception)
+import Control.Lens hiding ((<.>), element, views)
+import Control.Monad (forM, join, void)
 import Control.Monad.Except (catchError, throwError)
 import Data.Bool (bool)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy as LB
 import Data.ByteString.Lazy.Char8 ()
 import Data.List
 import Data.Map (Map)
@@ -33,9 +38,11 @@ import qualified Data.Text as T
 import Data.Traversable
 import GHC.Generics (Generic)
 import Prelude hiding (sequence)
+import Safe
 import System.FilePath.Posix
 import Text.XML as X
 import Text.XML.Cursor hiding (bool)
+import qualified Xeno.DOM as Xeno
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Parser.Internal.PivotTable
@@ -49,6 +56,7 @@ import Codec.Xlsx.Types.Internal.ContentTypes as ContentTypes
 import Codec.Xlsx.Types.Internal.CustomProperties
        as CustomProperties
 import Codec.Xlsx.Types.Internal.DvPair
+import Codec.Xlsx.Types.Internal.FormulaData
 import Codec.Xlsx.Types.Internal.Relationships as Relationships
 import Codec.Xlsx.Types.Internal.SharedStringTable
 import Codec.Xlsx.Types.PivotTable.Internal
@@ -59,22 +67,42 @@ toXlsx = either (error . show) id . toXlsxEither
 
 data ParseError = InvalidZipArchive
                 | MissingFile FilePath
-                | InvalidFile FilePath
+                | InvalidFile FilePath Text
                 | InvalidRef FilePath RefId
                 | InconsistentXlsx Text
                 deriving (Eq, Show, Generic)
 
+instance Exception ParseError
+
 type Parser = Either ParseError
 
--- | Reads `Xlsx' from raw data (lazy bytestring), failing with Left on parse error
+-- | Reads `Xlsx' from raw data (lazy bytestring) using @xeno@ library
+-- using some "cheating"
+-- * not doing 100% xml validation
+-- * replacing only basic XML enttities
+-- * almost not using XML namespaces
+toXlsxFast :: L.ByteString -> Xlsx
+toXlsxFast = either (error . show) id . toXlsxEitherFast
+
+-- | Reads `Xlsx' from raw data (lazy bytestring), failing with 'Left' on parse error
 toXlsxEither :: L.ByteString -> Parser Xlsx
-toXlsxEither bs = do
+toXlsxEither = toXlsxEitherBase extractSheet
+
+-- | Fast parsing with 'Left' on parse error, see 'toXlsxFast'
+toXlsxEitherFast :: L.ByteString -> Parser Xlsx
+toXlsxEitherFast = toXlsxEitherBase extractSheetFast
+
+toXlsxEitherBase ::
+     (Zip.Archive -> SharedStringTable -> ContentTypes -> Caches -> WorksheetFile -> Parser Worksheet)
+  -> L.ByteString
+  -> Parser Xlsx
+toXlsxEitherBase parseSheet bs = do
   ar <- left (const InvalidZipArchive) $ Zip.toArchiveOrFail bs
   sst <- getSharedStrings ar
   contentTypes <- getContentTypes ar
   (wfs, names, cacheSources, dateBase) <- readWorkbook ar
   sheets <- forM wfs $ \wf -> do
-      sheet <- extractSheet ar sst contentTypes cacheSources wf
+      sheet <- parseSheet ar sst contentTypes cacheSources wf
       return (wfName wf, sheet)
   CustomProperties customPropMap <- getCustomProperties ar
   return $ Xlsx sheets (getStyles ar) names customPropMap dateBase
@@ -86,16 +114,229 @@ data WorksheetFile = WorksheetFile { wfName :: Text
 
 type Caches = [(CacheId, (Text, CellRef, [CacheField]))]
 
-extractSheet :: Zip.Archive
-             -> SharedStringTable
-             -> ContentTypes
-             -> Caches
-             -> WorksheetFile
-             -> Parser Worksheet
+extractSheetFast :: Zip.Archive
+                 -> SharedStringTable
+                 -> ContentTypes
+                 -> Caches
+                 -> WorksheetFile
+                 -> Parser Worksheet
+extractSheetFast ar sst contentTypes caches wf = do
+  file <-
+    note (MissingFile filePath) $
+    Zip.fromEntry <$> Zip.findEntryByPath filePath ar
+  sheetRels <- getRels ar filePath
+  root <-
+    left (\ex -> InvalidFile filePath $ T.pack (show ex)) $
+    Xeno.parse (LB.toStrict file)
+  parseWorksheet root sheetRels
+  where
+    filePath = wfPath wf
+    parseWorksheet :: Xeno.Node -> Relationships -> Parser Worksheet
+    parseWorksheet root sheetRels = do
+      let prefixes = nsPrefixes root
+          odrNs =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+          odrX = addPrefix prefixes odrNs
+          skip = void . maybeChild
+      (ws, tableIds, drawingRId, legacyDrRId) <-
+        liftEither . collectChildren root $ do
+          skip "sheetPr"
+          skip "dimension"
+          _wsSheetViews <- fmap justNonEmpty . maybeParse "sheetViews" $ \n ->
+            collectChildren n $ fromChildList "sheetView"
+          skip "sheetFormatPr"
+          _wsColumnsProperties <-
+            fmap (fromMaybe []) . maybeParse "cols" $ \n ->
+              collectChildren n (fromChildList "col")
+          (_wsRowPropertiesMap, _wsCells, _wsSharedFormulas) <-
+            requireAndParse "sheetData" $ \n -> do
+              rows <- collectChildren n $ childList "row"
+              collectRows <$> forM rows parseRow
+          skip "sheetCalcPr"
+          _wsProtection <- maybeFromChild "sheetProtection"
+          skip "protectedRanges"
+          skip "scenarios"
+          _wsAutoFilter <- maybeFromChild "autoFilter"
+          skip "sortState"
+          skip "dataConsolidate"
+          skip "customSheetViews"
+          _wsMerges <- fmap (fromMaybe []) . maybeParse "mergeCells" $ \n -> do
+            mCells <- collectChildren n $ childList "mergeCell"
+            forM mCells $ \mCell -> parseAttributes mCell $ fromAttr "ref"
+          _wsConditionalFormattings <-
+            M.fromList . map unCfPair <$> fromChildList "conditionalFormatting"
+          _wsDataValidations <-
+            fmap (fromMaybe mempty) . maybeParse "dataValidations" $ \n -> do
+              M.fromList . map unDvPair <$>
+                collectChildren n (fromChildList "dataValidation")
+          skip "hyperlinks"
+          skip "printOptions"
+          skip "pageMargins"
+          _wsPageSetup <- maybeFromChild "pageSetup"
+          skip "headerFooter"
+          skip "rowBreaks"
+          skip "colBreaks"
+          skip "customProperties"
+          skip "cellWatches"
+          skip "ignoredErrors"
+          skip "smartTags"
+          drawingRId <- maybeParse "drawing" $ \n ->
+            parseAttributes n $ fromAttr (odrX "id")
+          legacyDrRId <- maybeParse "legacyDrawing" $ \n ->
+            parseAttributes n $ fromAttr (odrX "id")
+          tableIds <- fmap (fromMaybe []) . maybeParse "tableParts" $ \n -> do
+            tParts <- collectChildren n $ childList "tablePart"
+            forM tParts $ \part ->
+              parseAttributes part $ fromAttr (odrX "id")
+
+          -- all explicitly assigned fields filled below
+          return (
+            Worksheet
+            { _wsDrawing = Nothing
+            , _wsPivotTables = []
+            , _wsTables = []
+            , ..
+            }
+            , tableIds
+            , drawingRId
+            , legacyDrRId)
+
+      let commentsType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+          commentTarget :: Maybe FilePath
+          commentTarget = relTarget <$> findRelByType commentsType sheetRels
+          legacyDrPath = fmap relTarget . flip Relationships.lookup sheetRels =<< legacyDrRId
+      commentsMap <-
+        fmap join . forM commentTarget $ getComments ar legacyDrPath
+      let commentCells =
+            M.fromList
+            [ (fromSingleCellRefNoting r, def { _cellComment = Just cmnt})
+            | (r, cmnt) <- maybe [] CommentTable.toList commentsMap
+            ]
+          assignComment withCmnt noCmnt =
+            noCmnt & cellComment .~ (withCmnt ^. cellComment)
+          mergeComments = M.unionWith assignComment commentCells
+      tables <- forM tableIds $ \rId -> do
+        fp <- lookupRelPath filePath sheetRels rId
+        getTable ar fp
+      drawing <- forM drawingRId $ \dId -> do
+        rel <- note (InvalidRef filePath dId) $ Relationships.lookup dId sheetRels
+        getDrawing ar contentTypes (relTarget rel)
+      let ptType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
+      pivotTables <- forM (allByType ptType sheetRels) $ \rel -> do
+        let ptPath = relTarget rel
+        bs <- note (MissingFile ptPath) $ Zip.fromEntry <$> Zip.findEntryByPath ptPath ar
+        note (InconsistentXlsx $ "Bad pivot table in " <> T.pack ptPath) $
+          parsePivotTable (flip Prelude.lookup caches) bs
+
+      return $ ws & wsTables .~ tables
+                  & wsCells %~ mergeComments
+                  & wsDrawing .~ drawing
+                  & wsPivotTables .~ pivotTables
+    liftEither :: Either Text a -> Parser a
+    liftEither = left (\t -> InvalidFile filePath t)
+    justNonEmpty v@(Just (_:_)) = v
+    justNonEmpty _ = Nothing
+    collectRows = foldr collectRow (M.empty, M.empty, M.empty)
+    collectRow ::
+         ( Int
+         , Maybe RowProperties
+         , [(Int, Int, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))])
+      -> ( Map Int RowProperties
+         , CellMap
+         , Map SharedFormulaIndex SharedFormulaOptions)
+      -> ( Map Int RowProperties
+         , CellMap
+         , Map SharedFormulaIndex SharedFormulaOptions)
+    collectRow (r, mRP, rowCells) (rowMap, cellMap, sharedF) =
+      let (newCells0, newSharedF0) =
+            unzip [(((x, y), cd), shared) | (x, y, cd, shared) <- rowCells]
+          newCells = M.fromAscList newCells0
+          newSharedF = M.fromAscList $ catMaybes newSharedF0
+          newRowMap =
+            case mRP of
+              Just rp -> M.insert r rp rowMap
+              Nothing -> rowMap
+      in (newRowMap, cellMap <> newCells, sharedF <> newSharedF)
+    parseRow ::
+         Xeno.Node
+      -> Either Text ( Int
+                     , Maybe RowProperties
+                     , [( Int
+                        , Int
+                        , Cell
+                        , Maybe (SharedFormulaIndex, SharedFormulaOptions))])
+    parseRow row = do
+      (r, s, ht, cstHt, hidden) <-
+        parseAttributes row $
+        ((,,,,) <$> fromAttr "r" <*> maybeAttr "s" <*> maybeAttr "ht" <*>
+         fromAttrDef "customHeight" False <*>
+         fromAttrDef "hidden" False)
+      let props =
+            RowProps
+            { rowHeight =
+                if cstHt
+                  then CustomHeight <$> ht
+                  else AutomaticHeight <$> ht
+            , rowStyle = s
+            , rowHidden = hidden
+            }
+      cellNodes <- collectChildren row $ childList "c"
+      cells <- forM cellNodes parseCell
+      return
+        ( r
+        , if props == def
+            then Nothing
+            else Just props
+        , cells)
+    parseCell ::
+         Xeno.Node
+      -> Either Text ( Int
+                     , Int
+                     , Cell
+                     , Maybe (SharedFormulaIndex, SharedFormulaOptions))
+    parseCell cell = do
+      (ref, s, t) <-
+        parseAttributes cell $
+        (,,) <$> fromAttr "r" <*> maybeAttr "s" <*> fromAttrDef "t" "n"
+      (fNode, vNode, isNode) <-
+        collectChildren cell $
+        (,,) <$> maybeChild "f" <*> maybeChild "v" <*> maybeChild "is"
+      let vConverted :: (FromAttrBs a) => Either Text (Maybe a)
+          vConverted =
+            case contentBs <$> vNode of
+              Nothing -> return Nothing
+              Just c -> Just <$> fromAttrBs c
+      mFormulaData <- mapM fromXenoNode fNode
+      d <-
+        case t of
+          ("s" :: ByteString) -> do
+            si <- vConverted
+            case sstItem sst =<< si of
+              Just xlTxt -> return $ Just (xlsxTextToCellValue xlTxt)
+              Nothing -> throwError "bad shared string index"
+          "inlineStr" -> mapM (fmap xlsxTextToCellValue . fromXenoNode) isNode
+          "str" -> fmap CellText <$> vConverted
+          "n" -> fmap CellDouble <$> vConverted
+          "b" -> fmap CellBool <$> vConverted
+          "e" -> fmap CellError <$> vConverted
+          unexpected ->
+            throwError $ "unexpected cell type " <> T.pack (show unexpected)
+      let (r, c) = fromSingleCellRefNoting ref
+          f = frmdFormula <$> mFormulaData
+          shared = frmdShared =<< mFormulaData
+      return (r, c, Cell s d Nothing f, shared)
+
+extractSheet ::
+     Zip.Archive
+  -> SharedStringTable
+  -> ContentTypes
+  -> Caches
+  -> WorksheetFile
+  -> Parser Worksheet
 extractSheet ar sst contentTypes caches wf = do
   let filePath = wfPath wf
   file <- note (MissingFile filePath) $ Zip.fromEntry <$> Zip.findEntryByPath filePath ar
-  cur <- fmap fromDocument . left (\_ -> InvalidFile filePath) $
+  cur <- fmap fromDocument . left (\ex -> InvalidFile filePath (T.pack $ show ex)) $
          parseLBS def file
   sheetRels <- getRels ar filePath
 
@@ -269,16 +510,30 @@ xmlCursorOptional ar fname =
 xmlCursorRequired :: Zip.Archive -> FilePath -> Parser Cursor
 xmlCursorRequired ar fname = do
     entry <- note (MissingFile fname) $ Zip.findEntryByPath fname ar
-    cur <- left (\_ -> InvalidFile fname) $ parseLBS def (Zip.fromEntry entry)
+    cur <- left (\ex -> InvalidFile fname (T.pack $ show ex)) $ parseLBS def (Zip.fromEntry entry)
     return $ fromDocument cur
+
+fromFileCursorDef ::
+     FromCursor a => Zip.Archive -> FilePath -> Text -> a -> Parser a
+fromFileCursorDef x fp contentsDescr defVal = do
+  mCur <- xmlCursorOptional x fp
+  case mCur of
+    Just cur ->
+      headErr (InvalidFile fp $ "Couldn't parse " <> contentsDescr) $ fromCursor cur
+    Nothing -> return defVal
+
+fromFileCursor :: FromCursor a => Zip.Archive -> FilePath -> Text -> Parser a
+fromFileCursor x fp contentsDescr = do
+  cur <- xmlCursorRequired x fp
+  headErr (InvalidFile fp $ "Couldn't parse " <> contentsDescr) $ fromCursor cur
 
 -- | Get shared string table
 getSharedStrings  :: Zip.Archive -> Parser SharedStringTable
-getSharedStrings x = maybe sstEmpty (head . fromCursor) <$>
-                     xmlCursorOptional x "xl/sharedStrings.xml"
+getSharedStrings x =
+  fromFileCursorDef x "xl/sharedStrings.xml" "shared strings" sstEmpty
 
 getContentTypes :: Zip.Archive -> Parser ContentTypes
-getContentTypes x = head . fromCursor <$> xmlCursorRequired x "[Content_Types].xml"
+getContentTypes x = fromFileCursor x "[Content_Types].xml" "content types"
 
 getStyles :: Zip.Archive -> Styles
 getStyles ar = case Zip.fromEntry <$> Zip.findEntryByPath "xl/styles.xml" ar of
@@ -307,13 +562,14 @@ getComments ar drp fp = do
         return $ singleCellRef (r0 + 1, c0 + 1)
 
 getCustomProperties :: Zip.Archive -> Parser CustomProperties
-getCustomProperties ar = maybe CustomProperties.empty (head . fromCursor) <$> xmlCursorOptional ar "docProps/custom.xml"
+getCustomProperties ar =
+  fromFileCursorDef ar "docProps/custom.xml" "custom properties" CustomProperties.empty
 
 getDrawing :: Zip.Archive -> ContentTypes ->  FilePath -> Parser Drawing
 getDrawing ar contentTypes fp = do
     cur <- xmlCursorRequired ar fp
     drawingRels <- getRels ar fp
-    unresolved <- headErr (InvalidFile fp) (fromCursor cur)
+    unresolved <- headErr (InvalidFile fp "Couldn't parse drawing") (fromCursor cur)
     anchors <- forM (unresolved ^. xdrAnchors) $ resolveFileInfo drawingRels
     return $ Drawing anchors
   where
@@ -338,16 +594,19 @@ getDrawing ar contentTypes fp = do
           return uAnch {_anchObject = Graphic nv chart tr}
     lookupFI _ Nothing = return Nothing
     lookupFI rels (Just rId) = do
-        path <- lookupRelPath fp rels rId
+      path <- lookupRelPath fp rels rId
         -- content types use paths starting with /
-        contentType <- note (InvalidFile path) $ ContentTypes.lookup ("/" <> path) contentTypes
-        contents <- Zip.fromEntry <$> note (MissingFile path) (Zip.findEntryByPath path ar)
-        return . Just $ FileInfo (stripMediaPrefix path) contentType contents
+      contentType <-
+        note (InvalidFile path "Missing content type") $
+        ContentTypes.lookup ("/" <> path) contentTypes
+      contents <-
+        Zip.fromEntry <$> note (MissingFile path) (Zip.findEntryByPath path ar)
+      return . Just $ FileInfo (stripMediaPrefix path) contentType contents
     stripMediaPrefix :: FilePath -> FilePath
     stripMediaPrefix p = fromMaybe p $ stripPrefix "xl/media/" p
 
 readChart :: Zip.Archive -> FilePath -> Parser ChartSpace
-readChart ar path = head . fromCursor <$> xmlCursorRequired ar path
+readChart ar path = fromFileCursor ar path "chart"
 
 -- | readWorkbook pulls the names of the sheets and the defined names
 readWorkbook :: Zip.Archive -> Parser ([WorksheetFile], DefinedNames, Caches, DateBase)
@@ -359,7 +618,7 @@ readWorkbook ar = do
   let mkDefinedName :: Cursor -> [(Text, Maybe Text, Text)]
       mkDefinedName c =
         return
-          ( head $ attribute "name" c
+          ( headNote "Missing name attribute" $ attribute "name" c
           , listToMaybe $ attribute "localSheetId" c
           , T.concat $ c $/ content)
       names =
@@ -389,7 +648,7 @@ readWorkbook ar = do
 getTable :: Zip.Archive -> FilePath -> Parser Table
 getTable ar fp = do
   cur <- xmlCursorRequired ar fp
-  headErr (InvalidFile fp) (fromCursor cur)
+  headErr (InvalidFile fp "Couldn't parse drawing") (fromCursor cur)
 
 worksheetFile :: FilePath -> Relationships -> Text -> RefId -> Parser WorksheetFile
 worksheetFile parentPath wbRels name rId =
@@ -400,7 +659,7 @@ getRels ar fp = do
     let (dir, file) = splitFileName fp
         relsPath = dir </> "_rels" </> file <.> "rels"
     c <- xmlCursorOptional ar relsPath
-    return $ maybe Relationships.empty (setTargetsFrom fp . head . fromCursor) c
+    return $ maybe Relationships.empty (setTargetsFrom fp . headNote "Missing rels" . fromCursor) c
 
 lookupRelPath :: FilePath
               -> Relationships

@@ -218,7 +218,7 @@ sheetDataXml rows rh sharedFormulas =
         _ ->
           return fEl0
       return $ elementList "c" (cellAttrs (singleCellRef (r, icol)) cell) $
-        catMaybes [elementContent "v" . value <$> xlsxCellValue cell, fEl]
+        catMaybes [fEl, elementContent "v" . value <$> xlsxCellValue cell]
 
 genComments :: Int -> Cells -> STRef s Int -> ST s (Maybe (Element, [ReferencedFileData]))
 genComments n cells ref =

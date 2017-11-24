@@ -1,32 +1,33 @@
-{-# LANGUAGE CPP                #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Codec.Xlsx.Parser.Internal
-    ( ParseException(..)
-    , n_
-    , nodeElNameIs
-    , FromCursor(..)
-    , FromAttrVal(..)
-    , fromAttribute
-    , fromAttributeDef
-    , maybeAttribute
-    , fromElementValue
-    , maybeElementValue
-    , maybeElementValueDef
-    , maybeBoolElementValue
-    , maybeFromElement
-    , attrValIs
-    , contentOrEmpty
-    , readSuccess
-    , readFailure
-    , invalidText
-    , defaultReadFailure
-    , boolean
-    , decimal
-    , rational
-    ) where
+  ( ParseException(..)
+  , n_
+  , nodeElNameIs
+  , FromCursor(..)
+  , FromAttrVal(..)
+  , fromAttribute
+  , fromAttributeDef
+  , maybeAttribute
+  , fromElementValue
+  , maybeElementValue
+  , maybeElementValueDef
+  , maybeBoolElementValue
+  , maybeFromElement
+  , attrValIs
+  , contentOrEmpty
+  , readSuccess
+  , readFailure
+  , invalidText
+  , defaultReadFailure
+  , module Codec.Xlsx.Parser.Internal.Util
+  , module Codec.Xlsx.Parser.Internal.Fast
+  ) where
 
 import Control.Exception (Exception)
 import Data.Maybe
@@ -41,6 +42,9 @@ import Text.XML.Cursor
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
 #endif
+
+import Codec.Xlsx.Parser.Internal.Fast
+import Codec.Xlsx.Parser.Internal.Util
 
 data ParseException = ParseException String
                     deriving (Show, Typeable, Generic)
@@ -154,19 +158,3 @@ n_ x = Name
   , nameNamespace = Just "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
   , namePrefix = Just "n"
   }
-
-decimal :: (Monad m, Integral a) => Text -> m a
-decimal t = case T.signed T.decimal $ t of
-  Right (d, leftover) | T.null leftover -> return d
-  _ -> fail $ "invalid decimal" ++ show t
-
-rational :: Monad m => Text -> m Double
-rational t = case T.rational t of
-  Right (r, leftover) | T.null leftover -> return r
-  _ -> fail $ "invalid rational: " ++ show t
-
-boolean :: Monad m => Text -> m Bool
-boolean t = case T.strip t of
-    "true"  -> return True
-    "false" -> return False
-    _       -> fail $ "invalid boolean: " ++ show t

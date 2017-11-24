@@ -475,6 +475,32 @@ instance FromCursor SheetView where
         _sheetViewSelection = cur $/ element (n_ "selection") >=> fromCursor
     return SheetView{..}
 
+instance FromXenoNode SheetView where
+  fromXenoNode root = parseAttributes root $ do
+    _sheetViewWindowProtection         <- maybeAttr "windowProtection"
+    _sheetViewShowFormulas             <- maybeAttr "showFormulas"
+    _sheetViewShowGridLines            <- maybeAttr "showGridLines"
+    _sheetViewShowRowColHeaders        <- maybeAttr "showRowColHeaders"
+    _sheetViewShowZeros                <- maybeAttr "showZeros"
+    _sheetViewRightToLeft              <- maybeAttr "rightToLeft"
+    _sheetViewTabSelected              <- maybeAttr "tabSelected"
+    _sheetViewShowRuler                <- maybeAttr "showRuler"
+    _sheetViewShowOutlineSymbols       <- maybeAttr "showOutlineSymbols"
+    _sheetViewDefaultGridColor         <- maybeAttr "defaultGridColor"
+    _sheetViewShowWhiteSpace           <- maybeAttr "showWhiteSpace"
+    _sheetViewType                     <- maybeAttr "view"
+    _sheetViewTopLeftCell              <- maybeAttr "topLeftCell"
+    _sheetViewColorId                  <- maybeAttr "colorId"
+    _sheetViewZoomScale                <- maybeAttr "zoomScale"
+    _sheetViewZoomScaleNormal          <- maybeAttr "zoomScaleNormal"
+    _sheetViewZoomScaleSheetLayoutView <- maybeAttr "zoomScaleSheetLayoutView"
+    _sheetViewZoomScalePageLayoutView  <- maybeAttr "zoomScalePageLayoutView"
+    _sheetViewWorkbookViewId           <- fromAttr "workbookViewId"
+    (_sheetViewPane, _sheetViewSelection) <-
+      toAttrParser . collectChildren root $
+      (,) <$> maybeFromChild "pane" <*> fromChildList "selection"
+    return SheetView {..}
+
 -- | See @CT_Pane@, p. 3913
 instance FromCursor Pane where
   fromCursor cur = do
@@ -485,6 +511,16 @@ instance FromCursor Pane where
     _paneState       <- maybeAttribute "state" cur
     return Pane{..}
 
+instance FromXenoNode Pane where
+  fromXenoNode root =
+    parseAttributes root $ do
+      _paneXSplit <- maybeAttr "xSplit"
+      _paneYSplit <- maybeAttr "ySplit"
+      _paneTopLeftCell <- maybeAttr "topLeftCell"
+      _paneActivePane <- maybeAttr "activePane"
+      _paneState <- maybeAttr "state"
+      return Pane {..}
+
 -- | See @CT_Selection@, p. 3914
 instance FromCursor Selection where
   fromCursor cur = do
@@ -494,12 +530,27 @@ instance FromCursor Selection where
     _selectionSqref        <- maybeAttribute "sqref" cur
     return Selection{..}
 
+instance FromXenoNode Selection where
+  fromXenoNode root =
+    parseAttributes root $ do
+      _selectionPane <- maybeAttr "pane"
+      _selectionActiveCell <- maybeAttr "activeCell"
+      _selectionActiveCellId <- maybeAttr "activeCellId"
+      _selectionSqref <- maybeAttr "sqref"
+      return Selection {..}
+
 -- | See @ST_SheetViewType@, p. 3913
 instance FromAttrVal SheetViewType where
   fromAttrVal "normal"           = readSuccess SheetViewTypeNormal
   fromAttrVal "pageBreakPreview" = readSuccess SheetViewTypePageBreakPreview
   fromAttrVal "pageLayout"       = readSuccess SheetViewTypePageLayout
   fromAttrVal t                  = invalidText "SheetViewType" t
+
+instance FromAttrBs SheetViewType where
+  fromAttrBs "normal"           = return SheetViewTypeNormal
+  fromAttrBs "pageBreakPreview" = return SheetViewTypePageBreakPreview
+  fromAttrBs "pageLayout"       = return SheetViewTypePageLayout
+  fromAttrBs x                  = unexpectedAttrBs "SheetViewType" x
 
 -- | See @ST_Pane@, p. 3914
 instance FromAttrVal PaneType where
@@ -509,9 +560,22 @@ instance FromAttrVal PaneType where
   fromAttrVal "topLeft"     = readSuccess PaneTypeTopLeft
   fromAttrVal t             = invalidText "PaneType" t
 
+instance FromAttrBs PaneType where
+  fromAttrBs "bottomRight" = return PaneTypeBottomRight
+  fromAttrBs "topRight"    = return PaneTypeTopRight
+  fromAttrBs "bottomLeft"  = return PaneTypeBottomLeft
+  fromAttrBs "topLeft"     = return PaneTypeTopLeft
+  fromAttrBs x             = unexpectedAttrBs "PaneType" x
+
 -- | See @ST_PaneState@, p. 3929
 instance FromAttrVal PaneState where
   fromAttrVal "split"       = readSuccess PaneStateSplit
   fromAttrVal "frozen"      = readSuccess PaneStateFrozen
   fromAttrVal "frozenSplit" = readSuccess PaneStateFrozenSplit
   fromAttrVal t             = invalidText "PaneState" t
+
+instance FromAttrBs PaneState where
+  fromAttrBs "split"       = return PaneStateSplit
+  fromAttrBs "frozen"      = return PaneStateFrozen
+  fromAttrBs "frozenSplit" = return PaneStateFrozenSplit
+  fromAttrBs x             = unexpectedAttrBs "PaneState" x

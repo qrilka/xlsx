@@ -210,9 +210,33 @@ instance FromCursor SheetProtection where
     _sprSort  <- fromAttributeDef "sort" True cur    
     return SheetProtection {..}
 
+instance FromXenoNode SheetProtection where
+  fromXenoNode root =
+    parseAttributes root $ do
+      _sprLegacyPassword <- maybeAttr "password"
+      _sprSheet <- fromAttrDef "sheet" False
+      _sprAutoFilter <- fromAttrDef "autoFilter" True
+      _sprDeleteColumns <- fromAttrDef "deleteColumns" True
+      _sprDeleteRows <- fromAttrDef "deleteRows" True
+      _sprFormatCells <- fromAttrDef "formatCells" True
+      _sprFormatColumns <- fromAttrDef "formatColumns" True
+      _sprFormatRows <- fromAttrDef "formatRows" True
+      _sprInsertColumns <- fromAttrDef "insertColumns" True
+      _sprInsertHyperlinks <- fromAttrDef "insertHyperlinks" True
+      _sprInsertRows <- fromAttrDef "insertRows" True
+      _sprObjects <- fromAttrDef "objects" False
+      _sprPivotTables <- fromAttrDef "pivotTables" True
+      _sprScenarios <- fromAttrDef "scenarios" False
+      _sprSelectLockedCells <- fromAttrDef "selectLockedCells" False
+      _sprSelectUnlockedCells <- fromAttrDef "selectUnlockedCells" False
+      _sprSort <- fromAttrDef "sort" True
+      return SheetProtection {..}
+
 instance FromAttrVal LegacyPassword where
   fromAttrVal = fmap (first LegacyPassword) . fromAttrVal
 
+instance FromAttrBs LegacyPassword where
+  fromAttrBs = fmap LegacyPassword . fromAttrBs
 
 {-------------------------------------------------------------------------------
   Rendering

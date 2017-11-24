@@ -25,14 +25,16 @@ module Codec.Xlsx.Types.Common
 import GHC.Generics (Generic)
 
 import Control.Arrow
-import Control.Monad (guard)
 import Control.DeepSeq (NFData)
+import Control.Monad (forM, guard)
+import qualified Data.ByteString as BS
 import Data.Char
 import Data.Ix (inRange)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time.Calendar (Day, fromGregorian, addDays, diffDays)
+import qualified Data.Text.Encoding as T
+import Data.Time.Calendar (Day, addDays, diffDays, fromGregorian)
 import Data.Time.Clock (UTCTime(UTCTime), picosecondsToDiffTime)
 import Safe
 import Text.XML
@@ -290,20 +292,49 @@ instance FromCursor XlsxText where
       _ ->
         fail "invalid item"
 
+instance FromXenoNode XlsxText where
+  fromXenoNode root = do
+    (mCh, rs) <-
+      collectChildren root $ (,) <$> maybeChild "t" <*> fromChildList "r"
+    mT <- mapM contentX mCh
+    case mT of
+      Just t -> return $ XlsxText t
+      Nothing ->
+        case rs of
+          [] -> Left $ "missing rich text subelements"
+          _ -> return $ XlsxRichText rs
+
 instance FromAttrVal CellRef where
   fromAttrVal = fmap (first CellRef) . fromAttrVal
+
+instance FromAttrBs CellRef where
+  -- we presume that cell references contain only latin letters,
+  -- numbers and colon
+  fromAttrBs = pure . CellRef . T.decodeLatin1
 
 instance FromAttrVal SqRef where
   fromAttrVal t = do
     rs <- mapM (fmap fst . fromAttrVal) $ T.split (== ' ') t
     readSuccess $ SqRef rs
 
+instance FromAttrBs SqRef where
+  fromAttrBs bs = do
+    -- split on space
+    rs <- forM  (BS.split 32 bs) fromAttrBs
+    return $ SqRef rs
+
 -- | See @ST_Formula@, p. 3873
 instance FromCursor Formula where
     fromCursor cur = [Formula . T.concat $ cur $/ content]
 
+instance FromXenoNode Formula where
+  fromXenoNode = fmap Formula . contentX
+
 instance FromAttrVal Formula where
   fromAttrVal t = readSuccess $ Formula t
+
+instance FromAttrBs Formula where
+  fromAttrBs = fmap Formula . fromAttrBs
 
 instance FromAttrVal ErrorType where
   fromAttrVal "#DIV/0!" = readSuccess ErrorDiv0
@@ -314,6 +345,16 @@ instance FromAttrVal ErrorType where
   fromAttrVal "#REF!" = readSuccess ErrorRef
   fromAttrVal "#VALUE!" = readSuccess ErrorValue
   fromAttrVal t = invalidText "ErrorType" t
+
+instance FromAttrBs ErrorType where
+  fromAttrBs "#DIV/0!" = return ErrorDiv0
+  fromAttrBs "#N/A" = return ErrorNA
+  fromAttrBs "#NAME?" = return ErrorName
+  fromAttrBs "#NULL!" = return ErrorNull
+  fromAttrBs "#NUM!" = return ErrorNum
+  fromAttrBs "#REF!" = return ErrorRef
+  fromAttrBs "#VALUE!" = return ErrorValue
+  fromAttrBs x = unexpectedAttrBs "ErrorType" x
 
 {-------------------------------------------------------------------------------
   Rendering

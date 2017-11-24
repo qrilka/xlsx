@@ -44,6 +44,10 @@ main = defaultMain $
         let bs = fromXlsx testTime testXlsx
         LB.writeFile "data-test.xlsx" bs
         testXlsx @==? toXlsx (fromXlsx testTime testXlsx)
+    ,  testCase "write . fast-read == id" $ do
+        let bs = fromXlsx testTime testXlsx
+        LB.writeFile "data-test.xlsx" bs
+        testXlsx @==? toXlsxFast (fromXlsx testTime testXlsx)
     , testCase "fromRows . toRows == id" $
         testCellMap1 @=? fromRows (toRows testCellMap1)
     , testCase "fromRight . parseStyleSheet . renderStyleSheet == id" $
@@ -178,7 +182,7 @@ testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5)
                           ]
   where
     cd v = def {_cellValue=Just v}
-    cd1_2 = cd (CellText "just a text")
+    cd1_2 = cd (CellText "just a text, fließen, русский <> и & \"in quotes\"")
     cd1_5 = cd (CellDouble 42.4567)
     cd3_1 = cd (CellText "another text")
     cd3_2 = def -- shouldn't it be skipped?
@@ -188,7 +192,7 @@ testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5)
     cd4_1 = cd (CellDouble 1)
     cd4_2 = cd (CellDouble 2)
     cd4_3 = (cd (CellDouble (1+2))) { _cellFormula =
-                                            Just $ simpleCellFormula "A4+B4"
+                                            Just $ simpleCellFormula "A4+B4<>11"
                                     }
     cd5_1 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 0)
     cd5_2 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 0)

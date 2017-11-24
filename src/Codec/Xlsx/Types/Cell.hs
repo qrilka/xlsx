@@ -145,6 +145,9 @@ formulaDataFromCursor cur = do
 instance FromAttrVal SharedFormulaIndex where
   fromAttrVal = fmap (first SharedFormulaIndex) . fromAttrVal
 
+instance FromAttrBs SharedFormulaIndex where
+  fromAttrBs = fmap SharedFormulaIndex . fromAttrBs
+
 {-------------------------------------------------------------------------------
   Rendering
 -------------------------------------------------------------------------------}

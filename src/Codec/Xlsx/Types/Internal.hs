@@ -20,3 +20,6 @@ instance ToAttrVal RefId where
 
 instance FromAttrVal RefId where
     fromAttrVal t = first RefId <$> fromAttrVal t
+
+instance FromAttrBs RefId where
+  fromAttrBs = fmap RefId . fromAttrBs

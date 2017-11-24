@@ -25,6 +25,12 @@ instance FromCursor CfPair where
         let cfRules = cur $/ element (n_ "cfRule") >=> fromCursor
         return $ CfPair (sqref, cfRules)
 
+instance FromXenoNode CfPair where
+  fromXenoNode root = do
+    sqref <- parseAttributes root $ fromAttr "sqref"
+    cfRules <- collectChildren root $ fromChildList "cfRule"
+    return $ CfPair (sqref, cfRules)
+
 instance ToElement CfPair where
     toElement nm (CfPair (sqRef, cfRules)) =
         elementList nm [ "sqref" .= toAttrVal sqRef ]

@@ -267,6 +267,13 @@ instance FromCursor RichTextRun where
     _richTextRunProperties <- maybeFromElement (n_ "rPr") cur
     return RichTextRun{..}
 
+instance FromXenoNode RichTextRun where
+  fromXenoNode root = do
+    (prNode, tNode) <- collectChildren root $ (,) <$> maybeChild "rPr" <*> requireChild "t"
+    _richTextRunProperties <- mapM fromXenoNode prNode
+    _richTextRunText <- contentX tNode
+    return RichTextRun {..}
+
 -- | See @CT_RPrElt@, p. 3903
 instance FromCursor RunProperties where
   fromCursor cur = do
@@ -285,6 +292,25 @@ instance FromCursor RunProperties where
     _runPropertiesUnderline     <- maybeElementValue (n_ "u") cur
     _runPropertiesVertAlign     <- maybeElementValue (n_ "vertAlign") cur
     _runPropertiesScheme        <- maybeElementValue (n_ "scheme") cur
+    return RunProperties{..}
+
+instance FromXenoNode RunProperties where
+  fromXenoNode root = collectChildren root $ do
+    _runPropertiesFont          <- maybeElementVal "rFont"
+    _runPropertiesCharset       <- maybeElementVal "charset"
+    _runPropertiesFontFamily    <- maybeElementVal "family"
+    _runPropertiesBold          <- maybeElementVal "b"
+    _runPropertiesItalic        <- maybeElementVal "i"
+    _runPropertiesStrikeThrough <- maybeElementVal "strike"
+    _runPropertiesOutline       <- maybeElementVal "outline"
+    _runPropertiesShadow        <- maybeElementVal "shadow"
+    _runPropertiesCondense      <- maybeElementVal "condense"
+    _runPropertiesExtend        <- maybeElementVal "extend"
+    _runPropertiesColor         <- maybeFromChild "color"
+    _runPropertiesSize          <- maybeElementVal "sz"
+    _runPropertiesUnderline     <- maybeElementVal "u"
+    _runPropertiesVertAlign     <- maybeElementVal "vertAlign"
+    _runPropertiesScheme        <- maybeElementVal "scheme"
     return RunProperties{..}
 
 {-------------------------------------------------------------------------------

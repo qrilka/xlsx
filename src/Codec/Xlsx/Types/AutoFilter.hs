@@ -1,23 +1,29 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.AutoFilter where
 
-import GHC.Generics (Generic)
-
 import Control.Arrow (first)
-import Control.Lens (makeLenses)
 import Control.DeepSeq (NFData)
+import Control.Lens (makeLenses)
 import Data.Bool (bool)
+import Data.ByteString (ByteString)
 import Data.Default
+import Data.Foldable (asum)
 import Data.Map (Map)
-import Data.Maybe (catMaybes)
 import qualified Data.Map as M
+import Data.Maybe (catMaybes)
+import Data.Monoid ((<>))
 import Data.Text (Text)
+import qualified Data.Text as T
+import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Cursor hiding (bool)
+import qualified Xeno.DOM as Xeno
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
@@ -299,6 +305,71 @@ instance FromCursor AutoFilter where
           return (colId, fcol)
     return AutoFilter {..}
 
+instance FromXenoNode AutoFilter where
+  fromXenoNode root = do
+    _afRef <- parseAttributes root $ maybeAttr "ref"
+    _afFilterColumns <-
+      fmap M.fromList . collectChildren root $ fromChildList "filterColumn"
+    return AutoFilter {..}
+
+instance FromXenoNode (Int, FilterColumn) where
+  fromXenoNode root = do
+    colId <- parseAttributes root $ fromAttr "colId"
+    fCol <-
+      collectChildren root $ asum [filters, color, custom, dynamic, icon, top10]
+    return (colId, fCol)
+    where
+      filters =
+        requireAndParse "filters" $ \node -> do
+          filterBlank <-
+            parseAttributes node $ fromAttrDef "blank" DontFilterByBlank
+          filterCriteria <- childListAny node
+          return $ Filters filterBlank filterCriteria
+      color =
+        requireAndParse "colorFilter" $ \node ->
+          parseAttributes node $ do
+            _cfoCellColor <- fromAttrDef "cellColor" True
+            _cfoDxfId <- maybeAttr "dxfId"
+            return $ ColorFilter ColorFilterOptions {..}
+      custom =
+        requireAndParse "customFilters" $ \node -> do
+          isAnd <- parseAttributes node $ fromAttrDef "and" False
+          cfilters <- collectChildren node $ fromChildList "customFilter"
+          case cfilters of
+            [f] -> return $ ACustomFilter f
+            [f1, f2] ->
+              if isAnd
+                then return $ CustomFiltersAnd f1 f2
+                else return $ CustomFiltersOr f1 f2
+            _ ->
+              Left $
+              "expected 1 or 2 custom filters but found " <>
+              T.pack (show $ length cfilters)
+      dynamic =
+        requireAndParse "dynamicFilter" . flip parseAttributes $ do
+          _dfoType <- fromAttr "type"
+          _dfoVal <- maybeAttr "val"
+          _dfoMaxVal <- maybeAttr "maxVal"
+          return $ DynamicFilter DynFilterOptions {..}
+      icon =
+        requireAndParse "iconFilter" . flip parseAttributes $
+        IconFilter <$> maybeAttr "iconId" <*> fromAttr "iconSet"
+      top10 =
+        requireAndParse "top10" . flip parseAttributes $ do
+          top <- fromAttrDef "top" True
+          percent <- fromAttrDef "percent" False
+          val <- fromAttr "val"
+          filterVal <- maybeAttr "filterVal"
+          let opts = EdgeFilterOptions percent val filterVal
+          if top
+            then return $ TopNFilter opts
+            else return $ BottomNFilter opts
+
+instance FromXenoNode CustomFilter where
+  fromXenoNode root =
+    parseAttributes root $
+    CustomFilter <$> fromAttrDef "operator" FltrEqual <*> fromAttr "val"
+
 fltColFromNode :: Node -> [FilterColumn]
 fltColFromNode n | n `nodeElNameIs` (n_ "filters") = do
                      let filterCriteria = cur $/ anyElement >=> fromCursor
@@ -349,6 +420,46 @@ fltColFromNode n | n `nodeElNameIs` (n_ "filters") = do
 instance FromCursor FilterCriterion where
   fromCursor = filterCriterionFromNode . node
 
+instance FromXenoNode FilterCriterion where
+  fromXenoNode root =
+    case Xeno.name root of
+      "filter" -> parseAttributes root $ do FilterValue <$> fromAttr "val"
+      "dateGroupItem" ->
+        parseAttributes root $ do
+          grouping <- fromAttr "dateTimeGrouping"
+          group <- case grouping of
+            ("year" :: ByteString) ->
+              DateGroupByYear <$> fromAttr "year"
+            "month" ->
+              DateGroupByMonth <$> fromAttr "year"
+                               <*> fromAttr "month"
+            "day" ->
+              DateGroupByDay <$> fromAttr "year"
+                             <*> fromAttr "month"
+                             <*> fromAttr "day"
+            "hour" ->
+              DateGroupByHour <$> fromAttr "year"
+                              <*> fromAttr "month"
+                              <*> fromAttr "day"
+                              <*> fromAttr "hour"
+            "minute" ->
+              DateGroupByMinute <$> fromAttr "year"
+                                <*> fromAttr "month"
+                                <*> fromAttr "day"
+                                <*> fromAttr "hour"
+                                <*> fromAttr "minute"
+            "second" ->
+              DateGroupBySecond <$> fromAttr "year"
+                                <*> fromAttr "month"
+                                <*> fromAttr "day"
+                                <*> fromAttr "hour"
+                                <*> fromAttr "minute"
+                                <*> fromAttr "second"
+            _ -> toAttrParser . Left $ "Unexpected date grouping"
+          return $ FilterDateGroup group
+      _ -> Left "Bad FilterCriterion"
+
+-- TODO: follow the spec about the fact that dategroupitem always go after filter
 filterCriterionFromNode :: Node -> [FilterCriterion]
 filterCriterionFromNode n
   | n `nodeElNameIs` (n_ "filter") = do
@@ -387,9 +498,21 @@ instance FromAttrVal CustomFilterOperator where
   fromAttrVal "notEqual" = readSuccess FltrNotEqual
   fromAttrVal t = invalidText "CustomFilterOperator" t
 
+instance FromAttrBs CustomFilterOperator where
+  fromAttrBs "equal" = return FltrEqual
+  fromAttrBs "greaterThan" = return FltrGreaterThan
+  fromAttrBs "greaterThanOrEqual" = return FltrGreaterThanOrEqual
+  fromAttrBs "lessThan" = return FltrLessThan
+  fromAttrBs "lessThanOrEqual" = return FltrLessThanOrEqual
+  fromAttrBs "notEqual" = return FltrNotEqual
+  fromAttrBs x = unexpectedAttrBs "CustomFilterOperator" x
+
 instance FromAttrVal FilterByBlank where
   fromAttrVal =
     fmap (first $ bool DontFilterByBlank FilterByBlank) . fromAttrVal
+
+instance FromAttrBs FilterByBlank where
+  fromAttrBs = fmap (bool DontFilterByBlank FilterByBlank) . fromAttrBs
 
 instance FromAttrVal DynFilterType where
   fromAttrVal "aboveAverage" = readSuccess DynFilterAboveAverage
@@ -428,6 +551,44 @@ instance FromAttrVal DynFilterType where
   fromAttrVal "yearToDate" = readSuccess DynFilterYearToDate
   fromAttrVal "yesterday" = readSuccess DynFilterYesterday
   fromAttrVal t = invalidText "DynFilterType" t
+
+instance FromAttrBs DynFilterType where
+  fromAttrBs "aboveAverage" = return DynFilterAboveAverage
+  fromAttrBs "belowAverage" = return DynFilterBelowAverage
+  fromAttrBs "lastMonth" = return DynFilterLastMonth
+  fromAttrBs "lastQuarter" = return DynFilterLastQuarter
+  fromAttrBs "lastWeek" = return DynFilterLastWeek
+  fromAttrBs "lastYear" = return DynFilterLastYear
+  fromAttrBs "M1" = return DynFilterM1
+  fromAttrBs "M10" = return DynFilterM10
+  fromAttrBs "M11" = return DynFilterM11
+  fromAttrBs "M12" = return DynFilterM12
+  fromAttrBs "M2" = return DynFilterM2
+  fromAttrBs "M3" = return DynFilterM3
+  fromAttrBs "M4" = return DynFilterM4
+  fromAttrBs "M5" = return DynFilterM5
+  fromAttrBs "M6" = return DynFilterM6
+  fromAttrBs "M7" = return DynFilterM7
+  fromAttrBs "M8" = return DynFilterM8
+  fromAttrBs "M9" = return DynFilterM9
+  fromAttrBs "nextMonth" = return DynFilterNextMonth
+  fromAttrBs "nextQuarter" = return DynFilterNextQuarter
+  fromAttrBs "nextWeek" = return DynFilterNextWeek
+  fromAttrBs "nextYear" = return DynFilterNextYear
+  fromAttrBs "null" = return DynFilterNull
+  fromAttrBs "Q1" = return DynFilterQ1
+  fromAttrBs "Q2" = return DynFilterQ2
+  fromAttrBs "Q3" = return DynFilterQ3
+  fromAttrBs "Q4" = return DynFilterQ4
+  fromAttrBs "thisMonth" = return DynFilterThisMonth
+  fromAttrBs "thisQuarter" = return DynFilterThisQuarter
+  fromAttrBs "thisWeek" = return DynFilterThisWeek
+  fromAttrBs "thisYear" = return DynFilterThisYear
+  fromAttrBs "today" = return DynFilterToday
+  fromAttrBs "tomorrow" = return DynFilterTomorrow
+  fromAttrBs "yearToDate" = return DynFilterYearToDate
+  fromAttrBs "yesterday" = return DynFilterYesterday
+  fromAttrBs x = unexpectedAttrBs "DynFilterType" x
 
 {-------------------------------------------------------------------------------
   Rendering
