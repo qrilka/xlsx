@@ -26,7 +26,7 @@ Maintainer:          qrilka@gmail.com
 
 Category:            Codec
 Build-type:          Simple
-Tested-with:         GHC == 7.8.4, GHC == 7.10.3, GHC == 8.0.1
+Tested-with:         GHC == 7.10.3, GHC == 8.0.1
 Cabal-version:       >=1.10
 
 
@@ -77,7 +77,7 @@ Library
                    , attoparsec
                    , base64-bytestring
                    , binary-search
-                   , bytestring   >= 0.10.0.2
+                   , bytestring   >= 0.10.8.0
                    , conduit      >= 1.0.0
                    , containers   >= 0.5.0.0
                    , data-default
@@ -87,7 +87,6 @@ Library
                    , filepath
                    , lens         >= 3.8 && < 5
                    , mtl          >= 2.1
-                   , mtl-compat
                    , network-uri
                    , old-locale   >= 1.0.0.5
                    , safe         >= 0.3
@@ -100,8 +99,7 @@ Library
                    , zip-archive  >= 0.2
                    , zlib         >= 0.5.4.0
   Default-Language:     Haskell2010
-  Other-Extensions:  CPP
-                     DeriveDataTypeable
+  Other-Extensions:  DeriveDataTypeable
                      FlexibleInstances
                      NoMonomorphismRestriction
                      OverloadedStrings

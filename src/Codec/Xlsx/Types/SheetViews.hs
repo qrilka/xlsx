@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
@@ -56,10 +55,6 @@ import Data.Maybe (catMaybes, maybeToList, listToMaybe)
 import Text.XML
 import Text.XML.Cursor
 import qualified Data.Map  as Map
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative ()
-#endif
 
 import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Parser.Internal

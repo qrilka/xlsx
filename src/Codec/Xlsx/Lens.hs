@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP          #-}
 {-# LANGUAGE RankNTypes   #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -26,10 +25,6 @@ import Data.List (deleteBy)
 import Data.Text
 import Data.Tuple (swap)
 import GHC.Generics (Generic)
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-#endif
 
 newtype SheetList = SheetList{ unSheetList :: [(Text, Worksheet)] }
     deriving (Eq, Show, Generic)

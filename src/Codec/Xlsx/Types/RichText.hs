@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
@@ -45,11 +44,6 @@ import qualified Data.Map as Map
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.StyleSheet
 import Codec.Xlsx.Writer.Internal
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-import Data.Monoid
-#endif
 
 -- | Rich Text Run
 --

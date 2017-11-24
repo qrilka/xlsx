@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Common
@@ -39,10 +38,6 @@ import Data.Time.Clock (UTCTime(UTCTime), picosecondsToDiffTime)
 import Safe
 import Text.XML
 import Text.XML.Cursor
-
-#if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative
-#endif
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.RichText

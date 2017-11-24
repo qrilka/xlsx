@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -24,10 +23,6 @@ import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Cursor hiding (bool)
 import qualified Xeno.DOM as Xeno
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-#endif
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.Common

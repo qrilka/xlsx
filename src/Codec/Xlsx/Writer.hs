@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -28,19 +27,11 @@ import qualified Data.Text as T
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime)
 import Data.Time.Format (formatTime)
-#if MIN_VERSION_time(1,5,0)
 import Data.Time.Format (defaultTimeLocale)
-#else
-import System.Locale (defaultTimeLocale)
-#endif
 import Data.Tuple.Extra (fst3, snd3, thd3)
 import GHC.Generics (Generic)
 import Safe
 import Text.XML
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-#endif
 
 import Codec.Xlsx.Types
 import Codec.Xlsx.Types.Cell (applySharedFormulaOpts)

@@ -3,3 +3,4 @@ packages:
 - '.'
 extra-deps:
 - xeno-0.3.2
+- bytestring-0.10.8.0
