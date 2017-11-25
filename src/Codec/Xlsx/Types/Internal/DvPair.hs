@@ -24,6 +24,12 @@ instance FromCursor DvPair where
         dv    <- fromCursor cur
         return $ DvPair (sqref, dv)
 
+instance FromXenoNode DvPair where
+  fromXenoNode root = do
+    sqref <- parseAttributes root $ fromAttr "sqref"
+    dv <- fromXenoNode root
+    return $ DvPair (sqref, dv)
+
 instance ToElement DvPair where
     toElement nm (DvPair (sqRef,dv)) = e
         {elementAttributes = M.insert "sqref" (toAttrVal sqRef) $ elementAttributes e}

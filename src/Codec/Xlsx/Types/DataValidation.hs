@@ -1,21 +1,23 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types.DataValidation where
 
+import Control.DeepSeq (NFData)
 import Control.Lens.TH (makeLenses)
 import Control.Monad ((>=>))
-import Control.DeepSeq (NFData)
+import Data.ByteString (ByteString)
 import Data.Char (isSpace)
 import Data.Default
 import qualified Data.Map as M
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics (Generic)
-import Text.XML (Node(..), Element(..))
+import Text.XML (Element(..), Node(..))
 import Text.XML.Cursor (Cursor, ($/), element)
 
 import Codec.Xlsx.Parser.Internal
@@ -87,6 +89,12 @@ instance FromAttrVal ErrorStyle where
     fromAttrVal "warning"     = readSuccess ErrorStyleWarning
     fromAttrVal t             = invalidText "ErrorStyle" t
 
+instance FromAttrBs ErrorStyle where
+    fromAttrBs "information" = return ErrorStyleInformation
+    fromAttrBs "stop"        = return ErrorStyleStop
+    fromAttrBs "warning"     = return ErrorStyleWarning
+    fromAttrBs x             = unexpectedAttrBs "ErrorStyle" x
+
 instance FromCursor DataValidation where
     fromCursor cur = do
         _dvAllowBlank       <- fromAttributeDef "allowBlank"       False          cur
@@ -103,6 +111,60 @@ instance FromCursor DataValidation where
         _dvValidationType   <- readValidationType mop mtype                       cur
         return DataValidation{..}
 
+instance FromXenoNode DataValidation where
+  fromXenoNode root = do
+    (op, atype, genDV) <- parseAttributes root $ do
+      _dvAllowBlank <- fromAttrDef "allowBlank" False
+      _dvError <- maybeAttr "error"
+      _dvErrorStyle <- fromAttrDef "errorStyle" ErrorStyleStop
+      _dvErrorTitle <- maybeAttr "errorTitle"
+      _dvPrompt <- maybeAttr "prompt"
+      _dvPromptTitle <- maybeAttr "promptTitle"
+      _dvShowDropDown <- fromAttrDef "showDropDown" False
+      _dvShowErrorMessage <- fromAttrDef "showErrorMessage" False
+      _dvShowInputMessage <- fromAttrDef "showInputMessage" False
+      op <- fromAttrDef "operator" "between"
+      typ <- fromAttrDef "type" "none"
+      return (op, typ, \_dvValidationType -> DataValidation {..})
+    valType <- parseValidationType op atype
+    return $ genDV valType
+    where
+      parseValidationType :: ByteString -> ByteString -> Either Text ValidationType
+      parseValidationType op atype =
+        case atype of
+          "none" -> return ValidationTypeNone
+          "custom" ->
+            ValidationTypeCustom <$> formula1
+          "list" -> do
+            f <- formula1
+            case readListFormulas f of
+              Nothing -> Left "validation of type \"list\" with empty formula list"
+              Just fs -> return $ ValidationTypeList fs
+          "date" ->
+            ValidationTypeDate <$> readOpExpression op
+          "decimal"    ->
+            ValidationTypeDecimal <$> readOpExpression op
+          "textLength" ->
+            ValidationTypeTextLength <$> readOpExpression op
+          "time"       ->
+            ValidationTypeTime <$> readOpExpression op
+          "whole"      ->
+            ValidationTypeWhole <$> readOpExpression op
+          unexpected ->
+            Left $ "unexpected type of data validation " <> T.pack (show unexpected)
+      readOpExpression "between" = uncurry ValBetween <$> formulaPair
+      readOpExpression "notBetween" = uncurry ValNotBetween <$> formulaPair
+      readOpExpression "equal" = ValEqual <$> formula1
+      readOpExpression "greaterThan" = ValGreaterThan <$> formula1
+      readOpExpression "greaterThanOrEqual" = ValGreaterThanOrEqual <$> formula1
+      readOpExpression "lessThan" = ValLessThan <$> formula1
+      readOpExpression "lessThanOrEqual" = ValLessThanOrEqual <$> formula1
+      readOpExpression "notEqual" = ValNotEqual <$> formula1
+      readOpExpression op = Left $ "data validation, unexpected operator " <> T.pack (show op)
+      formula1 = collectChildren root $ fromChild "formula1"
+      formulaPair =
+        collectChildren root $ (,) <$> fromChild "formula1" <*> fromChild "formula2"
+
 readValidationType :: Text -> Text -> Cursor -> [ValidationType]
 readValidationType _ "none"   _   = return ValidationTypeNone
 readValidationType _ "custom" cur = do
@@ -110,14 +172,14 @@ readValidationType _ "custom" cur = do
     return $ ValidationTypeCustom f
 readValidationType _ "list" cur = do
     f  <- cur $/ element (n_ "formula1") >=> fromCursor
-    as <- readListFormula f
+    as <- maybeToList $ readListFormulas f
     return $ ValidationTypeList as
 readValidationType op ty cur = do
     opExp <- readOpExpression2 op cur
     readValidationTypeOpExp ty opExp
 
-readListFormula :: Formula -> [[Text]]
-readListFormula (Formula f) = catMaybes [readQuotedList f]
+readListFormulas :: Formula -> Maybe [Text]
+readListFormulas (Formula f) = readQuotedList f
   where
     readQuotedList t
         | Just t'  <- T.stripPrefix "\"" (T.dropAround isSpace t)
@@ -226,4 +288,3 @@ viewValidationExpression (ValLessThan f)            = ("lessThan",           f, 
 viewValidationExpression (ValLessThanOrEqual f)     = ("lessThanOrEqual",    f,  Nothing)
 viewValidationExpression (ValNotBetween f1 f2)      = ("notBetween",         f1, Just f2)
 viewValidationExpression (ValNotEqual f)            = ("notEqual",           f,  Nothing)
-

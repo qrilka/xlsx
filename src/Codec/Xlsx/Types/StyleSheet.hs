@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
@@ -141,10 +140,6 @@ import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Cursor
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-#endif
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Writer.Internal
@@ -1467,6 +1462,15 @@ instance FromAttrVal FontFamily where
   fromAttrVal "5" = readSuccess FontFamilyDecorative
   fromAttrVal t   = invalidText "FontFamily" t
 
+instance FromAttrBs FontFamily where
+  fromAttrBs "0" = return FontFamilyNotApplicable
+  fromAttrBs "1" = return FontFamilyRoman
+  fromAttrBs "2" = return FontFamilySwiss
+  fromAttrBs "3" = return FontFamilyModern
+  fromAttrBs "4" = return FontFamilyScript
+  fromAttrBs "5" = return FontFamilyDecorative
+  fromAttrBs x   = unexpectedAttrBs "FontFamily" x
+
 -- | See @CT_Color@, p. 4484
 instance FromCursor Color where
   fromCursor cur = do
@@ -1475,6 +1479,15 @@ instance FromCursor Color where
     _colorTheme     <- maybeAttribute "theme" cur
     _colorTint      <- maybeAttribute "tint" cur
     return Color{..}
+
+instance FromXenoNode Color where
+  fromXenoNode root =
+    parseAttributes root $ do
+      _colorAutomatic <- maybeAttr "auto"
+      _colorARGB <- maybeAttr "rgb"
+      _colorTheme <- maybeAttr "theme"
+      _colorTint <- maybeAttr "tint"
+      return Color {..}
 
 -- See @ST_UnderlineValues@, p. 3940
 instance FromAttrVal FontUnderline where
@@ -1485,17 +1498,37 @@ instance FromAttrVal FontUnderline where
   fromAttrVal "none"             = readSuccess FontUnderlineNone
   fromAttrVal t                  = invalidText "FontUnderline" t
 
+instance FromAttrBs FontUnderline where
+  fromAttrBs "single"           = return FontUnderlineSingle
+  fromAttrBs "double"           = return FontUnderlineDouble
+  fromAttrBs "singleAccounting" = return FontUnderlineSingleAccounting
+  fromAttrBs "doubleAccounting" = return FontUnderlineDoubleAccounting
+  fromAttrBs "none"             = return FontUnderlineNone
+  fromAttrBs x                  = unexpectedAttrBs "FontUnderline" x
+
 instance FromAttrVal FontVerticalAlignment where
   fromAttrVal "baseline"    = readSuccess FontVerticalAlignmentBaseline
   fromAttrVal "subscript"   = readSuccess FontVerticalAlignmentSubscript
   fromAttrVal "superscript" = readSuccess FontVerticalAlignmentSuperscript
   fromAttrVal t             = invalidText "FontVerticalAlignment" t
 
+instance FromAttrBs FontVerticalAlignment where
+  fromAttrBs "baseline"    = return FontVerticalAlignmentBaseline
+  fromAttrBs "subscript"   = return FontVerticalAlignmentSubscript
+  fromAttrBs "superscript" = return FontVerticalAlignmentSuperscript
+  fromAttrBs x             = unexpectedAttrBs "FontVerticalAlignment" x
+
 instance FromAttrVal FontScheme where
   fromAttrVal "major" = readSuccess FontSchemeMajor
   fromAttrVal "minor" = readSuccess FontSchemeMinor
   fromAttrVal "none"  = readSuccess FontSchemeNone
   fromAttrVal t       = invalidText "FontScheme" t
+
+instance FromAttrBs FontScheme where
+  fromAttrBs "major" = return FontSchemeMajor
+  fromAttrBs "minor" = return FontSchemeMinor
+  fromAttrBs "none"  = return FontSchemeNone
+  fromAttrBs x       = unexpectedAttrBs "FontScheme" x
 
 -- | See @CT_Fill@, p. 4484
 instance FromCursor Fill where

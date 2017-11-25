@@ -161,6 +161,17 @@ instance FromCursor ColumnsProperties where
     cpBestFit <- fromAttributeDef "bestFit" False c
     return ColumnsProperties {..}
 
+instance FromXenoNode ColumnsProperties where
+  fromXenoNode root = parseAttributes root $ do
+    cpMin <- fromAttr "min"
+    cpMax <- fromAttr "max"
+    cpWidth <- maybeAttr "width"
+    cpStyle <- maybeAttr "style"
+    cpHidden <- fromAttrDef "hidden" False
+    cpCollapsed <- fromAttrDef "collapsed" False
+    cpBestFit <- fromAttrDef "bestFit" False
+    return ColumnsProperties {..}
+
 -- | Xlsx worksheet
 data Worksheet = Worksheet
   { _wsColumnsProperties :: [ColumnsProperties] -- ^ column widths

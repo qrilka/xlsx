@@ -1,14 +1,9 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal where
 
 import Control.Arrow
 import Data.Text (Text)
 import GHC.Generics (Generic)
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-#endif
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Writer.Internal
@@ -20,3 +15,6 @@ instance ToAttrVal RefId where
 
 instance FromAttrVal RefId where
     fromAttrVal t = first RefId <$> fromAttrVal t
+
+instance FromAttrBs RefId where
+  fromAttrBs = fmap RefId . fromAttrBs

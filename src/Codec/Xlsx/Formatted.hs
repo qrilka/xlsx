@@ -1,5 +1,4 @@
 -- | Higher level interface for creating styled worksheets
-{-# LANGUAGE CPP             #-}
 {-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -48,10 +47,6 @@ import Data.Tuple (swap)
 import GHC.Generics (Generic)
 import Prelude hiding (mapM)
 import Safe (headNote, fromJustNote)
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-#endif
 
 import Codec.Xlsx.Types
 

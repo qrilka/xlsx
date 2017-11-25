@@ -26,7 +26,7 @@ Maintainer:          qrilka@gmail.com
 
 Category:            Codec
 Build-type:          Simple
-Tested-with:         GHC == 7.8.4, GHC == 7.10.3, GHC == 8.0.1
+Tested-with:         GHC == 7.10.3, GHC == 8.0.1
 Cabal-version:       >=1.10
 
 
@@ -39,6 +39,8 @@ Library
                    , Codec.Xlsx.Lens
                    , Codec.Xlsx.Parser
                    , Codec.Xlsx.Parser.Internal
+                   , Codec.Xlsx.Parser.Internal.Fast
+                   , Codec.Xlsx.Parser.Internal.Util
                    , Codec.Xlsx.Parser.Internal.PivotTable
                    , Codec.Xlsx.Types.AutoFilter
                    , Codec.Xlsx.Types.Cell
@@ -55,6 +57,7 @@ Library
                    , Codec.Xlsx.Types.Internal.ContentTypes
                    , Codec.Xlsx.Types.Internal.CustomProperties
                    , Codec.Xlsx.Types.Internal.DvPair
+                   , Codec.Xlsx.Types.Internal.FormulaData
                    , Codec.Xlsx.Types.Internal.Relationships
                    , Codec.Xlsx.Types.Internal.SharedStringTable
                    , Codec.Xlsx.Types.PageSetup
@@ -71,18 +74,19 @@ Library
                    , Codec.Xlsx.Writer.Internal.PivotTable
 
   Build-depends:     base         == 4.*
+                   , attoparsec
+                   , base64-bytestring
                    , binary-search
-                   , deepseq      >= 1.4
-                   , bytestring   >= 0.10.0.2
+                   , bytestring   >= 0.10.8.0
                    , conduit      >= 1.0.0
                    , containers   >= 0.5.0.0
                    , data-default
+                   , deepseq      >= 1.4
                    , errors
                    , extra
                    , filepath
                    , lens         >= 3.8 && < 5
                    , mtl          >= 2.1
-                   , mtl-compat
                    , network-uri
                    , old-locale   >= 1.0.0.5
                    , safe         >= 0.3
@@ -90,13 +94,12 @@ Library
                    , time         >= 1.4.0.1
                    , transformers >= 0.3.0.0
                    , vector       >= 0.10
+                   , xeno         >= 0.3.2
                    , xml-conduit  >= 1.1.0
                    , zip-archive  >= 0.2
                    , zlib         >= 0.5.4.0
-                   , base64-bytestring
   Default-Language:     Haskell2010
-  Other-Extensions:  CPP
-                     DeriveDataTypeable
+  Other-Extensions:  DeriveDataTypeable
                      FlexibleInstances
                      NoMonomorphismRestriction
                      OverloadedStrings
@@ -139,3 +142,13 @@ test-suite data-test
 source-repository head
   type:     git
   location: git://github.com/qrilka/xlsx.git
+
+benchmark bench
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmarks
+  main-is: Main.hs
+  build-depends: base
+               , bytestring
+               , criterion
+               , xlsx
+  default-language: Haskell2010

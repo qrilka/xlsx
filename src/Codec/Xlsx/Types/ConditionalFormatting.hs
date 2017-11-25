@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Codec.Xlsx.Types.ConditionalFormatting
   ( ConditionalFormatting
@@ -39,18 +40,22 @@ module Codec.Xlsx.Types.ConditionalFormatting
   , topCfPriority
   ) where
 
-import Data.Bool (bool)
 import Control.Arrow (first, right)
-import Control.Lens (makeLenses)
 import Control.DeepSeq (NFData)
+import Control.Lens (makeLenses)
+import Data.Bool (bool)
+import Data.ByteString (ByteString)
 import Data.Default
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid ((<>))
 import Data.Text (Text)
+import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Cursor hiding (bool)
+import qualified Xeno.DOM as Xeno
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.Common
@@ -480,6 +485,92 @@ readOpExpression "notContains" [f]        = [OpNotContains f]
 readOpExpression "notEqual" [f]           = [OpNotEqual f]
 readOpExpression _ _                      = []
 
+instance FromXenoNode CfRule where
+  fromXenoNode root = parseAttributes root $ do
+        _cfrDxfId <- maybeAttr "dxfId"
+        _cfrPriority <- fromAttr "priority"
+        _cfrStopIfTrue <- maybeAttr "stopIfTrue"
+        -- spec shows this attribute as optional but it's not clear why could
+        -- conditional formatting record be needed with no condition type set
+        cfType <- fromAttr "type"
+        _cfrCondition <- readConditionX cfType
+        return CfRule {..}
+    where
+      readConditionX ("aboveAverage" :: ByteString) = do
+        above <- fromAttrDef "aboveAverage" True
+        inclusion <- fromAttrDef "equalAverage" Exclusive
+        nStdDev <- maybeAttr "stdDev"
+        if above
+          then return $ AboveAverage inclusion nStdDev
+          else return $ BelowAverage inclusion nStdDev
+      readConditionX "beginsWith" = BeginsWith <$> fromAttr "text"
+      readConditionX "colorScale" = toAttrParser $ do
+        xs <- collectChildren root . maybeParse "colorScale" $ \node ->
+          collectChildren node $ (,) <$> childList "cfvo"
+                                     <*> childList "color"
+        case xs of
+          Just ([n1, n2], [cn1, cn2]) -> do
+            mincfv <- fromXenoNode n1
+            minc <- fromXenoNode cn1
+            maxcfv <- fromXenoNode n2
+            maxc <- fromXenoNode cn2
+            return $ ColorScale2 mincfv minc maxcfv maxc
+          Just ([n1, n2, n3], [cn1, cn2, cn3]) -> do
+            mincfv <- fromXenoNode n1
+            minc <- fromXenoNode cn1
+            midcfv <- fromXenoNode n2
+            midc <- fromXenoNode cn2
+            maxcfv <- fromXenoNode n3
+            maxc <- fromXenoNode cn3
+            return $ ColorScale3 mincfv minc midcfv midc maxcfv maxc
+          _ ->
+            Left "Malformed colorScale condition"
+      readConditionX "cellIs" = do
+        operator <- fromAttr "operator"
+        formulas <- toAttrParser . collectChildren root $ fromChildList "formula"
+        case (operator, formulas) of
+          ("beginsWith" :: ByteString, [f]) -> return . CellIs $ OpBeginsWith f
+          ("between", [f1, f2]) -> return . CellIs $ OpBetween f1 f2
+          ("containsText", [f]) -> return . CellIs $ OpContainsText f
+          ("endsWith", [f]) -> return . CellIs $ OpEndsWith f
+          ("equal", [f]) -> return . CellIs $ OpEqual f
+          ("greaterThan", [f]) -> return . CellIs $ OpGreaterThan f
+          ("greaterThanOrEqual", [f]) -> return . CellIs $ OpGreaterThanOrEqual f
+          ("lessThan", [f]) -> return . CellIs $ OpLessThan f
+          ("lessThanOrEqual", [f]) -> return . CellIs $ OpLessThanOrEqual f
+          ("notBetween", [f1, f2]) -> return . CellIs $ OpNotBetween f1 f2
+          ("notContains", [f]) -> return . CellIs $ OpNotContains f
+          ("notEqual", [f]) -> return . CellIs $ OpNotEqual f
+          _ -> toAttrParser $ Left "Bad cellIs rule"
+      readConditionX "containsBlanks" = return ContainsBlanks
+      readConditionX "containsErrors" = return ContainsErrors
+      readConditionX "containsText" = ContainsText <$> fromAttr "text"
+      readConditionX "dataBar" =
+        fmap DataBar . toAttrParser . collectChildren root $ fromChild "dataBar"
+      readConditionX "duplicateValues" = return DuplicateValues
+      readConditionX "endsWith" = EndsWith <$> fromAttr "text"
+      readConditionX "expression" =
+        fmap Expression . toAttrParser . collectChildren root $ fromChild "formula"
+      readConditionX "iconSet" =
+        fmap IconSet . toAttrParser . collectChildren root $ fromChild "iconSet"
+      readConditionX "notContainsBlanks" = return DoesNotContainBlanks
+      readConditionX "notContainsErrors" = return DoesNotContainErrors
+      readConditionX "notContainsText" =
+        DoesNotContainText <$> fromAttr "text"
+      readConditionX "timePeriod" = InTimePeriod <$> fromAttr "timePeriod"
+      readConditionX "top10" = do
+        bottom <- fromAttrDef "bottom" False
+        percent <- fromAttrDef "percent" False
+        rank <- fromAttr "rank"
+        case (bottom, percent) of
+          (True, True) -> return $ BottomNPercent rank
+          (True, False) -> return $ BottomNValues rank
+          (False, True) -> return $ TopNPercent rank
+          (False, False) -> return $ TopNValues rank
+      readConditionX "uniqueValues" = return UniqueValues
+      readConditionX x =
+        toAttrParser . Left $ "Unexpected conditional formatting type " <> T.pack (show x)
+
 instance FromAttrVal TimePeriod where
     fromAttrVal "last7Days" = readSuccess PerLast7Days
     fromAttrVal "lastMonth" = readSuccess PerLastMonth
@@ -493,6 +584,19 @@ instance FromAttrVal TimePeriod where
     fromAttrVal "yesterday" = readSuccess PerYesterday
     fromAttrVal t           = invalidText "TimePeriod" t
 
+instance FromAttrBs TimePeriod where
+    fromAttrBs "last7Days" = return PerLast7Days
+    fromAttrBs "lastMonth" = return PerLastMonth
+    fromAttrBs "lastWeek"  = return PerLastWeek
+    fromAttrBs "nextMonth" = return PerNextMonth
+    fromAttrBs "nextWeek"  = return PerNextWeek
+    fromAttrBs "thisMonth" = return PerThisMonth
+    fromAttrBs "thisWeek"  = return PerThisWeek
+    fromAttrBs "today"     = return PerToday
+    fromAttrBs "tomorrow"  = return PerTomorrow
+    fromAttrBs "yesterday" = return PerYesterday
+    fromAttrBs x           = unexpectedAttrBs "TimePeriod" x
+
 instance FromAttrVal CfvType where
   fromAttrVal "num"        = readSuccess CfvtNum
   fromAttrVal "percent"    = readSuccess CfvtPercent
@@ -501,6 +605,15 @@ instance FromAttrVal CfvType where
   fromAttrVal "formula"    = readSuccess CfvtFormula
   fromAttrVal "percentile" = readSuccess CfvtPercentile
   fromAttrVal t            = invalidText "CfvType" t
+
+instance FromAttrBs CfvType where
+  fromAttrBs "num"        = return CfvtNum
+  fromAttrBs "percent"    = return CfvtPercent
+  fromAttrBs "max"        = return CfvtMax
+  fromAttrBs "min"        = return CfvtMin
+  fromAttrBs "formula"    = return CfvtFormula
+  fromAttrBs "percentile" = return CfvtPercentile
+  fromAttrBs x            = unexpectedAttrBs "CfvType" x
 
 readCfValue :: (CfValue -> a) -> [a] -> [a] -> Cursor -> [a]
 readCfValue f minVal maxVal c = do
@@ -521,20 +634,62 @@ readCfValue f minVal maxVal c = do
     CfvtMin -> minVal
     CfvtMax -> maxVal
 
+readCfValueX ::
+     (CfValue -> a)
+  -> Either Text a
+  -> Either Text a
+  -> Xeno.Node
+  -> Either Text a
+readCfValueX f minVal maxVal root =
+  parseAttributes root $ do
+    vType <- fromAttr "type"
+    case vType of
+      CfvtNum -> do
+        v <- fromAttr "val"
+        return . f $ CfValue v
+      CfvtFormula -> do
+        v <- fromAttr "val"
+        return . f $ CfFormula v
+      CfvtPercent -> do
+        v <- fromAttr "val"
+        return . f $ CfPercent v
+      CfvtPercentile -> do
+        v <- fromAttr "val"
+        return . f $ CfPercentile v
+      CfvtMin -> toAttrParser minVal
+      CfvtMax -> toAttrParser maxVal
+
 failMinCfvType :: [a]
 failMinCfvType = fail "unexpected 'min' type"
+
+failMinCfvTypeX :: Either Text a
+failMinCfvTypeX = Left "unexpected 'min' type"
 
 failMaxCfvType :: [a]
 failMaxCfvType = fail "unexpected 'max' type"
 
+failMaxCfvTypeX :: Either Text a
+failMaxCfvTypeX = Left "unexpected 'max' type"
+
 instance FromCursor CfValue where
   fromCursor = readCfValue id failMinCfvType failMaxCfvType
+
+instance FromXenoNode CfValue where
+  fromXenoNode root = readCfValueX id failMinCfvTypeX failMaxCfvTypeX root
 
 instance FromCursor MinCfValue where
   fromCursor = readCfValue MinCfValue (return CfvMin) failMaxCfvType
 
+instance FromXenoNode MinCfValue where
+  fromXenoNode root =
+    readCfValueX MinCfValue (return CfvMin) failMaxCfvTypeX root
+
 instance FromCursor MaxCfValue where
   fromCursor = readCfValue MaxCfValue failMinCfvType (return CfvMax)
+
+instance FromXenoNode MaxCfValue where
+  fromXenoNode root =
+    readCfValueX MaxCfValue failMinCfvTypeX (return CfvMax) root
 
 defaultIconSet :: IconSetType
 defaultIconSet =  IconSet3TrafficLights1
@@ -545,6 +700,15 @@ instance FromCursor IconSetOptions where
     let _isoValues = cur $/ element (n_ "cfvo") >=> fromCursor
     _isoReverse <- fromAttributeDef "reverse" False cur
     _isoShowValue <- fromAttributeDef "showValue" True cur
+    return IconSetOptions {..}
+
+instance FromXenoNode IconSetOptions where
+  fromXenoNode root = do
+    (_isoIconSet, _isoReverse, _isoShowValue) <-
+      parseAttributes root $ (,,) <$> fromAttrDef "iconSet" defaultIconSet
+                                  <*> fromAttrDef "reverse" False
+                                  <*> fromAttrDef "showValue" True
+    _isoValues <- collectChildren root $ fromChildList "cfvo"
     return IconSetOptions {..}
 
 instance FromAttrVal IconSetType where
@@ -567,6 +731,26 @@ instance FromAttrVal IconSetType where
   fromAttrVal "5Rating" = readSuccess IconSet5Rating
   fromAttrVal t = invalidText "IconSetType" t
 
+instance FromAttrBs IconSetType where
+  fromAttrBs "3Arrows" = return IconSet3Arrows
+  fromAttrBs "3ArrowsGray" = return IconSet3ArrowsGray
+  fromAttrBs "3Flags" = return IconSet3Flags
+  fromAttrBs "3Signs" = return IconSet3Signs
+  fromAttrBs "3Symbols" = return IconSet3Symbols
+  fromAttrBs "3Symbols2" = return IconSet3Symbols2
+  fromAttrBs "3TrafficLights1" = return IconSet3TrafficLights1
+  fromAttrBs "3TrafficLights2" = return IconSet3TrafficLights2
+  fromAttrBs "4Arrows" = return IconSet4Arrows
+  fromAttrBs "4ArrowsGray" = return IconSet4ArrowsGray
+  fromAttrBs "4Rating" = return IconSet4Rating
+  fromAttrBs "4RedToBlack" = return IconSet4RedToBlack
+  fromAttrBs "4TrafficLights" = return IconSet4TrafficLights
+  fromAttrBs "5Arrows" = return IconSet5Arrows
+  fromAttrBs "5ArrowsGray" = return IconSet5ArrowsGray
+  fromAttrBs "5Quarters" = return IconSet5Quarters
+  fromAttrBs "5Rating" = return IconSet5Rating
+  fromAttrBs x = unexpectedAttrBs "IconSetType" x
+
 instance FromCursor DataBarOptions where
   fromCursor cur = do
     _dboMaxLength <- fromAttributeDef "maxLength" defaultDboMaxLength cur
@@ -583,11 +767,29 @@ instance FromCursor DataBarOptions where
         fail $ "expected minimum and maximum cfvo nodes but see instead " ++
           show (length ns) ++ " cfvo nodes"
 
+instance FromXenoNode DataBarOptions where
+  fromXenoNode root = do
+    (_dboMaxLength, _dboMinLength, _dboShowValue) <-
+      parseAttributes root $ (,,) <$> fromAttrDef "maxLength" defaultDboMaxLength
+                                  <*> fromAttrDef "minLength" defaultDboMinLength
+                                  <*> fromAttrDef "showValue" True
+    (_dboMinimum, _dboMaximum, _dboColor) <-
+      collectChildren root $ (,,) <$> fromChild "cfvo"
+                                  <*> fromChild "cfvo"
+                                  <*> fromChild "color"
+    return DataBarOptions{..}
+
 instance FromAttrVal Inclusion where
   fromAttrVal = right (first $ bool Exclusive Inclusive) . fromAttrVal
 
+instance FromAttrBs Inclusion where
+  fromAttrBs = fmap (bool Exclusive Inclusive) . fromAttrBs
+
 instance FromAttrVal NStdDev where
   fromAttrVal = right (first NStdDev) . fromAttrVal
+
+instance FromAttrBs NStdDev where
+  fromAttrBs = fmap NStdDev . fromAttrBs
 
 {-------------------------------------------------------------------------------
   Rendering

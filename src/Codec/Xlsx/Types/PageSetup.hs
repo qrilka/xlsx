@@ -5,7 +5,6 @@
 module Codec.Xlsx.Types.PageSetup (
     -- * Main types
     PageSetup(..)
---  , renderPageSetup
     -- * Enumerations
   , CellComments(..)
   , PrintErrors(..)
@@ -307,10 +306,6 @@ makeLenses ''PageSetup
   Rendering
 -------------------------------------------------------------------------------}
 
----- | Render page setup
---renderPageSetup :: PageSetup -> RawPageSetup
---renderPageSetup = RawPageSetup . NodeElement . toElement "pageSetup"
-
 -- | See @CT_PageSetup@, p. 3922
 instance ToElement PageSetup where
   toElement nm PageSetup{..} = Element {
@@ -459,6 +454,30 @@ instance FromCursor PageSetup where
       _pageSetupId                  <- maybeAttribute "id" cur
       return PageSetup{..}
 
+instance FromXenoNode PageSetup where
+  fromXenoNode root =
+    parseAttributes root $ do
+      _pageSetupPaperSize <- maybeAttr "paperSize"
+      _pageSetupPaperHeight <- maybeAttr "paperHeight"
+      _pageSetupPaperWidth <- maybeAttr "paperWidth"
+      _pageSetupScale <- maybeAttr "scale"
+      _pageSetupFirstPageNumber <- maybeAttr "firstPageNumber"
+      _pageSetupFitToWidth <- maybeAttr "fitToWidth"
+      _pageSetupFitToHeight <- maybeAttr "fitToHeight"
+      _pageSetupPageOrder <- maybeAttr "pageOrder"
+      _pageSetupOrientation <- maybeAttr "orientation"
+      _pageSetupUsePrinterDefaults <- maybeAttr "usePrinterDefaults"
+      _pageSetupBlackAndWhite <- maybeAttr "blackAndWhite"
+      _pageSetupDraft <- maybeAttr "draft"
+      _pageSetupCellComments <- maybeAttr "cellComments"
+      _pageSetupUseFirstPageNumber <- maybeAttr "useFirstPageNumber"
+      _pageSetupErrors <- maybeAttr "errors"
+      _pageSetupHorizontalDpi <- maybeAttr "horizontalDpi"
+      _pageSetupVerticalDpi <- maybeAttr "verticalDpi"
+      _pageSetupCopies <- maybeAttr "copies"
+      _pageSetupId <- maybeAttr "id"
+      return PageSetup {..}
+
 -- | See @paperSize@ (attribute of @pageSetup@), p. 1659
 instance FromAttrVal PaperSize where
     fromAttrVal "1"  = readSuccess PaperLetter
@@ -529,11 +548,85 @@ instance FromAttrVal PaperSize where
     fromAttrVal "68" = readSuccess PaperA3ExtraTransverse
     fromAttrVal t    = invalidText "PaperSize" t
 
+instance FromAttrBs PaperSize where
+    fromAttrBs "1"  = return PaperLetter
+    fromAttrBs "2"  = return PaperLetterSmall
+    fromAttrBs "3"  = return PaperTabloid
+    fromAttrBs "4"  = return PaperLedger
+    fromAttrBs "5"  = return PaperLegal
+    fromAttrBs "6"  = return PaperStatement
+    fromAttrBs "7"  = return PaperExecutive
+    fromAttrBs "8"  = return PaperA3
+    fromAttrBs "9"  = return PaperA4
+    fromAttrBs "10" = return PaperA4Small
+    fromAttrBs "11" = return PaperA5
+    fromAttrBs "12" = return PaperB4
+    fromAttrBs "13" = return PaperB5
+    fromAttrBs "14" = return PaperFolio
+    fromAttrBs "15" = return PaperQuarto
+    fromAttrBs "16" = return PaperStandard10_14
+    fromAttrBs "17" = return PaperStandard11_17
+    fromAttrBs "18" = return PaperNote
+    fromAttrBs "19" = return Envelope9
+    fromAttrBs "20" = return Envelope10
+    fromAttrBs "21" = return Envelope11
+    fromAttrBs "22" = return Envelope12
+    fromAttrBs "23" = return Envelope14
+    fromAttrBs "24" = return PaperC
+    fromAttrBs "25" = return PaperD
+    fromAttrBs "26" = return PaperE
+    fromAttrBs "27" = return EnvelopeDL
+    fromAttrBs "28" = return EnvelopeC5
+    fromAttrBs "29" = return EnvelopeC3
+    fromAttrBs "30" = return EnvelopeC4
+    fromAttrBs "31" = return EnvelopeC6
+    fromAttrBs "32" = return EnvelopeC65
+    fromAttrBs "33" = return EnvelopeB4
+    fromAttrBs "34" = return EnvelopeB5
+    fromAttrBs "35" = return EnvelopeB6
+    fromAttrBs "36" = return EnvelopeItaly
+    fromAttrBs "37" = return EnvelopeMonarch
+    fromAttrBs "38" = return Envelope6_3_4
+    fromAttrBs "39" = return PaperFanfoldUsStandard
+    fromAttrBs "40" = return PaperFanfoldGermanStandard
+    fromAttrBs "41" = return PaperFanfoldGermanLegal
+    fromAttrBs "42" = return PaperIsoB4
+    fromAttrBs "43" = return PaperJapaneseDoublePostcard
+    fromAttrBs "44" = return PaperStandard9_11
+    fromAttrBs "45" = return PaperStandard10_11
+    fromAttrBs "46" = return PaperStandard15_11
+    fromAttrBs "47" = return EnvelopeInvite
+    fromAttrBs "50" = return PaperLetterExtra
+    fromAttrBs "51" = return PaperLegalExtra
+    fromAttrBs "52" = return PaperTabloidExtra
+    fromAttrBs "53" = return PaperA4Extra
+    fromAttrBs "54" = return PaperLetterTransverse
+    fromAttrBs "55" = return PaperA4Transverse
+    fromAttrBs "56" = return PaperLetterExtraTransverse
+    fromAttrBs "57" = return PaperSuperA
+    fromAttrBs "58" = return PaperSuperB
+    fromAttrBs "59" = return PaperLetterPlus
+    fromAttrBs "60" = return PaperA4Plus
+    fromAttrBs "61" = return PaperA5Transverse
+    fromAttrBs "62" = return PaperJisB5Transverse
+    fromAttrBs "63" = return PaperA3Extra
+    fromAttrBs "64" = return PaperA5Extra
+    fromAttrBs "65" = return PaperIsoB5Extra
+    fromAttrBs "66" = return PaperA2
+    fromAttrBs "67" = return PaperA3Transverse
+    fromAttrBs "68" = return PaperA3ExtraTransverse
+    fromAttrBs x    = unexpectedAttrBs "PaperSize" x
+
 -- | See @ST_PageOrder@, p. 3923
 instance FromAttrVal PageOrder where
     fromAttrVal "downThenOver" = readSuccess PageOrderDownThenOver
     fromAttrVal "overThenDown" = readSuccess PageOrderOverThenDown
     fromAttrVal t              = invalidText "PageOrder" t
+
+instance FromAttrBs PageOrder where
+    fromAttrBs "downThenOver" = return PageOrderDownThenOver
+    fromAttrBs "overThenDown" = return PageOrderOverThenDown
+    fromAttrBs x              = unexpectedAttrBs "PageOrder" x
 
 -- | See @ST_CellComments@, p. 3923
 instance FromAttrVal CellComments where
@@ -541,6 +634,12 @@ instance FromAttrVal CellComments where
     fromAttrVal "asDisplayed" = readSuccess CellCommentsAsDisplayed
     fromAttrVal "atEnd"       = readSuccess CellCommentsAtEnd
     fromAttrVal t             = invalidText "CellComments" t
+
+instance FromAttrBs CellComments where
+    fromAttrBs "none"        = return CellCommentsNone
+    fromAttrBs "asDisplayed" = return CellCommentsAsDisplayed
+    fromAttrBs "atEnd"       = return CellCommentsAtEnd
+    fromAttrBs x             = unexpectedAttrBs "CellComments" x
 
 -- | See @ST_PrintError@, p. 3923
 instance FromAttrVal PrintErrors where
@@ -550,9 +649,22 @@ instance FromAttrVal PrintErrors where
     fromAttrVal "NA"        = readSuccess PrintErrorsNA
     fromAttrVal t           = invalidText "PrintErrors" t
 
+instance FromAttrBs PrintErrors where
+    fromAttrBs "displayed" = return PrintErrorsDisplayed
+    fromAttrBs "blank"     = return PrintErrorsBlank
+    fromAttrBs "dash"      = return PrintErrorsDash
+    fromAttrBs "NA"        = return PrintErrorsNA
+    fromAttrBs x           = unexpectedAttrBs "PrintErrors" x
+
 -- | See @ST_Orientation@, p. 3923
 instance FromAttrVal Orientation where
     fromAttrVal "default"   = readSuccess OrientationDefault
     fromAttrVal "portrait"  = readSuccess OrientationPortrait
     fromAttrVal "landscape" = readSuccess OrientationLandscape
     fromAttrVal t           = invalidText "Orientation" t
+
+instance FromAttrBs Orientation where
+    fromAttrBs "default"   = return OrientationDefault
+    fromAttrBs "portrait"  = return OrientationPortrait
+    fromAttrBs "landscape" = return OrientationLandscape
+    fromAttrBs x           = unexpectedAttrBs "Orientation" x
