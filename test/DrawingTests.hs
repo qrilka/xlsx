@@ -228,7 +228,7 @@ testLineChartFile = [r|
 oneChartChartSpace :: Chart -> ChartSpace
 oneChartChartSpace chart =
   ChartSpace
-  { _chspTitle = Just $ ChartTitle titleBody
+  { _chspTitle = Just $ ChartTitle (Just titleBody)
   , _chspCharts = [chart]
   , _chspLegend = Nothing
   , _chspPlotVisOnly = Just True
@@ -327,7 +327,7 @@ testBarChartSpace =
   oneChartChartSpace
     BarChart
     { _brchDirection = DirectionColumn
-    , _brchGrouping = Just StandardGrouping
+    , _brchGrouping = Just BarStandardGrouping
     , _brchSeries =
         [ BarSeries
           { _brserShared =

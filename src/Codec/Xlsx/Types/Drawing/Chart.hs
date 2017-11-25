@@ -9,7 +9,7 @@ import GHC.Generics (Generic)
 import Control.Lens.TH
 import Control.DeepSeq (NFData)
 import Data.Default
-import Data.Maybe (catMaybes, maybeToList)
+import Data.Maybe (catMaybes, listToMaybe, maybeToList)
 import Data.Text (Text)
 import Text.XML
 import Text.XML.Cursor
@@ -35,7 +35,7 @@ instance NFData ChartSpace
 --
 -- TODO: layout, overlay, spPr, txPr, extLst
 newtype ChartTitle =
-  ChartTitle TextBody
+  ChartTitle (Maybe TextBody)
   deriving (Eq, Show, Generic)
 instance NFData ChartTitle
 
@@ -97,7 +97,7 @@ data Chart
               , _archSeries :: [AreaSeries]
               }
   | BarChart { _brchDirection :: BarDirection
-             , _brchGrouping :: Maybe ChartGrouping
+             , _brchGrouping :: Maybe BarChartGrouping
              , _brchSeries :: [BarSeries]
              }
   | PieChart { _pichSeries :: [PieSeries]
@@ -108,7 +108,7 @@ data Chart
   deriving (Eq, Show, Generic)
 instance NFData Chart
 
--- | Possible groupings for a bar chart
+-- | Possible groupings for a chart
 --
 -- See 21.2.3.17 "ST_Grouping (Grouping)" (p. 3446)
 data ChartGrouping
@@ -123,6 +123,25 @@ data ChartGrouping
     -- axis.
   deriving (Eq, Show, Generic)
 instance NFData ChartGrouping
+
+-- | Possible groupings for a bar chart
+--
+-- See 21.2.3.4 "ST_BarGrouping (Bar Grouping)" (p. 3441)
+data BarChartGrouping
+  = BarClusteredGrouping
+    -- ^ Specifies that the chart series are drawn next to each other
+    -- along the category axis.
+  | BarPercentStackedGrouping
+    -- ^ (100% Stacked) Specifies that the chart series are drawn next to each
+    -- other along the value axis and scaled to total 100%.
+  | BarStackedGrouping
+    -- ^ (Stacked) Specifies that the chart series are drawn next to each
+    -- other on the value axis.
+  | BarStandardGrouping
+    -- ^(Standard) Specifies that the chart series are drawn on the value
+    -- axis.
+  deriving (Eq, Show, Generic)
+instance NFData BarChartGrouping
 
 -- | Possible directions for a bar chart
 --
@@ -335,7 +354,8 @@ chartFromNode n
     return AreaChart {..}
   | n `nodeElNameIs` (c_ "barChart") = do
     _brchDirection <- fromElementValue (c_ "barDir") cur
-    _brchGrouping <- maybeElementValue (c_ "grouping") cur
+    _brchGrouping <-
+      maybeElementValueDef (c_ "grouping") BarClusteredGrouping cur
     let _brchSeries = cur $/ element (c_ "ser") >=> fromCursor
     return BarChart {..}
   | n `nodeElNameIs` (c_ "pieChart") = do
@@ -467,9 +487,18 @@ instance FromAttrVal ChartGrouping where
   fromAttrVal "stacked" = readSuccess StackedGrouping
   fromAttrVal t = invalidText "ChartGrouping" t
 
+instance FromAttrVal BarChartGrouping where
+  fromAttrVal "clustered" = readSuccess BarClusteredGrouping
+  fromAttrVal "percentStacked" = readSuccess BarPercentStackedGrouping
+  fromAttrVal "standard" = readSuccess BarStandardGrouping
+  fromAttrVal "stacked" = readSuccess BarStackedGrouping
+  fromAttrVal t = invalidText "BarChartGrouping" t
+
 instance FromCursor ChartTitle where
-  fromCursor cur =
-    cur $/ element (c_ "tx") &/ element (c_ "rich") >=> fmap ChartTitle . fromCursor
+  fromCursor cur = do
+    let mTitle = listToMaybe $
+          cur $/ element (c_ "tx") &/ element (c_ "rich") >=> fromCursor
+    return $ ChartTitle mTitle
 
 instance FromCursor Legend where
   fromCursor cur = do
@@ -555,21 +584,23 @@ chartToElements chart axId =
         _brchSeries
         [elementValue "barDir" _brchDirection]
         []
-    PieChart {..} -> chartElement "pieChart" [] Nothing _pichSeries [] []
+    PieChart {..} -> chartElement "pieChart" [] noGrouping _pichSeries [] []
     ScatterChart {..} ->
       chartElement
         "scatterChart"
         xyAxes
-        Nothing
+        noGrouping
         _scchSeries
         [elementValue "scatterStyle" _scchStyle]
         []
   where
+    noGrouping :: Maybe ChartGrouping
+    noGrouping = Nothing
     chartElement
-      :: ToElement s
+      :: (ToElement s, ToAttrVal gr)
       => Name
       -> [Element]
-      -> Maybe ChartGrouping
+      -> Maybe gr
       -> [s]
       -> [Element]
       -> [Element]
@@ -627,6 +658,12 @@ instance ToAttrVal ChartGrouping where
   toAttrVal PercentStackedGrouping = "percentStacked"
   toAttrVal StandardGrouping = "standard"
   toAttrVal StackedGrouping = "stacked"
+
+instance ToAttrVal BarChartGrouping where
+  toAttrVal BarClusteredGrouping = "clustered"
+  toAttrVal BarPercentStackedGrouping = "percentStacked"
+  toAttrVal BarStandardGrouping = "standard"
+  toAttrVal BarStackedGrouping = "stacked"
 
 instance ToAttrVal BarDirection where
   toAttrVal DirectionBar = "bar"
@@ -756,7 +793,7 @@ instance ToElement ChartTitle where
   toElement nm (ChartTitle body) =
     elementListSimple nm [txEl, elementValue "overlay" False]
     where
-      txEl = elementListSimple "tx" [toElement (c_ "rich") body]
+      txEl = elementListSimple "tx" $ catMaybes [toElement (c_ "rich") <$> body]
 
 instance ToElement Legend where
   toElement nm Legend{..} = elementListSimple nm elements
