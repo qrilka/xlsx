@@ -76,11 +76,11 @@ install:
 - if [ -f configure.ac ]; then autoreconf -i; fi
 - |
   set -ex
-  stack --no-terminal --skip-ghc-check $ARGS test --bench --only-dependencies
+  stack --no-terminal --skip-ghc-check $ARGS test --only-dependencies
   set +ex
 
 script:
 - |
   set -ex
-  stack --no-terminal --skip-ghc-check $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
+  stack --no-terminal --skip-ghc-check $ARGS test --haddock --no-haddock-deps
   set +ex
