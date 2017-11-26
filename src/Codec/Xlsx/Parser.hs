@@ -492,7 +492,8 @@ extractCellValue sst t cur
   | otherwise = fail "bad cell value"
   where
     vConverted typeStr = do
-      vContent <- cur $/ element (n_ "v") &/ content
+      vContent <- cur $/ element (n_ "v") >=> \c ->
+        return (T.concat $ c $/ content)
       case fromAttrVal vContent of
         Right (val, _) -> return $ val
         _ -> fail $ "bad " ++ typeStr ++ " cell value"

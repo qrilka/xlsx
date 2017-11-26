@@ -174,7 +174,7 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
     rules2 = [ cfRule ContainsErrors 3 ]
 
 testCellMap1 :: CellMap
-testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5)
+testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5), ((1, 10), cd1_10)
                           , ((3, 1), cd3_1), ((3, 2), cd3_2), ((3, 3), cd3_3), ((3, 7), cd3_7)
                           , ((4, 1), cd4_1), ((4, 2), cd4_2), ((4, 3), cd4_3)
                           , ((5, 1), cd5_1), ((5, 2), cd5_2), ((5, 3), cd5_3)
@@ -184,6 +184,7 @@ testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5)
     cd v = def {_cellValue=Just v}
     cd1_2 = cd (CellText "just a text, fließen, русский <> и & \"in quotes\"")
     cd1_5 = cd (CellDouble 42.4567)
+    cd1_10 = cd (CellText "")
     cd3_1 = cd (CellText "another text")
     cd3_2 = def -- shouldn't it be skipped?
     cd3_3 = def & cellValue ?~ CellError ErrorDiv0
