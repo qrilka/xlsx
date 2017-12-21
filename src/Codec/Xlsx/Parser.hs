@@ -10,6 +10,7 @@ module Codec.Xlsx.Parser
   ( toXlsx
   , toXlsxEither
   , toXlsxFast
+  , toXlsxEitherFast
   , ParseError(..)
   , Parser
   ) where
