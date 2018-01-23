@@ -191,7 +191,7 @@ testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5), ((1, 10), cd1_10)
                 & cellFormula ?~ simpleCellFormula "1/0"
     cd3_7 = cd (CellBool True)
     cd4_1 = cd (CellDouble 1)
-    cd4_2 = cd (CellDouble 2)
+    cd4_2 = cd (CellDouble 123456789012345)
     cd4_3 = (cd (CellDouble (1+2))) { _cellFormula =
                                             Just $ simpleCellFormula "A4+B4<>11"
                                     }

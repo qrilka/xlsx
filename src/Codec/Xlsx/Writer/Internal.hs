@@ -196,8 +196,11 @@ mainNamespace = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 
 
 txtd :: Double -> Text
-txtd v | v - fromInteger (floor v) == 0 = toStrict . toLazyText $ formatRealFloat Generic (Just 0) v
-       | otherwise = toStrict . toLazyText $ realFloat v
+txtd v
+  | v - fromInteger v' == 0 = txti v'
+  | otherwise = toStrict . toLazyText $ realFloat v
+  where
+    v' = floor v
 
 txtb :: Bool -> Text
 txtb = T.toLower . T.pack . show
