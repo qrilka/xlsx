@@ -1,3 +1,17 @@
+0.7.0
+-----
+* fixed serialization of large integer values (thanks Radoslav Dorcik
+  <dixiecko@gmail.com>)
+* added fast xlsx parsing using `xeno` library
+* dropped support for GHC 7.8.4 and added support for GHC 8.2.2
+* added numer format support in differential formatting records
+  (thanks Emil Axelsson <emax@chalmers.se>)
+* added `inlineStr` cell type support
+* added shared formulas support
+* added error values support
+* helper functions for serialization/deserialization of date values
+  (thanks José Romildo Malaquias <malaquias@gmail.com>)
+
 0.6.0
 -----
 * fixed reading files with optional table name (thanks Aleksey Khudyakov
