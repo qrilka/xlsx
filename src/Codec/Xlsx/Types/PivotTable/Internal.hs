@@ -58,7 +58,9 @@ instance ToElement CacheField where
   toElement nm CacheField {..} =
     elementList nm ["name" .= cfName] [sharedItems]
     where
-      sharedItems = elementList "sharedItems" typeAttrs $ map cvToItem cfItems
+      -- Excel doesn't like embedded integer sharedImes in cache
+      sharedItems = elementList "sharedItems" typeAttrs $
+        if containsString then map cvToItem cfItems else []
       cvToItem (CellText t) = leafElement "s" ["v" .= t]
       cvToItem (CellDouble n) = leafElement "n" ["v" .= n]
       cvToItem _ = error "Only string and number values are currently supported"
