@@ -38,15 +38,14 @@ module Codec.Xlsx.Writer.Internal (
   , justFalse
   ) where
 
+import qualified Data.Map as Map
+import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder (toLazyText)
 import Data.Text.Lazy.Builder.Int
 import Data.Text.Lazy.Builder.RealFloat
-
-import qualified Data.Map as Map
-import Data.String (fromString)
 import Text.XML
 
 {-------------------------------------------------------------------------------

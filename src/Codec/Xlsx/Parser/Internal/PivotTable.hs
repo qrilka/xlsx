@@ -4,11 +4,13 @@
 module Codec.Xlsx.Parser.Internal.PivotTable
   ( parsePivotTable
   , parseCache
+  , fillCacheFieldsFromRecords
   ) where
 
 import Control.Applicative
 import Data.ByteString.Lazy (ByteString)
-import Data.Maybe (listToMaybe, maybeToList)
+import Data.List (transpose)
+import Data.Maybe (listToMaybe, mapMaybe, maybeToList)
 import Data.Text (Text)
 import Safe (atMay)
 import Text.XML
@@ -16,6 +18,8 @@ import Text.XML.Cursor
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.Common
+import Codec.Xlsx.Types.Internal
+import Codec.Xlsx.Types.Internal.Relationships (odr)
 import Codec.Xlsx.Types.PivotTable
 import Codec.Xlsx.Types.PivotTable.Internal
 
@@ -79,14 +83,27 @@ parsePivotTable srcByCacheId bs =
                 FieldPosition <$> fieldNameList n
           return PivotTable {..}
 
-parseCache :: ByteString -> Maybe (Text, CellRef, [CacheField])
+parseCache :: ByteString -> Maybe (Text, CellRef, [CacheField], Maybe RefId)
 parseCache bs = listToMaybe . parse . fromDocument $ parseLBS_ def bs
   where
     parse cur = do
+      refId <- maybeAttribute (odr "id") cur
       (sheet, ref) <-
         cur $/ element (n_ "cacheSource") &/ element (n_ "worksheetSource") >=>
         liftA2 (,) <$> attribute "sheet" <*> fromAttribute "ref"
       let fields =
             cur $/ element (n_ "cacheFields") &/ element (n_ "cacheField") >=>
             fromCursor
-      return (sheet, ref, fields)
+      return (sheet, ref, fields, refId)
+
+fillCacheFieldsFromRecords :: [CacheField] -> [CacheRecord] -> [CacheField]
+fillCacheFieldsFromRecords fields recs =
+  zipWith addValues fields (transpose recs)
+  where
+    addValues field recVals =
+      if null (cfItems field)
+        then field {cfItems = mapMaybe recToCellValue recVals}
+        else field
+    recToCellValue (CacheText t) = Just $ CellText t
+    recToCellValue (CacheNumber n) = Just $ CellDouble n
+    recToCellValue (CacheIndex _) = Nothing

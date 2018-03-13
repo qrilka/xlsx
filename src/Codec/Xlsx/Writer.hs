@@ -156,9 +156,6 @@ nextRefId r = do
   modifySTRef' r (+1)
   return (unsafeRefId num)
 
-unsafeRefId :: Int -> RefId
-unsafeRefId num = RefId $ "rId" <> txti num
-
 sheetDataXml ::
      Cells
   -> Map Int RowProperties
@@ -350,6 +347,20 @@ generatePivotFiles cmTables = PvGenerated cacheFiles shTableFiles others
               (smlCT "pivotCacheDefinition")
               "pivotCacheDefinition"
               pvtfCacheDefinition
+          recordsPath =
+            "xl/pivotCache/pivotCacheRecords" <> cacheIdStr <> ".xml"
+          recordsFile =
+            FileData
+            recordsPath
+            (smlCT "pivotCacheRecords")
+            "pivotCacheRecords"
+            pvtfCacheRecords
+          cacheRelsFile =
+            FileData
+            ("xl/pivotCache/_rels/pivotCacheDefinition" <> cacheIdStr <> ".xml.rels")
+            relsCT
+            "relationships" $
+            renderRels [refFileDataToRel cachePath (unsafeRefId 1, recordsFile)]
           renderRels = renderLBS def . toDocument . Relationships.fromList
           tablePath = "xl/pivotTables/pivotTable" <> cacheIdStr <> ".xml"
           tableFile =
@@ -360,7 +371,7 @@ generatePivotFiles cmTables = PvGenerated cacheFiles shTableFiles others
               relsCT
               "relationships" $
             renderRels [refFileDataToRel tablePath (unsafeRefId 1, cacheFile)]
-      in ((cacheId, cacheFile), tableFile, [tableRels])
+      in ((cacheId, cacheFile), tableFile, [tableRels, cacheRelsFile, recordsFile])
 
 genTable :: Table -> Int -> FileData
 genTable tbl tblId = FileData{..}

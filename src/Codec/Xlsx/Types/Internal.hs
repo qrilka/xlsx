@@ -1,7 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Codec.Xlsx.Types.Internal where
 
 import Control.Arrow
+import Data.Monoid ((<>))
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -18,3 +20,6 @@ instance FromAttrVal RefId where
 
 instance FromAttrBs RefId where
   fromAttrBs = fmap RefId . fromAttrBs
+
+unsafeRefId :: Int -> RefId
+unsafeRefId num = RefId $ "rId" <> txti num

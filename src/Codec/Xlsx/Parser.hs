@@ -639,10 +639,20 @@ readWorkbook ar = do
       path <- lookupRelPath wbPath wbRels rId
       bs <-
         note (MissingFile path) $ Zip.fromEntry <$> Zip.findEntryByPath path ar
-      sources <-
+      (sheet, ref, fields0, mRecRId) <-
         note (InconsistentXlsx $ "Bad pivot table cache in " <> T.pack path) $
         parseCache bs
-      return (cacheId, sources)
+      fields <- case mRecRId of
+        Just recId -> do
+          cacheRels <- getRels ar path
+          recsPath <- lookupRelPath path cacheRels recId
+          rCur <- xmlCursorRequired ar recsPath
+          let recs = rCur $/ element (n_ "r") >=> \cur' ->
+                return $ cur' $/ anyElement >=> recordValueFromNode . node
+          return $ fillCacheFieldsFromRecords fields0 recs
+        Nothing ->
+          return fields0
+      return $ (cacheId, (sheet, ref, fields))
   let dateBase = bool DateBase1900 DateBase1904 . fromMaybe False . listToMaybe $
                  cur $/ element (n_ "workbookPr") >=> fromAttribute "date1904"
   return (sheets, DefinedNames names, caches, dateBase)
