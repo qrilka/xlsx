@@ -6,6 +6,7 @@
 module Codec.Xlsx.Formatted
   ( FormattedCell(..)
   , Formatted(..)
+  , Format(..)
   , formatted
   , toFormattedCells
   , CondFormatted(..)
