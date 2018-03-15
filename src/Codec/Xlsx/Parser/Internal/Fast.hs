@@ -35,9 +35,11 @@ import Control.Applicative
 import Control.Arrow (second)
 import Control.Exception (Exception, throw)
 import Control.Monad (ap, forM, join, liftM)
+import Data.Bits ((.|.), shiftL)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Unsafe as SU
+import Data.Char (chr)
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
@@ -277,9 +279,37 @@ replaceEntititesBs str =
            && s_index this 2 == 111 -- o
            && s_index this 3 == 115 -- s
            -> return 39 -- '\''
+         |    s_index this 0 == 35  -- '#'
+           ->
+           if | s_index this 1 == 120 -- 'x'
+              -> toEnum <$> checkHexadecimal (index + 2) (len - 2)
+              | otherwise
+              -> toEnum <$> checkDecimal (index + 1) (len - 1)
          | otherwise -> Left $ "Bad entity " <> T.pack (show $ (substring str (index-1) (index+len+1)))
       where
         this = BS.drop index str
+    checkDecimal index len = BS.foldl' go (Right 0) (substring str index (index + len))
+      where
+        go :: Either Text Int -> Word8 -> Either Text Int
+        go prev c = do
+          a <- prev
+          if c >= 48 && c <= 57
+            then return $ a * 10 + fromIntegral (c - 48)
+            else Left $ "Expected decimal digit but encountered " <> T.pack (show (chr $ fromIntegral c))
+    checkHexadecimal index len = BS.foldl' go (Right 0) (substring str index (index + len))
+      where
+        go :: Either Text Int -> Word8 -> Either Text Int
+        go prev c = do
+          a <- prev
+          if | c >= 48 && c <= 57
+               -> return $ (a `shiftL` 4) .|. fromIntegral (c - 48)
+             | c >= 97 && c <= 122
+               -> return $ (a `shiftL` 4) .|. fromIntegral (c - 87)
+             | c >= 65 && c <= 90
+               -> return $ (a `shiftL` 4) .|. fromIntegral (c - 55)
+             | otherwise
+               ->
+               Left $ "Expected hexadecimal digit but encountered " <> T.pack (show (chr $ fromIntegral c))
     ampersand = 38
     semicolon = 59
 

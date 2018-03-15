@@ -78,9 +78,12 @@ instance Exception ParseError
 type Parser = Either ParseError
 
 -- | Reads `Xlsx' from raw data (lazy bytestring) using @xeno@ library
--- using some "cheating"
+-- using some "cheating":
+--
 -- * not doing 100% xml validation
--- * replacing only basic XML enttities
+-- * replacing only <https://www.w3.org/TR/REC-xml/#sec-predefined-ent predefined entities>
+--   and <https://www.w3.org/TR/REC-xml/#NT-CharRef Unicode character references>
+--   (without checking codepoint validity)
 -- * almost not using XML namespaces
 toXlsxFast :: L.ByteString -> Xlsx
 toXlsxFast = either (error . show) id . toXlsxEitherFast
