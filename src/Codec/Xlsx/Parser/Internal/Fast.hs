@@ -281,10 +281,9 @@ replaceEntititesBs str =
            -> return 39 -- '\''
          |    s_index this 0 == 35  -- '#'
            ->
-           if | s_index this 1 == 120 -- 'x'
-              -> toEnum <$> checkHexadecimal (index + 2) (len - 2)
-              | otherwise
-              -> toEnum <$> checkDecimal (index + 1) (len - 1)
+           if s_index this 1 == 120 -- 'x'
+              then toEnum <$> checkHexadecimal (index + 2) (len - 2)
+              else toEnum <$> checkDecimal (index + 1) (len - 1)
          | otherwise -> Left $ "Bad entity " <> T.pack (show $ (substring str (index-1) (index+len+1)))
       where
         this = BS.drop index str
