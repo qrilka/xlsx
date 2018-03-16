@@ -1,3 +1,8 @@
+0.7.1
+-----
+* improved compatibility with Excel in pivot cache serialization
+* added support for character references in fast parsing with `xeno`
+
 0.7.0
 -----
 * fixed serialization of large integer values (thanks Radoslav Dorcik
