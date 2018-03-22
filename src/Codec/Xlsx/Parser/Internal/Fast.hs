@@ -41,7 +41,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Unsafe as SU
 import Data.Char (chr)
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T

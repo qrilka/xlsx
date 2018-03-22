@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
@@ -310,6 +311,31 @@ instance FromXenoNode RunProperties where
 {-------------------------------------------------------------------------------
   Applying formatting
 -------------------------------------------------------------------------------}
+
+#if (MIN_VERSION_base(4,11,0))
+instance Semigroup RunProperties where
+  a <> b = RunProperties {
+      _runPropertiesBold          = override _runPropertiesBold
+    , _runPropertiesCharset       = override _runPropertiesCharset
+    , _runPropertiesColor         = override _runPropertiesColor
+    , _runPropertiesCondense      = override _runPropertiesCondense
+    , _runPropertiesExtend        = override _runPropertiesExtend
+    , _runPropertiesFontFamily    = override _runPropertiesFontFamily
+    , _runPropertiesItalic        = override _runPropertiesItalic
+    , _runPropertiesOutline       = override _runPropertiesOutline
+    , _runPropertiesFont          = override _runPropertiesFont
+    , _runPropertiesScheme        = override _runPropertiesScheme
+    , _runPropertiesShadow        = override _runPropertiesShadow
+    , _runPropertiesStrikeThrough = override _runPropertiesStrikeThrough
+    , _runPropertiesSize          = override _runPropertiesSize
+    , _runPropertiesUnderline     = override _runPropertiesUnderline
+    , _runPropertiesVertAlign     = override _runPropertiesVertAlign
+    }
+    where
+      override :: (RunProperties -> Maybe x) -> Maybe x
+      override f = f b `mplus` f a
+
+#endif
 
 -- | The 'Monoid' instance for 'RunProperties' is biased: later properties
 -- override earlier ones.
