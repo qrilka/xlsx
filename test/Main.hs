@@ -62,6 +62,8 @@ main = defaultMain $
         [testCustomProperties] @==? parseBS testCustomPropertiesXml
     , testCase "proper results from `formatted`" $
         testFormattedResult @==? testRunFormatted
+    , testCase "proper results from `formatWorkbook`" $
+        testFormatWorkbookResult @==? testFormatWorkbook
     , testCase "formatted . toFormattedCells = id" $ do
         let fmtd = formatted testFormattedCells minimalStyleSheet
         testFormattedCells @==? toFormattedCells (formattedCellMap fmtd) (formattedMerges fmtd)
@@ -435,6 +437,41 @@ testRunFormatted = formatted formattedCellMap minimalStyleSheet
                           & formattedFormat . formatNumberFormat ?~ fmtDecimalsZeroes 4)
         at (2, 5) ?= (def & formattedCell . cellValue ?~ CellDouble 1.23456
                           & formattedFormat . formatNumberFormat ?~ StdNumberFormat Nf2Decimal)
+
+testFormatWorkbookResult :: Xlsx
+testFormatWorkbookResult = def & xlSheets .~ sheets
+                               & xlStyles .~ renderStyleSheet style
+  where
+    testCellMap1 = M.fromList [((1, 1), Cell { _cellStyle   = Nothing
+                                             , _cellValue   = Just (CellText "text at A1 Sheet1")
+                                             , _cellComment = Nothing
+                                             , _cellFormula = Nothing })]
+    testCellMap2 = M.fromList [((2, 3), Cell { _cellStyle   = Just 1
+                                             , _cellValue   = Just (CellDouble 1.23456)
+                                             , _cellComment = Nothing
+                                             , _cellFormula = Nothing })]
+    sheets = [ ("Sheet1", def & wsCells .~ testCellMap1)
+             , ("Sheet2", def & wsCells .~ testCellMap2)
+             ]
+    style = minimalStyleSheet & styleSheetNumFmts .~ M.fromList [(164, "DD.MM.YYYY")]
+                              & styleSheetCellXfs .~ [cellXf1, cellXf2]
+    cellXf1 = def
+      & cellXfBorderId .~ Just 0
+      & cellXfFillId   .~ Just 0
+      & cellXfFontId   .~ Just 0
+    cellXf2 = def
+        { _cellXfApplyNumberFormat = Just True
+        , _cellXfNumFmtId          = Just 164 }
+  
+testFormatWorkbook :: Xlsx
+testFormatWorkbook = formatWorkbook sheets minimalStyleSheet
+  where
+    sheetNames = ["Sheet1", "Sheet2"]
+    testFormattedCellMap1 = M.fromList [((1,1), (def & formattedCell . cellValue ?~ CellText "text at A1 Sheet1"))]
+      
+    testFormattedCellMap2 = M.fromList [((2,3), (def & formattedCell . cellValue ?~ CellDouble 1.23456
+                                                 & formattedFormat . formatNumberFormat ?~ (UserNumberFormat "DD.MM.YYYY")))]
+    sheets = zip sheetNames [testFormattedCellMap1, testFormattedCellMap2]
 
 testCondFormattedResult :: CondFormatted
 testCondFormattedResult = CondFormatted styleSheet formattings

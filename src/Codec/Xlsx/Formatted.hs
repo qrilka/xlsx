@@ -8,6 +8,7 @@ module Codec.Xlsx.Formatted
   , Formatted(..)
   , Format(..)
   , formatted
+  , formatWorkbook
   , toFormattedCells
   , CondFormatted(..)
   , conditionallyFormatted
@@ -72,7 +73,7 @@ stateFromStyleSheet StyleSheet{..} = FormattingState{
     , _formattingCellXfs = fromValueList _styleSheetCellXfs
     , _formattingFills   = fromValueList _styleSheetFills
     , _formattingFonts   = fromValueList _styleSheetFonts
-    , _formattingNumFmts = M.empty
+    , _formattingNumFmts = M.fromList . map swap $ M.toList _styleSheetNumFmts
     , _formattingMerges  = []
     }
 
@@ -235,6 +236,21 @@ formatted cs styleSheet =
         , formattedStyleSheet = styleSheet'
         , formattedMerges     = reverse (finalSt ^. formattingMerges)
         }
+
+formatWorkbook :: [(Text, Map (Int, Int) FormattedCell)] -> StyleSheet -> Xlsx
+formatWorkbook nfcss initStyle = extract go
+  where
+    initSt = stateFromStyleSheet initStyle
+    go = flip runState initSt $
+      forM nfcss $ \(name, fcs) -> do
+        cs' <- forM (M.toList fcs) $ \(rc, fc) -> formatCell rc fc
+        merges <- reverse . _formattingMerges <$> get
+        return ( name
+               , def & wsCells  .~ M.fromList (concat cs')
+                     & wsMerges .~ merges)
+    extract (sheets, st) =
+      def & xlSheets .~ sheets
+          & xlStyles .~ renderStyleSheet (updateStyleSheetFromState initStyle st)
 
 -- | reverse to 'formatted' which allows to get a map of formatted cells
 -- from an existing worksheet and its workbook's style sheet
