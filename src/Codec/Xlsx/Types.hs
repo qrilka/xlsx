@@ -85,6 +85,7 @@ import Codec.Xlsx.Types.DataValidation as X
 import Codec.Xlsx.Types.Drawing as X
 import Codec.Xlsx.Types.Drawing.Chart as X
 import Codec.Xlsx.Types.Drawing.Common as X
+import Codec.Xlsx.Types.Format as X
 import Codec.Xlsx.Types.PageSetup as X
 import Codec.Xlsx.Types.PivotTable as X
 import Codec.Xlsx.Types.Protection as X

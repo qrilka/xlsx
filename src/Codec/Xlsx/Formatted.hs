@@ -6,22 +6,12 @@
 module Codec.Xlsx.Formatted
   ( FormattedCell(..)
   , Formatted(..)
-  , Format(..)
   , formatted
   , formatWorkbook
   , toFormattedCells
   , CondFormatted(..)
   , conditionallyFormatted
     -- * Lenses
-    -- ** Format
-  , formatAlignment
-  , formatBorder
-  , formatFill
-  , formatFont
-  , formatNumberFormat
-  , formatProtection
-  , formatPivotButton
-  , formatQuotePrefix
     -- ** FormattedCell
   , formattedCell
   , formattedFormat
@@ -125,25 +115,6 @@ makeLenses ''FormattedCondFmt
   Cell with formatting
 -------------------------------------------------------------------------------}
 
--- | Formatting options used to format cells
---
--- TODOs:
---
--- * Add a number format ('_cellXfApplyNumberFormat', '_cellXfNumFmtId')
--- * Add references to the named style sheets ('_cellXfId')
-data Format = Format
-    { _formatAlignment    :: Maybe Alignment
-    , _formatBorder       :: Maybe Border
-    , _formatFill         :: Maybe Fill
-    , _formatFont         :: Maybe Font
-    , _formatNumberFormat :: Maybe NumberFormat
-    , _formatProtection   :: Maybe Protection
-    , _formatPivotButton  :: Maybe Bool
-    , _formatQuotePrefix  :: Maybe Bool
-    } deriving (Eq, Show, Generic)
-
-makeLenses ''Format
-
 -- | Cell with formatting. '_cellStyle' property of '_formattedCell' is ignored
 --
 -- See 'formatted' for more details.
@@ -166,18 +137,6 @@ instance Default FormattedCell where
         , _formattedFormat  = def
         , _formattedColSpan = 1
         , _formattedRowSpan = 1
-        }
-
-instance Default Format where
-  def = Format
-        { _formatAlignment    = Nothing
-        , _formatBorder       = Nothing
-        , _formatFill         = Nothing
-        , _formatFont         = Nothing
-        , _formatNumberFormat = Nothing
-        , _formatProtection   = Nothing
-        , _formatPivotButton  = Nothing
-        , _formatQuotePrefix  = Nothing
         }
 
 instance Default FormattedCondFmt where

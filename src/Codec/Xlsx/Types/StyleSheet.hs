@@ -7,6 +7,7 @@ module Codec.Xlsx.Types.StyleSheet (
     -- * The main two types
     StyleSheet(..)
   , CellXf(..)
+  , CellStyle(..)
   , minimalStyleSheet
     -- * Supporting record types
   , Alignment(..)
@@ -38,6 +39,7 @@ module Codec.Xlsx.Types.StyleSheet (
   , styleSheetFonts
   , styleSheetFills
   , styleSheetCellXfs
+  , styleSheetCellStyles
   , styleSheetDxfs
   , styleSheetNumFmts
     -- ** CellXf
@@ -56,6 +58,13 @@ module Codec.Xlsx.Types.StyleSheet (
   , cellXfId
   , cellXfAlignment
   , cellXfProtection
+    -- ** CellStyle
+  , cellStyleBuiltinId
+  , cellStyleCustomBuiltin
+  , cellStyleHidden
+  , cellStyleILevel
+  , cellStyleName
+  , cellStyleXfId
     -- ** Dxf
   , dxfAlignment
   , dxfBorder
@@ -164,7 +173,6 @@ import Codec.Xlsx.Writer.Internal
 --
 -- TODO: the following child elements:
 --
--- * cellStyles
 -- * cellStyleXfs
 -- * colors
 -- * extLst
@@ -183,6 +191,8 @@ data StyleSheet = StyleSheet
     --
     -- Section 18.8.5, "borders (Borders)" (p. 1760)
 
+    --, _styleSheetCellStyleXfs :: [CellStyleXf]
+
     , _styleSheetCellXfs :: [CellXf]
     -- ^ Cell formats
     --
@@ -192,6 +202,12 @@ data StyleSheet = StyleSheet
     -- Sheet Part reference the xf records by zero-based index.
     --
     -- Section 18.8.10, "cellXfs (Cell Formats)" (p. 1764)
+
+    , _styleSheetCellStyles :: [CellStyle]
+    -- ^ This element contains the named cell styles, consisting of a sequence of
+    -- named style records. A named cell style is a collection of direct or themed
+    -- formatting (e.g., cell border, cell fill, and font type/size/style)
+    -- grouped together into a single named style, and can be applied to a cell.
 
     , _styleSheetFills   :: [Fill]
     -- ^ This element defines the cell fills portion of the Styles part,
@@ -318,6 +334,34 @@ data CellXf = CellXf {
   deriving (Eq, Ord, Show, Generic)
 
 instance NFData CellXf
+
+-- Section 18.8.7 "cellStyle (Cell Style)" (p. 1761)
+data CellStyle = CellStyle {
+    -- | The index of a built-in cell style.
+    _cellStyleBuiltinId     :: Maybe Int
+
+    -- | True indicates that this built-in cell style has been customized.
+  , _cellStyleCustomBuiltin :: Maybe Bool
+
+    -- | If 'true' do not show this style in the application UI.
+  , _cellStyleHidden        :: Maybe Bool
+
+    -- | Indicates that this formatting is for an outline style. When styles are
+    -- applied to outline levels (using the outline feature), this value is set
+    -- and the formatting specified on this cell style is applied to the corresponding
+    -- level of the outline.
+  , _cellStyleILevel        :: Maybe Int
+
+    -- | The name of the cell style.
+  , _cellStyleName          :: Maybe Text
+
+    -- | Zero-based index referencing an xf record in the cellStyleXfs collection.
+    -- This is used to determine the formatting defined for this named cell style.
+  , _cellStyleXfId          :: Maybe Int
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+instance NFData CellStyle
 
 {-------------------------------------------------------------------------------
   Supporting record types
@@ -938,6 +982,7 @@ instance NFData ReadingOrder
 
 makeLenses ''StyleSheet
 makeLenses ''CellXf
+makeLenses ''CellStyle
 makeLenses ''Dxf
 
 makeLenses ''Alignment
@@ -1001,12 +1046,13 @@ minimalStyleSheet = def
 
 instance Default StyleSheet where
   def = StyleSheet {
-      _styleSheetBorders = []
-    , _styleSheetFonts   = []
-    , _styleSheetFills   = []
-    , _styleSheetCellXfs = []
-    , _styleSheetDxfs    = []
-    , _styleSheetNumFmts = M.empty
+      _styleSheetBorders    = []
+    , _styleSheetFonts      = []
+    , _styleSheetFills      = []
+    , _styleSheetCellXfs    = []
+    , _styleSheetCellStyles = []
+    , _styleSheetDxfs       = []
+    , _styleSheetNumFmts    = M.empty
     }
 
 instance Default CellXf where
@@ -1026,6 +1072,16 @@ instance Default CellXf where
     , _cellXfId                = Nothing
     , _cellXfAlignment         = Nothing
     , _cellXfProtection        = Nothing
+    }
+
+instance Default CellStyle where
+  def = CellStyle {
+      _cellStyleBuiltinId     = Nothing
+    , _cellStyleCustomBuiltin = Nothing
+    , _cellStyleHidden        = Nothing
+    , _cellStyleILevel        = Nothing
+    , _cellStyleName          = Nothing
+    , _cellStyleXfId          = Nothing
     }
 
 instance Default Dxf where
@@ -1136,14 +1192,14 @@ instance ToDocument StyleSheet where
 instance ToElement StyleSheet where
   toElement nm StyleSheet{..} = elementListSimple nm elements
     where
-      elements = [ countedElementList "numFmts" $ map (toElement "numFmt") numFmts
-                 , countedElementList "fonts"   $ map (toElement "font")   _styleSheetFonts
-                 , countedElementList "fills"   $ map (toElement "fill")   _styleSheetFills
-                 , countedElementList "borders" $ map (toElement "border") _styleSheetBorders
+      elements = [ countedElementList "numFmts"    $ map (toElement "numFmt")    numFmts
+                 , countedElementList "fonts"      $ map (toElement "font")      _styleSheetFonts
+                 , countedElementList "fills"      $ map (toElement "fill")      _styleSheetFills
+                 , countedElementList "borders"    $ map (toElement "border")    _styleSheetBorders
                    -- TODO: cellStyleXfs
-                 , countedElementList "cellXfs" $ map (toElement "xf")     _styleSheetCellXfs
-                 -- TODO: cellStyles
-                 , countedElementList "dxfs"    $ map (toElement "dxf")    _styleSheetDxfs
+                 , countedElementList "cellXfs"    $ map (toElement "xf")        _styleSheetCellXfs
+                 , countedElementList "cellStyles" $ map (toElement "cellStyle") _styleSheetCellStyles
+                 , countedElementList "dxfs"       $ map (toElement "dxf")       _styleSheetDxfs
                  -- TODO: tableStyles
                  -- TODO: colors
                  -- TODO: extLst
@@ -1173,6 +1229,21 @@ instance ToElement CellXf where
         , "applyBorder"       .=? _cellXfApplyBorder
         , "applyAlignment"    .=? _cellXfApplyAlignment
         , "applyProtection"   .=? _cellXfApplyProtection
+        ]
+    }
+
+-- | See @CT_CellStyle@, p. 3937
+instance ToElement CellStyle where
+  toElement nm CellStyle {..} = Element {
+      elementName       = nm
+    , elementNodes      = []
+    , elementAttributes = M.fromList . catMaybes $ [
+          "name"          .=? _cellStyleName
+        , "xfId"          .=? _cellStyleXfId
+        , "builtinId"     .=? _cellStyleBuiltinId
+        , "iLevel"        .=? _cellStyleILevel
+        , "hidden"        .=? _cellStyleHidden
+        , "customBuiltin" .=? _cellStyleCustomBuiltin
         ]
     }
 
@@ -1418,14 +1489,14 @@ instance ToAttrVal ReadingOrder where
 instance FromCursor StyleSheet where
   fromCursor cur = do
     let
-      _styleSheetFonts = cur $/ element (n_ "fonts") &/ element (n_ "font") >=> fromCursor
-      _styleSheetFills = cur $/ element (n_ "fills") &/ element (n_ "fill") >=> fromCursor
-      _styleSheetBorders = cur $/ element (n_ "borders") &/ element (n_ "border") >=> fromCursor
+      _styleSheetFonts      = cur $/ element (n_ "fonts") &/ element (n_ "font") >=> fromCursor
+      _styleSheetFills      = cur $/ element (n_ "fills") &/ element (n_ "fill") >=> fromCursor
+      _styleSheetBorders    = cur $/ element (n_ "borders") &/ element (n_ "border") >=> fromCursor
          -- TODO: cellStyleXfs
-      _styleSheetCellXfs = cur $/ element (n_ "cellXfs") &/ element (n_ "xf") >=> fromCursor
-         -- TODO: cellStyles
-      _styleSheetDxfs = cur $/ element (n_ "dxfs") &/ element (n_ "dxf") >=> fromCursor
-      _styleSheetNumFmts = M.fromList . map mkNumFmtPair $
+      _styleSheetCellXfs    = cur $/ element (n_ "cellXfs") &/ element (n_ "xf") >=> fromCursor
+      _styleSheetCellStyles = cur $/ element (n_ "cellStyles") &/ element (n_ "cellStyle") >=> fromCursor
+      _styleSheetDxfs       = cur $/ element (n_ "dxfs") &/ element (n_ "dxf") >=> fromCursor
+      _styleSheetNumFmts    = M.fromList . map mkNumFmtPair $
           cur $/ element (n_ "numFmts")&/ element (n_ "numFmt") >=> fromCursor
          -- TODO: tableStyles
          -- TODO: colors
@@ -1625,6 +1696,17 @@ instance FromCursor CellXf where
     _cellXfApplyAlignment    <- maybeAttribute "applyAlignment" cur
     _cellXfApplyProtection   <- maybeAttribute "applyProtection" cur
     return CellXf{..}
+
+-- | See @CT_CellStyle@, p. 3937
+instance FromCursor CellStyle where
+  fromCursor cur = do
+    _cellStyleName          <- maybeAttribute "name" cur
+    _cellStyleXfId          <- maybeAttribute "xfId" cur
+    _cellStyleBuiltinId     <- maybeAttribute "builtinId" cur
+    _cellStyleILevel        <- maybeAttribute "iLevel" cur
+    _cellStyleHidden        <- maybeAttribute "hidden" cur
+    _cellStyleCustomBuiltin <- maybeAttribute "customBuiltin" cur
+    return CellStyle{..}
 
 -- | See @CT_Dxf@, p. 3937
 instance FromCursor Dxf where
