@@ -18,7 +18,6 @@ module Codec.Xlsx.Types.StyleSheet (
   , Fill(..)
   , FillPattern(..)
   , Font(..)
-  , NumberFormat(..)
   , NumFmt(..)
   , ImpliedNumberFormat (..)
   , FormatCode
@@ -130,8 +129,6 @@ module Codec.Xlsx.Types.StyleSheet (
   , protectionLocked
     -- * Helpers
     -- ** Number formats
-  , fmtDecimals
-  , fmtDecimalsZeroes
   , stdNumberFormatId
   , idToStdNumberFormat
   , firstUserNumFmtId
@@ -143,9 +140,7 @@ import Data.Default
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Maybe (catMaybes)
-import Data.Monoid ((<>))
 import Data.Text (Text)
-import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Cursor
@@ -689,28 +684,6 @@ instance NFData NumFmt
 
 mkNumFmtPair :: NumFmt -> (Int, FormatCode)
 mkNumFmtPair NumFmt{..} = (_numFmtId, _numFmtCode)
-
--- | This type gives a high-level version of representation of number format
--- used in 'Codec.Xlsx.Formatted.Format'.
-data NumberFormat
-    = StdNumberFormat ImpliedNumberFormat
-    | UserNumberFormat FormatCode
-    deriving (Eq, Ord, Show, Generic)
-
-instance NFData NumberFormat
-
--- | Basic number format with predefined number of decimals
--- as format code of number format in xlsx should be less than 255 characters
--- number of decimals shouldn't be more than 253
-fmtDecimals :: Int -> NumberFormat
-fmtDecimals k = UserNumberFormat $ "0." <> T.replicate k "#"
-
--- | Basic number format with predefined number of decimals.
--- Works like 'fmtDecimals' with the only difference that extra zeroes are
--- displayed when number of digits after the point is less than the number
--- of digits specified in the format
-fmtDecimalsZeroes :: Int -> NumberFormat
-fmtDecimalsZeroes k = UserNumberFormat $ "0." <> T.replicate k "0"
 
 -- | Implied number formats
 --

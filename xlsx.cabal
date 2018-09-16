@@ -51,7 +51,6 @@ Library
                    , Codec.Xlsx.Types.Drawing
                    , Codec.Xlsx.Types.Drawing.Chart
                    , Codec.Xlsx.Types.Drawing.Common
-                   , Codec.Xlsx.Types.Format
                    , Codec.Xlsx.Types.Internal
                    , Codec.Xlsx.Types.Internal.CfPair
                    , Codec.Xlsx.Types.Internal.CommentTable
@@ -67,6 +66,7 @@ Library
                    , Codec.Xlsx.Types.Protection
                    , Codec.Xlsx.Types.RichText
                    , Codec.Xlsx.Types.SheetViews
+                   , Codec.Xlsx.Types.Style
                    , Codec.Xlsx.Types.StyleSheet
                    , Codec.Xlsx.Types.Table
                    , Codec.Xlsx.Types.Variant
