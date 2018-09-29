@@ -90,7 +90,6 @@ import Codec.Xlsx.Types.PivotTable as X
 import Codec.Xlsx.Types.Protection as X
 import Codec.Xlsx.Types.RichText as X
 import Codec.Xlsx.Types.SheetViews as X
-import Codec.Xlsx.Types.Style as X
 import Codec.Xlsx.Types.StyleSheet as X
 import Codec.Xlsx.Types.Table as X
 import Codec.Xlsx.Types.Variant as X
