@@ -284,7 +284,7 @@ instance FromCursor RunProperties where
     _runPropertiesExtend        <- maybeBoolElementValue (n_ "extend") cur
     _runPropertiesColor         <- maybeFromElement  (n_ "color") cur
     _runPropertiesSize          <- maybeElementValue (n_ "sz") cur
-    _runPropertiesUnderline     <- maybeElementValue (n_ "u") cur
+    _runPropertiesUnderline     <- maybeElementValueDef (n_ "u") FontUnderlineSingle cur
     _runPropertiesVertAlign     <- maybeElementValue (n_ "vertAlign") cur
     _runPropertiesScheme        <- maybeElementValue (n_ "scheme") cur
     return RunProperties{..}

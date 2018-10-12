@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE QuasiQuotes       #-}
 module Main
@@ -54,6 +55,10 @@ main = defaultMain $
         testStyleSheet @==? fromRight (parseStyleSheet (renderStyleSheet  testStyleSheet))
     , testCase "correct shared strings parsing" $
         [testSharedStringTable] @=? parseBS testStrings
+    , testCase "correct shared strings parsing: single underline" $
+        [withSingleUnderline testSharedStringTable] @=? parseBS testStringsWithSingleUnderline
+    , testCase "correct shared strings parsing: double underline" $
+        [withDoubleUnderline testSharedStringTable] @=? parseBS testStringsWithDoubleUnderline
     , testCase "correct shared strings parsing even when one of the shared strings entry is just <t/>" $
         [testSharedStringTableWithEmpty] @=? parseBS testStringsWithEmpty
     , testCase "correct comments parsing" $
@@ -253,6 +258,18 @@ testStyleSheet = minimalStyleSheet & styleSheetDxfs .~ [dxf1, dxf2, dxf3]
         { _cellXfApplyNumberFormat = Just True
         , _cellXfNumFmtId          = Just 164 }
 
+
+withSingleUnderline :: SharedStringTable -> SharedStringTable
+withSingleUnderline = withUnderline FontUnderlineSingle
+
+withDoubleUnderline :: SharedStringTable -> SharedStringTable
+withDoubleUnderline = withUnderline FontUnderlineDouble
+
+withUnderline :: FontUnderline -> SharedStringTable -> SharedStringTable
+withUnderline u (SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just props) val]]) =
+    let newprops = props & runPropertiesUnderline .~ Just u  
+    in SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just newprops) val]] 
+
 testSharedStringTable :: SharedStringTable
 testSharedStringTable = SharedStringTable $ V.fromList items
   where
@@ -261,7 +278,7 @@ testSharedStringTable = SharedStringTable $ V.fromList items
     rich = XlsxRichText [ RichTextRun Nothing "Just "
                         , RichTextRun (Just props) "example" ]
     props = def & runPropertiesBold .~ Just True
-                & runPropertiesUnderline .~ Just FontUnderlineSingle
+                & runPropertiesItalic .~ Just True
                 & runPropertiesSize .~ Just 10
                 & runPropertiesFont .~ Just "Arial"
                 & runPropertiesFontFamily .~ Just FontFamilySwiss
@@ -297,7 +314,23 @@ testStrings :: ByteString
 testStrings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
   \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
   \<si><t>plain text</t></si>\
-  \<si><r><t>Just </t></r><r><rPr><b val=\"true\"/><u val=\"single\"/>\
+  \<si><r><t>Just </t></r><r><rPr><b /><i />\
+  \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
+  \</sst>"
+
+testStringsWithSingleUnderline :: ByteString
+testStringsWithSingleUnderline = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
+  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
+  \<si><t>plain text</t></si>\
+  \<si><r><t>Just </t></r><r><rPr><b /><i /><u />\
+  \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
+  \</sst>"
+
+testStringsWithDoubleUnderline :: ByteString
+testStringsWithDoubleUnderline = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
+  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
+  \<si><t>plain text</t></si>\
+  \<si><r><t>Just </t></r><r><rPr><b /><i /><u val=\"double\"/>\
   \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
   \</sst>"
 
