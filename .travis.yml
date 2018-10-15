@@ -49,7 +49,7 @@ matrix:
         - ghc-8.0.2
         - happy-1.19.4
 
-  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-10.yaml" GHCVER=8.2.2 HAPPYVER=1.19.4
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-11.yaml" GHCVER=8.2.2 HAPPYVER=1.19.4
     compiler: ": #stack 8.2.2"
     addons:
       apt:
@@ -57,6 +57,16 @@ matrix:
         - hvr-ghc
         packages:
         - ghc-8.2.2
+        - happy-1.19.4
+
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-12.yaml" GHCVER=8.4.3 HAPPYVER=1.19.4
+    compiler: ": #stack 8.4.3"
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-8.4.3
         - happy-1.19.4
 
 before_install:
