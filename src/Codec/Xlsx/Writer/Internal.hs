@@ -21,6 +21,7 @@ module Codec.Xlsx.Writer.Internal (
   , elementContent
   , elementContentPreserved
   , elementValue
+  , elementValueWithDefault
     -- * Rendering attributes
   , ToAttrVal(..)
   , (.=)
@@ -145,9 +146,28 @@ instance ToAttrVal Bool where
 elementValue :: ToAttrVal a => Name -> a -> Element
 elementValue nm a = Element {
       elementName       = nm
-    , elementAttributes = Map.fromList [ "val" .= a ]
+    , elementAttributes = attrValues a
     , elementNodes      = []
     }
+
+elementValueWithDefault :: (Eq a, ToAttrVal a) => Name -> a -> a -> Element
+elementValueWithDefault nm defVal a = Element {
+      elementName       = nm
+    , elementAttributes = attrValuesWithDefault defVal a
+    , elementNodes      = []
+    }
+
+attrValues :: ToAttrVal a => a -> Map.Map Name Text
+attrValues = Map.fromList . attrValuesAsList
+
+attrValuesWithDefault :: (Eq a, ToAttrVal a) => a -> a -> Map.Map Name Text
+attrValuesWithDefault defValue = Map.fromList . maybe mempty attrValuesAsList . justNonDef defValue
+
+attrValuesAsList :: ToAttrVal a => a -> [(Name, Text)]
+attrValuesAsList = pure . attrValue
+  where 
+    attrValue :: ToAttrVal a => a -> (Name, Text) 
+    attrValue a = "val" .= a
 
 (.=) :: ToAttrVal a => Name -> a -> (Name, Text)
 nm .= a = (nm, toAttrVal a)
