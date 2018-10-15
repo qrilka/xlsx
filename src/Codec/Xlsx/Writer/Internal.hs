@@ -21,7 +21,7 @@ module Codec.Xlsx.Writer.Internal (
   , elementContent
   , elementContentPreserved
   , elementValue
-  , elementValueWithDefault
+  , elementValueDef
     -- * Rendering attributes
   , ToAttrVal(..)
   , (.=)
@@ -40,6 +40,7 @@ module Codec.Xlsx.Writer.Internal (
   ) where
 
 import qualified Data.Map as Map
+import Data.Maybe (catMaybes)
 import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -144,30 +145,11 @@ instance ToAttrVal Bool where
   toAttrVal False = "0"
 
 elementValue :: ToAttrVal a => Name -> a -> Element
-elementValue nm a = Element {
-      elementName       = nm
-    , elementAttributes = attrValues a
-    , elementNodes      = []
-    }
+elementValue nm a = leafElement nm [ "val" .= a ]
 
-elementValueWithDefault :: (Eq a, ToAttrVal a) => Name -> a -> a -> Element
-elementValueWithDefault nm defVal a = Element {
-      elementName       = nm
-    , elementAttributes = attrValuesWithDefault defVal a
-    , elementNodes      = []
-    }
-
-attrValues :: ToAttrVal a => a -> Map.Map Name Text
-attrValues = Map.fromList . attrValuesAsList
-
-attrValuesWithDefault :: (Eq a, ToAttrVal a) => a -> a -> Map.Map Name Text
-attrValuesWithDefault defValue = Map.fromList . maybe mempty attrValuesAsList . justNonDef defValue
-
-attrValuesAsList :: ToAttrVal a => a -> [(Name, Text)]
-attrValuesAsList = pure . attrValue
-  where 
-    attrValue :: ToAttrVal a => a -> (Name, Text) 
-    attrValue a = "val" .= a
+elementValueDef :: (Eq a, ToAttrVal a) => Name -> a -> a -> Element
+elementValueDef nm defVal a =
+  leafElement nm $ catMaybes [ "val" .=? justNonDef defVal a ]
 
 (.=) :: ToAttrVal a => Name -> a -> (Name, Text)
 nm .= a = (nm, toAttrVal a)

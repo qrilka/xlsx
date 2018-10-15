@@ -245,7 +245,7 @@ instance ToElement RunProperties where
         , elementValue "extend"    <$> _runPropertiesExtend
         , toElement    "color"     <$> _runPropertiesColor
         , elementValue "sz"        <$> _runPropertiesSize
-        , elementValueWithDefault "u" FontUnderlineSingle  
+        , elementValueDef "u" FontUnderlineSingle
                                    <$> _runPropertiesUnderline
         , elementValue "vertAlign" <$> _runPropertiesVertAlign
         , elementValue "scheme"    <$> _runPropertiesScheme
