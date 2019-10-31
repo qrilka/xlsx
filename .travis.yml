@@ -66,6 +66,36 @@ matrix:
         - ghc-8.4.3
         - happy-1.19.4
 
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-13.yaml" GHCVER=8.6.4 HAPPYVER=1.19.4
+    compiler: ": #stack 8.6.4"
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-8.6.4
+        - happy-1.19.4
+
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-14.yaml" GHCVER=8.6.5 HAPPYVER=1.19.4
+    compiler: ": #stack 8.6.5"
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-8.6.5
+        - happy-1.19.4
+
+  - env: BUILD=stack ARGS="--stack-yaml=stack-nigtly.yaml" GHCVER=8.8.1 HAPPYVER=1.19.4
+    compiler: ": #stack 8.8.1"
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-8.8.1
+        - happy-1.19.4
+
 before_install:
 # Using compiler above sets CC to an invalid value, so unset it
 - unset CC

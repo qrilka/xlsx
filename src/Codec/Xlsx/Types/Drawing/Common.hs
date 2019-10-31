@@ -462,7 +462,7 @@ colorChoiceFromNode n
     return $ RgbColor val
   | otherwise = fail "no matching color choice node"
 
-coordinate :: Monad m => Text -> m Coordinate
+coordinate :: Text -> [Coordinate]
 coordinate t =  case T.decimal t of
   Right (d, leftover) | leftover == T.empty ->
       return $ UnqCoordinate d

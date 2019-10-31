@@ -40,6 +40,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Unsafe as SU
 import Data.Char (chr)
+import Data.Either.Extra (mapLeft)
 import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -224,11 +225,11 @@ instance FromAttrBs Bool where
 instance FromAttrBs Int where
   -- it appears that parser in text is more optimized than the one in
   -- attoparsec at least as of text-1.2.2.2 and attoparsec-0.13.1.0
-  fromAttrBs = decimal . T.decodeLatin1
+  fromAttrBs = mapLeft T.pack . eitherDecimal . T.decodeLatin1
 
 instance FromAttrBs Double where
   -- as for rationals
-  fromAttrBs = rational . T.decodeLatin1
+  fromAttrBs = mapLeft T.pack . eitherRational . T.decodeLatin1
 
 instance FromAttrBs Text where
   fromAttrBs = replaceEntititesBs
