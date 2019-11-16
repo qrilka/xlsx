@@ -40,7 +40,6 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Unsafe as SU
 import Data.Char (chr)
-import Data.Either.Extra (mapLeft)
 import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -233,6 +232,10 @@ instance FromAttrBs Double where
 
 instance FromAttrBs Text where
   fromAttrBs = replaceEntititesBs
+
+mapLeft :: (a -> c) -> Either a b -> Either c b
+mapLeft f (Left a) = Left $ f a
+mapLeft _ (Right b) = Right b
 
 replaceEntititesBs :: ByteString -> Either Text Text
 replaceEntititesBs str =
