@@ -18,7 +18,7 @@ decimal = fromEither . eitherDecimal
 
 eitherDecimal :: (Integral a) => Text -> Either String a
 eitherDecimal t = case T.signed T.decimal t of
-  Right (d, leftover) | T.null leftover -> return d
+  Right (d, leftover) | T.null leftover -> Right d
   _ -> Left $ "invalid decimal" ++ show t
 
 rational :: (MonadFail m) => Text -> m Double
@@ -26,7 +26,7 @@ rational = fromEither . eitherRational
 
 eitherRational :: Text -> Either String Double
 eitherRational t = case T.signed T.rational t of
-  Right (r, leftover) | T.null leftover -> return r
+  Right (r, leftover) | T.null leftover -> Right r
   _ -> Left $ "invalid rational: " ++ show t
 
 boolean :: (MonadFail m) => Text -> m Bool
@@ -34,8 +34,8 @@ boolean = fromEither . eitherBoolean
 
 eitherBoolean :: Text -> Either String Bool
 eitherBoolean t = case T.unpack $ T.strip t of
-    "true"  -> return True
-    "false" -> return False
+    "true"  -> Right True
+    "false" -> Right False
     _       -> Left $ "invalid boolean: " ++ show t
 
 fromEither :: (MonadFail m) => Either String b -> m b
