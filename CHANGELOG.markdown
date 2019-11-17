@@ -1,3 +1,9 @@
+0.8.0
+------
+* GHC 8.8 compatibility added (GHC 8.6 didn't need any updates). Dropped
+  compatilibity with GHC 7.10
+  (thanks to David Hewson <david.hewson@tracsis.com>)
+
 0.7.2
 -----
 * GHC 8.4 compatibility
