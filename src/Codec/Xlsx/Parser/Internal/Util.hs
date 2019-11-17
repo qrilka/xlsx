@@ -19,7 +19,7 @@ decimal = fromEither . eitherDecimal
 eitherDecimal :: (Integral a) => Text -> Either String a
 eitherDecimal t = case T.signed T.decimal t of
   Right (d, leftover) | T.null leftover -> Right d
-  _ -> Left $ "invalid decimal" ++ show t
+  _ -> Left $ "invalid decimal: " ++ show t
 
 rational :: (MonadFail m) => Text -> m Double
 rational = fromEither . eitherRational
