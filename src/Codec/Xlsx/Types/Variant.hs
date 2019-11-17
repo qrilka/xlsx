@@ -3,6 +3,7 @@
 module Codec.Xlsx.Types.Variant where
 
 import Control.DeepSeq (NFData)
+import Control.Monad.Fail (MonadFail)
 import Data.ByteString (ByteString)
 import Data.ByteString.Base64 as B64
 import Data.Text (Text)
@@ -52,7 +53,7 @@ variantFromNode  _ = fail "no matching nodes"
 killWhitespace :: Text -> Text
 killWhitespace = T.filter (/=' ')
 
-decodeBase64 :: Monad m => Text -> m ByteString
+decodeBase64 :: MonadFail m => Text -> m ByteString
 decodeBase64 t = case B64.decode (T.encodeUtf8 t) of
   Right bs -> return bs
   Left err -> fail $ "invalid base64 value: " ++ err

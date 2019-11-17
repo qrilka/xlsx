@@ -35,6 +35,7 @@ import Control.Applicative
 import Control.Arrow (second)
 import Control.Exception (Exception, throw)
 import Control.Monad (ap, forM, join, liftM)
+import Data.Bifunctor (first)
 import Data.Bits ((.|.), shiftL)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -224,11 +225,11 @@ instance FromAttrBs Bool where
 instance FromAttrBs Int where
   -- it appears that parser in text is more optimized than the one in
   -- attoparsec at least as of text-1.2.2.2 and attoparsec-0.13.1.0
-  fromAttrBs = decimal . T.decodeLatin1
+  fromAttrBs = first T.pack . eitherDecimal . T.decodeLatin1
 
 instance FromAttrBs Double where
   -- as for rationals
-  fromAttrBs = rational . T.decodeLatin1
+  fromAttrBs = first T.pack . eitherRational . T.decodeLatin1
 
 instance FromAttrBs Text where
   fromAttrBs = replaceEntititesBs

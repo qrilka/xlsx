@@ -9,6 +9,7 @@ import GHC.Generics (Generic)
 import Control.Arrow (first)
 import Control.Lens.TH
 import Control.Monad (join)
+import Control.Monad.Fail (MonadFail)
 import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Maybe (catMaybes, listToMaybe)
@@ -462,7 +463,7 @@ colorChoiceFromNode n
     return $ RgbColor val
   | otherwise = fail "no matching color choice node"
 
-coordinate :: Monad m => Text -> m Coordinate
+coordinate :: MonadFail m => Text -> m Coordinate
 coordinate t =  case T.decimal t of
   Right (d, leftover) | leftover == T.empty ->
       return $ UnqCoordinate d

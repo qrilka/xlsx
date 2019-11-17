@@ -26,16 +26,6 @@ matrix:
   include:
   # The Stack builds. We can pass in arbitrary Stack arguments via the ARGS
   # variable, such as using --stack-yaml to point to a different file.
-  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-6.yaml" GHCVER=7.10.3 HAPPYVER=1.19.4
-    compiler: ": #stack 7.10.3"
-    addons:
-      apt:
-        sources:
-        - hvr-ghc
-        packages:
-        - ghc-7.10.3
-        - happy-1.19.4
-
   - env: BUILD=stack ARGS="--stack-yaml=stack-lts-9.yaml" GHCVER=8.0.2 HAPPYVER=1.19.4
     compiler: ": #stack 8.0.2"
     addons:
@@ -64,6 +54,26 @@ matrix:
         - hvr-ghc
         packages:
         - ghc-8.4.3
+        - happy-1.19.4
+
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-14.yaml" GHCVER=8.6.5 HAPPYVER=1.19.4
+    compiler: ": #stack 8.6.5"
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-8.6.5
+        - happy-1.19.4
+
+  - env: BUILD=stack ARGS="--stack-yaml=stack-nightly.yaml" GHCVER=8.8.1 HAPPYVER=1.19.4
+    compiler: ": #stack 8.8.1"
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-8.8.1
         - happy-1.19.4
 
 before_install:
