@@ -1,3 +1,7 @@
+0.8.1
+------
+* compatibility with smallcheck-1.2.0
+
 0.8.0
 ------
 * GHC 8.8 compatibility added (GHC 8.6 didn't need any updates). Dropped
