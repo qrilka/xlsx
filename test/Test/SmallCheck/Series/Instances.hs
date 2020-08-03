@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -14,6 +15,7 @@ import Test.SmallCheck.Series
 
 import Codec.Xlsx
 
+#if !MIN_VERSION_smallcheck(1,2,0)
 cons6 ::
      ( Serial m a6
      , Serial m a5
@@ -31,6 +33,7 @@ cons6 f = decDepth $
     <~> series
     <~> series
     <~> series
+#endif
 
 instance Monad m => Serial m Text where
   series = T.pack <$> series
