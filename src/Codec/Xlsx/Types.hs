@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -61,7 +62,11 @@ module Codec.Xlsx.Types (
     ) where
 
 import Control.Exception (SomeException, toException)
+#ifdef USE_MICROLENS
+import Lens.Micro.TH
+#else
 import Control.Lens.TH
+#endif
 import Control.DeepSeq (NFData)
 import qualified Data.ByteString.Lazy as L
 import Data.Default
@@ -265,8 +270,7 @@ instance Default DefinedNames where
     def = DefinedNames []
 
 emptyStyles :: Styles
-emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-\<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"></styleSheet>"
+emptyStyles = Styles "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"></styleSheet>"
 
 -- | Render 'StyleSheet'
 --

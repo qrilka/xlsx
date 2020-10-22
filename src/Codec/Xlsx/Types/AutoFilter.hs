@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -8,7 +9,11 @@ module Codec.Xlsx.Types.AutoFilter where
 
 import Control.Arrow (first)
 import Control.DeepSeq (NFData)
+#ifdef USE_MICROLENS
+import Lens.Micro.TH (makeLenses)
+#else
 import Control.Lens (makeLenses)
+#endif
 import Data.Bool (bool)
 import Data.ByteString (ByteString)
 import Data.Default

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -12,7 +13,11 @@ module Codec.Xlsx.Types.Drawing where
 
 import Control.Arrow (first)
 import Control.DeepSeq (NFData)
+#ifdef USE_MICROLENS
+import Lens.Micro.TH (makeLenses)
+#else
 import Control.Lens.TH
+#endif
 import Data.ByteString.Lazy (ByteString)
 import Data.Default
 import qualified Data.Map as M

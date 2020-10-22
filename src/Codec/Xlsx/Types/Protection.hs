@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -31,7 +32,11 @@ module Codec.Xlsx.Types.Protection
 import GHC.Generics (Generic)
 
 import Control.Arrow (first)
+#ifdef USE_MICROLENS
+import Lens.Micro.TH (makeLenses)
+#else
 import Control.Lens (makeLenses)
+#endif
 import Control.DeepSeq (NFData)
 import Data.Bits
 import Data.Char

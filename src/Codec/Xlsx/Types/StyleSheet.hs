@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
@@ -128,7 +129,12 @@ module Codec.Xlsx.Types.StyleSheet (
   , firstUserNumFmtId
   ) where
 
+#ifdef USE_MICROLENS
+import Lens.Micro
+import Lens.Micro.TH (makeLenses)
+#else
 import Control.Lens hiding (element, elements, (.=))
+#endif
 import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Map.Strict (Map)

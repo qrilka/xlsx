@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -6,7 +7,11 @@
 module Codec.Xlsx.Types.DataValidation where
 
 import Control.DeepSeq (NFData)
+#ifdef USE_MICROLENS
+import Lens.Micro.TH (makeLenses)
+#else
 import Control.Lens.TH (makeLenses)
+#endif
 import Control.Monad ((>=>))
 import Data.ByteString (ByteString)
 import Data.Char (isSpace)

@@ -1,9 +1,9 @@
+{-# LANGUAGE CPP   #-}
 {-# LANGUAGE RankNTypes   #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 -- | lenses to access sheets, cells and values of 'Xlsx'
-
 module Codec.Xlsx.Lens
   ( ixSheet
   , atSheet
@@ -19,7 +19,13 @@ module Codec.Xlsx.Lens
   ) where
 
 import Codec.Xlsx.Types
+#ifdef USE_MICROLENS
+import Lens.Micro
+import Lens.Micro.Internal
+import Lens.Micro.GHC ()
+#else
 import Control.Lens
+#endif
 import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Text
@@ -53,20 +59,17 @@ upsert k v ((k1,v1):r) =
     then (k,v):r
     else (k1,v1):upsert k v r
 
-sheetList :: Iso' [(Text, Worksheet)] SheetList
-sheetList = iso SheetList unSheetList
-
 -- | lens giving access to a worksheet from 'Xlsx' object
 -- by its name
 ixSheet :: Text -> Traversal' Xlsx Worksheet
-ixSheet s = xlSheets . sheetList . ix s
+ixSheet s = xlSheets . \f -> fmap unSheetList . ix s f . SheetList
 
 -- | 'Control.Lens.At' variant of 'ixSheet' lens
 --
 -- /Note:/ if there is no such sheet in this workbook then new sheet will be
 -- added as the last one to the sheet list
 atSheet :: Text -> Lens' Xlsx (Maybe Worksheet)
-atSheet s = xlSheets . sheetList . at s
+atSheet s = xlSheets . \f -> fmap unSheetList . at s f . SheetList
 
 -- | lens giving access to a cell in some worksheet
 -- by its position, by default row+column index is used
