@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
@@ -21,7 +22,11 @@ import Control.Arrow (left)
 import Control.Error.Safe (headErr)
 import Control.Error.Util (note)
 import Control.Exception (Exception)
+#ifdef USE_MICROLENS
+import Lens.Micro
+#else
 import Control.Lens hiding ((<.>), element, views)
+#endif
 import Control.Monad (forM, join, void)
 import Control.Monad.Except (catchError, throwError)
 import Data.Bool (bool)

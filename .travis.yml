@@ -65,6 +65,16 @@ matrix:
         packages:
         - ghc-8.6.5
         - happy-1.19.4
+  
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-14.yaml --flag xlsx:microlens" GHCVER=8.6.5 HAPPYVER=1.19.4
+    compiler: ": #stack 8.6.5"
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-8.6.5
+        - happy-1.19.4
 
   - env: BUILD=stack ARGS="--stack-yaml=stack-nightly.yaml" GHCVER=8.8.1 HAPPYVER=1.19.4
     compiler: ": #stack 8.8.1"
@@ -103,11 +113,11 @@ install:
 - if [ -f configure.ac ]; then autoreconf -i; fi
 - |
   set -ex
-  stack --no-terminal --skip-ghc-check -j2 $ARGS test --only-dependencies
+  stack --no-terminal --skip-ghc-check -j2 test $ARGS --only-dependencies
   set +ex
 
 script:
 - |
   set -ex
-  stack --no-terminal --skip-ghc-check -j2 $ARGS test --haddock --no-haddock-deps
+  stack --no-terminal --skip-ghc-check -j2 test $ARGS --haddock --no-haddock-deps
   set +ex

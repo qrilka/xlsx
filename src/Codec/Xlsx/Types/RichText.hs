@@ -32,7 +32,11 @@ module Codec.Xlsx.Types.RichText (
 
 import GHC.Generics (Generic)
 
+#ifdef USE_MICROLENS
+import Lens.Micro.TH (makeLenses)
+#else
 import Control.Lens hiding (element)
+#endif
 import Control.Monad
 import Control.DeepSeq (NFData)
 import Data.Default
