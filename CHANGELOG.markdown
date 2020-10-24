@@ -1,3 +1,8 @@
+0.8.2
+------
+* added a flag allowing to use `microlens` instead of `lens`
+ (thanks to Samuel Balco <goodlyrottenapple@gmail.com>)
+
 0.8.1
 ------
 * compatibility with smallcheck-1.2.0
