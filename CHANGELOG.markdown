@@ -17,7 +17,6 @@
 -----
 * GHC 8.4 compatibility
 
------
 0.7.1
 -----
 * improved compatibility with Excel in pivot cache serialization
