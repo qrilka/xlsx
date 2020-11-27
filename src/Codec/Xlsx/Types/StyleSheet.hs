@@ -139,7 +139,7 @@ import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -1142,18 +1142,18 @@ instance ToDocument StyleSheet where
 instance ToElement StyleSheet where
   toElement nm StyleSheet{..} = elementListSimple nm elements
     where
-      elements = [ countedElementList "numFmts" $ map (toElement "numFmt") numFmts
-                 , countedElementList "fonts"   $ map (toElement "font")   _styleSheetFonts
-                 , countedElementList "fills"   $ map (toElement "fill")   _styleSheetFills
-                 , countedElementList "borders" $ map (toElement "border") _styleSheetBorders
+      countedElementList' nm' xs = maybeToList $ nonEmptyCountedElementList nm' xs
+      elements = countedElementList' "numFmts" (map (toElement "numFmt") numFmts) ++
+                 countedElementList' "fonts"   (map (toElement "font")   _styleSheetFonts) ++
+                 countedElementList' "fills"   (map (toElement "fill")   _styleSheetFills) ++
+                 countedElementList' "borders" (map (toElement "border") _styleSheetBorders) ++
                    -- TODO: cellStyleXfs
-                 , countedElementList "cellXfs" $ map (toElement "xf")     _styleSheetCellXfs
+                 countedElementList' "cellXfs" (map (toElement "xf")     _styleSheetCellXfs) ++
                  -- TODO: cellStyles
-                 , countedElementList "dxfs"    $ map (toElement "dxf")    _styleSheetDxfs
+                 countedElementList' "dxfs"    (map (toElement "dxf")    _styleSheetDxfs)
                  -- TODO: tableStyles
                  -- TODO: colors
                  -- TODO: extLst
-                 ]
       numFmts = map (uncurry NumFmt) $ M.toList _styleSheetNumFmts
 
 -- | See @CT_Xf@, p. 4486

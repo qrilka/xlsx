@@ -12,6 +12,7 @@ module Codec.Xlsx.Writer.Internal (
     -- * Rendering elements
   , ToElement(..)
   , countedElementList
+  , nonEmptyCountedElementList
   , elementList
   , elementListSimple
   , nonEmptyElListSimple
@@ -85,6 +86,11 @@ class ToElement a where
 
 countedElementList :: Name -> [Element] -> Element
 countedElementList nm as = elementList nm [ "count" .= length as ] as
+
+nonEmptyCountedElementList :: Name -> [Element] -> Maybe Element
+nonEmptyCountedElementList nm as = case as of
+  [] -> Nothing
+  _ -> Just $ countedElementList nm as
 
 elementList :: Name -> [(Name, Text)] -> [Element] -> Element
 elementList nm attrs els = Element {
