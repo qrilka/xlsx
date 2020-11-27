@@ -161,11 +161,11 @@ import Codec.Xlsx.Writer.Internal
 -- page numbers refer to the page in the PDF rather than the page number as
 -- printed on the page):
 --
--- * Chapter 12, "SpreadsheetML" (p. 74)
+-- * Chapter 12, \"SpreadsheetML\" (p. 74)
 --   In particular Section 12.3.20, "Styles Part" (p. 104)
--- * Chapter 18, "SpreadsheetML Reference Material" (p. 1528)
---   In particular Section 18.8, "Styles" (p. 1754) and Section 18.8.39
---   "styleSheet" (Style Sheet)" (p. 1796); it is the latter section that
+-- * Chapter 18, \"SpreadsheetML Reference Material\" (p. 1528)
+--   In particular Section 18.8, \"Styles\" (p. 1754) and Section 18.8.39
+--   \"styleSheet\" (Style Sheet)\" (p. 1796); it is the latter section that
 --   specifies the top-level style sheet format.
 --
 -- TODO: the following child elements:
@@ -176,7 +176,13 @@ import Codec.Xlsx.Writer.Internal
 -- * extLst
 -- * tableStyles
 --
--- NOTE: You will probably want to base your style sheet on 'minimalStyleSheet'.
+-- NOTE: Because of undocumented Excel requirements you will probably want to base
+-- your style sheet on 'minimalStyleSheet' (a proper style sheet should have some
+-- contents for details see
+-- <https://stackoverflow.com/questions/26050708/minimal-style-sheet-for-excel-open-xml-with-dates SO post>).
+-- 'def' for 'StyleSheet' includes no contents at all and this could be a problem
+-- for Excel.
+--
 -- See also:
 --
 -- * 'Codec.Xlsx.Types.renderStyleSheet' to translate a 'StyleSheet' to 'Styles'
