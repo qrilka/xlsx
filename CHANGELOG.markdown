@@ -1,3 +1,9 @@
+unreleased
+------------
+* don't output lists with no elements in stylesheet as it causes problems in
+  Excel
+  (thanks to David Hewson <david.hewson@tracsis.com>)
+
 0.8.2
 ------
 * added a flag allowing to use `microlens` instead of `lens`
