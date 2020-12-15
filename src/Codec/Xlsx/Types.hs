@@ -217,6 +217,8 @@ instance Default Worksheet where
     , _wsSharedFormulas = M.empty
     }
 
+-- | Raw worksheet styles, for structured implementation see 'StyleSheet'
+-- and functions in "Codec.Xlsx.Types.StyleSheet"
 newtype Styles = Styles {unStyles :: L.ByteString}
             deriving (Eq, Show, Generic)
 instance NFData Styles

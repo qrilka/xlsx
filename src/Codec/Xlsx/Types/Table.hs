@@ -118,9 +118,9 @@ tableToElement nm Table {..} i = elementList nm attrs subElements
       ]
     subElements =
       maybeToList (toElement "autoFilter" <$> tblAutoFilter) ++
-      [ countedElementList
-          "tableColumns"
-          [ leafElement "tableColumn" ["id" .= i', "name" .= tblcName c]
-          | (i', c) <- zip [(1 :: Int) ..] tblColumns
-          ]
-      ]
+      maybeToList (nonEmptyCountedElementList
+                    "tableColumns"
+                    [ leafElement "tableColumn" ["id" .= i', "name" .= tblcName c]
+                    | (i', c) <- zip [(1 :: Int) ..] tblColumns
+                    ]
+                  )

@@ -139,7 +139,7 @@ import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -161,11 +161,11 @@ import Codec.Xlsx.Writer.Internal
 -- page numbers refer to the page in the PDF rather than the page number as
 -- printed on the page):
 --
--- * Chapter 12, "SpreadsheetML" (p. 74)
+-- * Chapter 12, \"SpreadsheetML\" (p. 74)
 --   In particular Section 12.3.20, "Styles Part" (p. 104)
--- * Chapter 18, "SpreadsheetML Reference Material" (p. 1528)
---   In particular Section 18.8, "Styles" (p. 1754) and Section 18.8.39
---   "styleSheet" (Style Sheet)" (p. 1796); it is the latter section that
+-- * Chapter 18, \"SpreadsheetML Reference Material\" (p. 1528)
+--   In particular Section 18.8, \"Styles\" (p. 1754) and Section 18.8.39
+--   \"styleSheet\" (Style Sheet)\" (p. 1796); it is the latter section that
 --   specifies the top-level style sheet format.
 --
 -- TODO: the following child elements:
@@ -176,7 +176,13 @@ import Codec.Xlsx.Writer.Internal
 -- * extLst
 -- * tableStyles
 --
--- NOTE: You will probably want to base your style sheet on 'minimalStyleSheet'.
+-- NOTE: Because of undocumented Excel requirements you will probably want to base
+-- your style sheet on 'minimalStyleSheet' (a proper style sheet should have some
+-- contents for details see
+-- <https://stackoverflow.com/questions/26050708/minimal-style-sheet-for-excel-open-xml-with-dates SO post>).
+-- 'def' for 'StyleSheet' includes no contents at all and this could be a problem
+-- for Excel.
+--
 -- See also:
 --
 -- * 'Codec.Xlsx.Types.renderStyleSheet' to translate a 'StyleSheet' to 'Styles'
@@ -1142,18 +1148,18 @@ instance ToDocument StyleSheet where
 instance ToElement StyleSheet where
   toElement nm StyleSheet{..} = elementListSimple nm elements
     where
-      elements = [ countedElementList "numFmts" $ map (toElement "numFmt") numFmts
-                 , countedElementList "fonts"   $ map (toElement "font")   _styleSheetFonts
-                 , countedElementList "fills"   $ map (toElement "fill")   _styleSheetFills
-                 , countedElementList "borders" $ map (toElement "border") _styleSheetBorders
+      countedElementList' nm' xs = maybeToList $ nonEmptyCountedElementList nm' xs
+      elements = countedElementList' "numFmts" (map (toElement "numFmt") numFmts) ++
+                 countedElementList' "fonts"   (map (toElement "font")   _styleSheetFonts) ++
+                 countedElementList' "fills"   (map (toElement "fill")   _styleSheetFills) ++
+                 countedElementList' "borders" (map (toElement "border") _styleSheetBorders) ++
                    -- TODO: cellStyleXfs
-                 , countedElementList "cellXfs" $ map (toElement "xf")     _styleSheetCellXfs
+                 countedElementList' "cellXfs" (map (toElement "xf")     _styleSheetCellXfs) ++
                  -- TODO: cellStyles
-                 , countedElementList "dxfs"    $ map (toElement "dxf")    _styleSheetDxfs
+                 countedElementList' "dxfs"    (map (toElement "dxf")    _styleSheetDxfs)
                  -- TODO: tableStyles
                  -- TODO: colors
                  -- TODO: extLst
-                 ]
       numFmts = map (uncurry NumFmt) $ M.toList _styleSheetNumFmts
 
 -- | See @CT_Xf@, p. 4486
