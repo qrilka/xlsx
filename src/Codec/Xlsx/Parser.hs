@@ -71,7 +71,7 @@ import Codec.Xlsx.Types.PivotTable.Internal
 toXlsx :: L.ByteString -> Xlsx
 toXlsx = either (error . show) id . toXlsxEither
 
-data ParseError = InvalidZipArchive
+data ParseError = InvalidZipArchive String
                 | MissingFile FilePath
                 | InvalidFile FilePath Text
                 | InvalidRef FilePath RefId
@@ -106,7 +106,7 @@ toXlsxEitherBase ::
   -> L.ByteString
   -> Parser Xlsx
 toXlsxEitherBase parseSheet bs = do
-  ar <- left (const InvalidZipArchive) $ Zip.toArchiveOrFail bs
+  ar <- left InvalidZipArchive $ Zip.toArchiveOrFail bs
   sst <- getSharedStrings ar
   contentTypes <- getContentTypes ar
   (wfs, names, cacheSources, dateBase) <- readWorkbook ar
