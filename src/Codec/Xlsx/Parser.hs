@@ -53,7 +53,7 @@ import qualified Xeno.DOM as Xeno
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Parser.Internal.PivotTable
 import Codec.Xlsx.Types
-import Codec.Xlsx.Types.Cell (formulaDataFromCursor)
+import Codec.Xlsx.Types.Cell
 import Codec.Xlsx.Types.Common (xlsxTextToCellValue)
 import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CfPair
@@ -216,14 +216,18 @@ extractSheetFast ar sst contentTypes caches wf = do
           legacyDrPath = fmap relTarget . flip Relationships.lookup sheetRels =<< legacyDrRId
       commentsMap <-
         fmap join . forM commentTarget $ getComments ar legacyDrPath
-      let commentCells =
+      let commentCells :: CellMap
+          commentCells = toNested $
             M.fromList
             [ (fromSingleCellRefNoting r, def { _cellComment = Just cmnt})
             | (r, cmnt) <- maybe [] CommentTable.toList commentsMap
             ]
           assignComment withCmnt noCmnt =
             noCmnt & cellComment .~ (withCmnt ^. cellComment)
-          mergeComments = M.unionWith assignComment commentCells
+          mergeCommentRows :: CellRow -> CellRow -> CellRow
+          mergeCommentRows = M.unionWith assignComment
+          mergeComments :: CellMap -> CellMap
+          mergeComments = M.unionWith mergeCommentRows commentCells
       tables <- forM tableIds $ \rId -> do
         fp <- lookupRelPath filePath sheetRels rId
         getTable ar fp
@@ -265,7 +269,7 @@ extractSheetFast ar sst contentTypes caches wf = do
             case mRP of
               Just rp -> M.insert r rp rowMap
               Nothing -> rowMap
-      in (newRowMap, cellMap <> newCells, sharedF <> newSharedF)
+      in (newRowMap, cellMap <> toNested newCells, sharedF <> newSharedF)
     parseRow ::
          Xeno.Node
       -> Either Text ( Int
@@ -422,9 +426,10 @@ extractSheet ar sst contentTypes caches wf = do
             newRowMap = case mRP of
               Just rp -> M.insert r rp rowMap
               Nothing -> rowMap
-        in (newRowMap, cellMap <> newCells, sharedF <> newSharedF)
+        in (newRowMap, cellMap <> toNested newCells, sharedF <> newSharedF)
 
-      commentCells =
+      commentCells :: CellMap
+      commentCells = toNested $
         M.fromList
           [ (fromSingleCellRefNoting r, def {_cellComment = Just cmnt})
           | (r, cmnt) <- maybe [] CommentTable.toList commentsMap

@@ -16,9 +16,12 @@ module Codec.Xlsx.Lens
   , cellValueAt
   , cellValueAtRC
   , cellValueAtXY
+  , atRow
+  , ixRow
   ) where
 
 import Codec.Xlsx.Types
+import Codec.Xlsx.Types.Cell
 #ifdef USE_MICROLENS
 import Lens.Micro
 import Lens.Micro.Internal
@@ -79,7 +82,7 @@ ixCell = ixCellRC
 
 -- | lens to access cell in a worksheet
 ixCellRC :: (Int, Int) -> Traversal' Worksheet Cell
-ixCellRC i = wsCells . ix i
+ixCellRC (y, x) = wsCells . ix y . ix x
 
 -- | lens to access cell in a worksheet using more traditional
 -- x+y coordinates
@@ -91,9 +94,15 @@ ixCellXY i = ixCellRC $ swap i
 atCell :: (Int, Int) -> Lens' Worksheet (Maybe Cell)
 atCell = atCellRC
 
+atRow :: Int -> Lens' Worksheet (Maybe CellRow)
+atRow y = wsCells . at y
+
+ixRow :: Int -> Traversal' Worksheet CellRow
+ixRow y = wsCells . ix y
+
 -- | lens to read, write or delete cell in a worksheet
 atCellRC :: (Int, Int) -> Lens' Worksheet (Maybe Cell)
-atCellRC i = wsCells . at i
+atCellRC (y,x) = atRow y . non mempty . at x
 
 -- | lens to read, write or delete cell in a worksheet
 -- using more traditional x+y or row+column index

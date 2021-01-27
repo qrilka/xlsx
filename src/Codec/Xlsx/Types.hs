@@ -66,6 +66,7 @@ import Control.Exception (SomeException, toException)
 import Lens.Micro.TH
 #else
 import Control.Lens.TH
+import Control.Lens hiding ((.=))
 #endif
 import Control.DeepSeq (NFData)
 import qualified Data.ByteString.Lazy as L
@@ -298,20 +299,12 @@ parseStyleSheet (Styles bs) = parseLBS def bs >>= parseDoc
 
 -- | converts cells mapped by (row, column) into rows which contain
 -- row index and cells as pairs of column indices and cell values
-toRows :: CellMap -> [(Int, [(Int, Cell)])]
-toRows cells =
-    map extractRow $ groupBy ((==) `on` (fst . fst)) $ M.toList cells
-  where
-    extractRow row@(((x,_),_):_) =
-        (x, map (\((_,y),v) -> (y,v)) row)
-    extractRow _ = error "invalid CellMap row"
+toRows :: CellMap -> [(RowIndex, [(ColIndex, Cell)])]
+toRows cells = M.toList $ M.toList <$> cells
 
 -- | reverse to 'toRows'
-fromRows :: [(Int, [(Int, Cell)])] -> CellMap
-fromRows rows = M.fromList $ concatMap mapRow rows
-  where
-    mapRow (r, cells) = map (\(c, v) -> ((r, c), v)) cells
-
+fromRows :: [(RowIndex, [(ColIndex, Cell)])] -> CellMap
+fromRows rows = M.fromList $ over (mapped . _2) M.fromList rows
 
 instance ToElement ColumnsProperties where
   toElement nm ColumnsProperties {..} = leafElement nm attrs
