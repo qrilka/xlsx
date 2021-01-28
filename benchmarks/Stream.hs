@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
+import Prelude hiding (foldl)
 import Codec.Xlsx
 import Criterion.Main
 import qualified Data.ByteString as BS
@@ -16,4 +17,5 @@ main = do
   bs <- BS.readFile filename
   print bs
   putStrLn "startin"
-  runResourceT $ runConduit $ sourceFile filename .| readXlsx .| sinkNull
+  x <- runResourceT $ runConduit $ sourceFile filename .| readXlsx .| foldl (\a b -> b : a) []
+  print x

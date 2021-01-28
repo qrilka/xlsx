@@ -23,9 +23,12 @@ data XlsxItem = MkXlsxItem {
 readXlsx :: MonadIO m => MonadThrow m
   => PrimMonad m
   => ConduitT BS.ByteString XlsxItem m ()
-readXlsx = ((() <$ unZipStream)
+readXlsx = (() <$ unZipStream)
     .| do
-      x  <- await
-      liftIO $ print x
-      yield (MkXlsxItem $ MkSheetItem mempty)
-      )
+      await >>= go
+      where
+           go (Just val) = do
+              liftIO $ print val
+              yield (MkXlsxItem $ MkSheetItem mempty)
+              await >>= go
+           go Nothing = pure ()
