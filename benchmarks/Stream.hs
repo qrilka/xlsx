@@ -15,7 +15,5 @@ main = do
   let filename = "data/testInput.xlsx"
         -- "data/6000.rows.x.26.cols.xlsx"
   bs <- BS.readFile filename
-  print bs
-  putStrLn "startin"
   x <- runResourceT $ runConduit $ sourceFile filename .| readXlsx .| foldl (\a b -> b : a) []
   print x
