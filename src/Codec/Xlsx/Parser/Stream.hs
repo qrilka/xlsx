@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 
 -- | Read .xlsx as a stream
 module Codec.Xlsx.Parser.Stream
@@ -25,10 +26,16 @@ readXlsx :: MonadIO m => MonadThrow m
   => ConduitT BS.ByteString XlsxItem m ()
 readXlsx = (() <$ unZipStream)
     .| do
-      await >>= go
-      where
-           go (Just val) = do
-              liftIO $ print val
-              yield (MkXlsxItem $ MkSheetItem mempty)
-              await >>= go
-           go Nothing = pure ()
+      await >>= goRead
+
+goRead :: MonadIO m => MonadThrow m
+  => PrimMonad m
+  => Maybe (Either ZipEntry BS.ByteString) -> ConduitT (Either ZipEntry BS.ByteString) XlsxItem m ()
+goRead = \case
+  Just (Left path) -> do
+   liftIO $ print path
+   await >>= goRead
+  Just (Right fdata) -> do
+   yield (MkXlsxItem $ MkSheetItem mempty)
+   await >>= goRead
+  Nothing ->  pure ()
