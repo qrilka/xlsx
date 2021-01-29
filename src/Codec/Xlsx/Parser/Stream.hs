@@ -1,14 +1,16 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | Read .xlsx as a stream
 module Codec.Xlsx.Parser.Stream
   ( readXlsx
   , SheetItem(..)
-  , XlsxItem(..)
+  , SheetItem(..)
   ) where
 
+import Data.Foldable
 import Control.Monad.State.Lazy
 import Data.Conduit(ConduitT)
 import Conduit(PrimMonad, MonadThrow, yield, await, (.|))
@@ -22,31 +24,65 @@ import Text.XML.Stream.Parse
 import Data.XML.Types
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
+import qualified Data.Text as Text
 import Control.Lens
 
-data SheetItem = MkSheetItem {
-  _si_cell_row :: CellRow
+data SheetItem = MkSheetItem
+  { _si_sheet    :: Text
+  , _si_cell_row :: CellRow
   } deriving Show
 
-data XlsxItem = MkXlsxItem {
-  _xi_sheet :: SheetItem
-  } deriving Show
-
+-- http://officeopenxml.com/anatomyofOOXML-xlsx.php
 data PsFiles = UnkownFile Text
              | Sheet Text
              | InitialNoFile
+             | SharedStrings
+             | Styles
+             | Workbook
+             | ContentTypes
+             | Relationships
+             | SheetRel Text
+  deriving Show
+makePrisms ''PsFiles
 
+decodeFiles :: Text -> PsFiles
+decodeFiles = \case
+  "xl/sharedStrings.xml" -> SharedStrings
+  "xl/styles.xml"        -> Styles
+  "xl/workbook.xml"      -> Workbook
+  "[Content_Types].xml"  -> ContentTypes
+  "_rels/.rels"          -> Relationships
+  unkown                 -> let
+      ws = "xl/worksheets/"
+      wsL = Text.length ws
+    in
+    if Text.take wsL unkown == ws then
+      let
+        known = Text.drop wsL unkown
+        rel = "_rels/"
+        relL = Text.length rel
+      in
+        if Text.take relL known == rel then
+          SheetRel $ Text.drop relL known
+        else
+          Sheet known
+      else UnkownFile unkown
 
 data PipeState = MkPipeState
-  { _ps_file :: PsFiles
+  { _ps_file          :: PsFiles
+  , _ps_row           :: CellRow
+  , _ps_sheet_name    :: Text
+  , _ps_is_in_cell    :: Bool
+  , _ps_is_in_val     :: Bool
   }
 makeLenses 'MkPipeState
 
 readXlsx :: MonadIO m => MonadThrow m
   => PrimMonad m
-  => ConduitT BS.ByteString XlsxItem m ()
+  => ConduitT BS.ByteString SheetItem m ()
 readXlsx = (() <$ unZipStream)
-    .| (C.evalStateLC (MkPipeState InitialNoFile) $ (await >>= tagFiles)
+    .| (C.evalStateLC (MkPipeState InitialNoFile mempty mempty) $ (await >>= tagFiles)
+      .| C.filterM (const $ not . has _UnkownFile <$> use ps_file)
       .| parseBytes def
       .| parseSheet)
 
@@ -61,8 +97,8 @@ tagFiles ::
   => Maybe (Either ZipEntry BS.ByteString) -> ConduitT (Either ZipEntry BS.ByteString) BS.ByteString m ()
 tagFiles = \case
   Just (Left zipEntry) -> do
-   liftIO $ print zipEntry
-   -- bsf_file .= either id Text.decodeUtf8 (zipEntryName zipEntry)
+   let filePath = either id Text.decodeUtf8 (zipEntryName zipEntry)
+   ps_file .= decodeFiles filePath
    await >>= tagFiles
   Just (Right fdata) -> do
    yield fdata
@@ -74,7 +110,54 @@ parseSheet ::
   => MonadThrow m
   => PrimMonad m
   => MonadState PipeState m
-  => ConduitT Event XlsxItem  m ()
-parseSheet = C.mapM $ \x -> do
-    -- liftIO $ print x
-    pure $ MkXlsxItem $ MkSheetItem mempty
+  => ConduitT Event SheetItem  m ()
+parseSheet = await >>= parseSheetLoop
+
+-- we significantly
+parseSheetLoop ::
+  MonadIO m
+  => MonadThrow m
+  => PrimMonad m
+  => MonadState PipeState m
+  => Maybe Event
+  -> ConduitT Event SheetItem  m ()
+parseSheetLoop = \case
+  Nothing -> pure ()
+  Just evt -> do
+    file <- use ps_file
+    case file of
+      Sheet name -> do
+        mingze <- use ps_sheet_name
+        unless (mingze == name) $
+          popRow >>= yield . MkSheetItem name
+
+        liftIO $ print (name, evt)
+        mResult <- matchEvent name evt
+        traverse_ (yield . MkSheetItem name) mResult
+        await >>= parseSheetLoop
+      _ -> await >>= parseSheetLoop
+
+popRow :: MonadState PipeState m => m CellRow
+popRow = do
+  row <- use ps_row
+  ps_row .= mempty
+  pure row
+
+popRow :: MonadState PipeState m => Text -> m ()
+popRow txt = do
+  val <- use ps_is_in_val
+  cel <- ps_is_in_cell
+  when (cel && val) $ do
+    -- TODO coordinate?
+   pure ()
+
+matchEvent :: MonadState PipeState m => Text -> Event -> m (Maybe CellRow)
+matchEvent currentSheet = \case
+  EventContent (ContentText txt)                   -> Nothing <$ setCell txt
+  EventBeginElement Name {nameLocalName = "v"} _   -> Nothing <$ ps_is_in_val .= True
+  EventEndElement Name {nameLocalName = "v"}       -> Nothing <$ ps_is_in_val .= False
+  EventBeginElement Name {nameLocalName = "c"} _   -> Nothing <$ ps_is_in_cell .= True
+  EventEndElement Name {nameLocalName = "c"}       -> Nothing <$ ps_is_in_cell .= False
+  EventBeginElement Name {nameLocalName = "row"} _ -> Nothing <$ popRow
+  EventEndElement Name {nameLocalName = "row"}     -> Just <$> popRow
+  _ -> pure Nothing
