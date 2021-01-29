@@ -12,8 +12,8 @@ import Codec.Xlsx.Parser.Stream
 
 main :: IO ()
 main = do
-  let filename = "data/testInput.xlsx"
+  let filename = "data/6000.rows.x.26.cols.xlsx"
         -- "data/6000.rows.x.26.cols.xlsx"
   bs <- BS.readFile filename
-  x <- runResourceT $ runConduit $ sourceFile filename .| readXlsx .| foldl (\a b -> b : a) []
-  print x
+  _ <- runResourceT $ runConduit $ sourceFile filename .| readXlsx .| foldl (\a b -> b : a) []
+  pure ()
