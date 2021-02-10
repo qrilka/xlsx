@@ -20,6 +20,8 @@ module Codec.Xlsx.Types.Common
   , dateToNumber
   , int2col
   , col2int
+  , RowIndex
+  , ColIndex
   ) where
 
 import GHC.Generics (Generic)
@@ -73,14 +75,14 @@ instance NFData CellRef
 -- | Render position in @(row, col)@ format to an Excel reference.
 --
 -- > mkCellRef (2, 4) == "D2"
-singleCellRef :: (Int, Int) -> CellRef
+singleCellRef :: (RowIndex, ColIndex) -> CellRef
 singleCellRef = CellRef . singleCellRefRaw
 
 singleCellRefRaw :: (Int, Int) -> Text
 singleCellRefRaw (row, col) = T.concat [int2col col, T.pack (show row)]
 
 -- | reverse to 'mkCellRef'
-fromSingleCellRef :: CellRef -> Maybe (Int, Int)
+fromSingleCellRef :: CellRef -> Maybe (RowIndex, ColIndex)
 fromSingleCellRef = fromSingleCellRefRaw . coerce
 
 fromSingleCellRefRaw :: Text -> Maybe (Int, Int)
@@ -409,3 +411,6 @@ instance ToAttrVal ErrorType where
   toAttrVal ErrorNum = "#NUM!"
   toAttrVal ErrorRef = "#REF!"
   toAttrVal ErrorValue = "#VALUE!"
+
+type RowIndex = Int
+type ColIndex = Int

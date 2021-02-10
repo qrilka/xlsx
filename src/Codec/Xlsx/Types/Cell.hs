@@ -19,8 +19,6 @@ module Codec.Xlsx.Types.Cell
   , cellFormula
   , CellMap
   , CellRow
-  , RowIndex
-  , ColIndex
   , toNested
   , unNested
   ) where
@@ -117,8 +115,6 @@ instance Default Cell where
 
 makeLenses ''Cell
 
-type RowIndex = Int
-type ColIndex = Int
 
 -- | Map containing cell values which are indexed by row and column
 -- if you need to use more traditional (x,y) indexing please you could

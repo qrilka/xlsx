@@ -18,5 +18,4 @@ main = do
         -- "data/6000.rows.x.26.cols.xlsx"
   bs <- BS.readFile filename
   x <- runResourceT $ runConduit $ sourceFile filename .| readXlsx .| foldl (\a b -> b : a) []
-  -- print x
-  pure ()
+  print x
