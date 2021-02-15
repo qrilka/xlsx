@@ -2,6 +2,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 -- | Read .xlsx as a stream
 module Codec.Xlsx.Parser.Stream
@@ -132,9 +134,10 @@ parseSheetLoop = \case
     file <- use ps_file
     case file of
       Sheet name -> do
-        mingze <- use ps_sheet_name
+        prevSheetName <- use ps_sheet_name
         rix <- use ps_cell_row_index
-        unless (mingze == name) $
+        unless (prevSheetName == name) $ do
+          ps_sheet_name .= name
           popRow >>= yield . MkSheetItem name rix
 
         liftIO $ print (name, evt)
@@ -143,25 +146,32 @@ parseSheetLoop = \case
         case parseRes of
           Left err -> liftIO $ print err
           Right mResult -> do
-            traverse_ (yield . MkSheetItem name rix') mResult
+            traverse_ (\x -> do
+                          liftIO $ print x
+                          yield $ MkSheetItem name rix' x) mResult
             await >>= parseSheetLoop
       _ -> await >>= parseSheetLoop
 
-popRow :: MonadState PipeState m => m CellRow
+popRow :: MonadIO m => MonadState PipeState m => m CellRow
 popRow = do
+  liftIO $ print "popping row"
   row <- use ps_row
   ps_row .= mempty
   pure row
 
-addCell :: MonadState PipeState m => Text -> m ()
+addCell :: MonadIO m => MonadState PipeState m => Text -> m ()
 addCell txt = do
+   liftIO $ print ("adding sell", txt)
    col <- use ps_cell_col_index
+   y <- use ps_row
    ps_row <>= (Map.singleton col $ Cell
     { _cellStyle   = Nothing
     , _cellValue   = Just $ CellText txt -- TODO type
     , _cellComment = Nothing
     , _cellFormula = Nothing
     })
+   x <- use ps_row
+   liftIO $ print ("val of row", y, x)
    pure ()
 
 newtype PipeErrors = MkCoordinate CoordinateErrors
@@ -190,13 +200,13 @@ parseCoordinates list = do
       valText <- maybe (Left $ NoTextContent valContent list) Right $ valContent ^? contentTextPrims
       maybe (Left $ DecodeFailure valText list) Right $ fromSingleCellRef $ CellRef valText
 
-matchEvent :: MonadError PipeErrors m => MonadState PipeState m => Text -> Event -> m (Maybe CellRow)
+matchEvent :: MonadIO m => MonadError PipeErrors m => MonadState PipeState m => Text -> Event -> m (Maybe CellRow)
 matchEvent currentSheet = \case
   EventContent (ContentText txt)                    -> Nothing <$ addCell txt
-  EventBeginElement Name {nameLocalName = "c"} vals -> Nothing <$ setCoord vals
+  EventBeginElement (Name{nameLocalName = "c", ..}) vals -> Nothing <$ setCoord vals
   -- EventEndElement Name {nameLocalName = "v"}        -> Nothing <$ (ps_is_in_val .= False)
   -- EventBeginElement Name {nameLocalName = "c"} _    -> Nothing <$ ps_is_in_cell .= True
   -- EventEndElement Name {nameLocalName = "c"}        -> Nothing <$ ps_is_in_cell .= False
   EventBeginElement Name {nameLocalName = "row"} _  -> Nothing <$ popRow
-  EventEndElement Name {nameLocalName = "row"}      -> Just <$> popRow
+  EventEndElement (Name{nameLocalName = "row", ..})      -> Just <$> popRow
   _ -> pure Nothing
