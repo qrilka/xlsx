@@ -81,6 +81,7 @@ data PipeState = MkPipeState
   , _ps_sheet_name      :: Text
   , _ps_cell_row_index :: Int
   , _ps_cell_col_index :: Int
+  , _ps_is_in_val  :: Bool
   }
 makeLenses 'MkPipeState
 
@@ -88,7 +89,7 @@ readXlsx :: MonadIO m => MonadThrow m
   => PrimMonad m
   => ConduitT BS.ByteString SheetItem m ()
 readXlsx = (() <$ unZipStream)
-    .| (C.evalStateLC (MkPipeState InitialNoFile mempty mempty 0 0) $ (await >>= tagFiles)
+    .| (C.evalStateLC (MkPipeState InitialNoFile mempty mempty 0 0 False) $ (await >>= tagFiles)
       .| C.filterM (const $ not . has _UnkownFile <$> use ps_file)
       .| parseBytes def
       .| parseSheet)
@@ -159,20 +160,18 @@ popRow = do
   ps_row .= mempty
   pure row
 
-addCell :: MonadIO m => MonadState PipeState m => Text -> m ()
+addCell :: MonadState PipeState m => Text -> m ()
 addCell txt = do
-   liftIO $ print ("adding sell", txt)
-   col <- use ps_cell_col_index
-   y <- use ps_row
-   ps_row <>= (Map.singleton col $ Cell
-    { _cellStyle   = Nothing
-    , _cellValue   = Just $ CellText txt -- TODO type
-    , _cellComment = Nothing
-    , _cellFormula = Nothing
-    })
-   x <- use ps_row
-   liftIO $ print ("val of row", y, x)
-   pure ()
+   inVal <- use ps_is_in_val
+   when inVal $ do
+      col <- use ps_cell_col_index
+      y <- use ps_row
+      ps_row <>= (Map.singleton col $ Cell
+        { _cellStyle   = Nothing
+        , _cellValue   = Just $ CellText txt -- TODO type
+        , _cellComment = Nothing
+        , _cellFormula = Nothing
+        })
 
 newtype PipeErrors = MkCoordinate CoordinateErrors
   deriving Show
@@ -202,11 +201,12 @@ parseCoordinates list = do
 
 matchEvent :: MonadIO m => MonadError PipeErrors m => MonadState PipeState m => Text -> Event -> m (Maybe CellRow)
 matchEvent currentSheet = \case
-  EventContent (ContentText txt)                    -> Nothing <$ addCell txt
-  EventBeginElement (Name{nameLocalName = "c", ..}) vals -> Nothing <$ setCoord vals
-  -- EventEndElement Name {nameLocalName = "v"}        -> Nothing <$ (ps_is_in_val .= False)
+  EventContent (ContentText txt)                       -> Nothing <$ addCell txt
+  EventBeginElement Name{nameLocalName = "c", ..} vals  -> Nothing <$ setCoord vals
+  EventBeginElement Name {nameLocalName = "v"} _       -> Nothing <$ (ps_is_in_val .= True)
+  EventEndElement Name {nameLocalName = "v"}           -> Nothing <$ (ps_is_in_val .= False)
   -- EventBeginElement Name {nameLocalName = "c"} _    -> Nothing <$ ps_is_in_cell .= True
   -- EventEndElement Name {nameLocalName = "c"}        -> Nothing <$ ps_is_in_cell .= False
-  EventBeginElement Name {nameLocalName = "row"} _  -> Nothing <$ popRow
-  EventEndElement (Name{nameLocalName = "row", ..})      -> Just <$> popRow
+  EventBeginElement Name {nameLocalName = "row"} _     -> Nothing <$ popRow
+  EventEndElement Name{nameLocalName = "row", ..}       -> Just <$> popRow
   _ -> pure Nothing
