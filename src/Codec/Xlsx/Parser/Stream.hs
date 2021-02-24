@@ -9,10 +9,10 @@
 module Codec.Xlsx.Parser.Stream
   ( readXlsx
   , SheetItem(..)
-  , SheetItem(..)
   ) where
 
 import qualified Data.Map as Map
+import Data.Map (Map)
 import Data.Bifunctor
 import Codec.Xlsx.Types.Common
 import Control.Monad.Except
@@ -21,7 +21,6 @@ import Control.Monad.State.Lazy
 import Data.Conduit(ConduitT)
 import Conduit(PrimMonad, MonadThrow, yield, await, (.|))
 import qualified Conduit as C
-import qualified Data.Conduit as C
 import qualified Data.Conduit.Combinators as C
 import Codec.Archive.Zip.Conduit.UnZip
 import Codec.Xlsx.Types.Cell
@@ -79,20 +78,34 @@ data PipeState = MkPipeState
   { _ps_file            :: PsFiles
   , _ps_row             :: CellRow
   , _ps_sheet_name      :: Text
-  , _ps_cell_row_index :: Int
-  , _ps_cell_col_index :: Int
-  , _ps_is_in_val  :: Bool
+  , _ps_cell_row_index  :: Int
+  , _ps_cell_col_index  :: Int
+  , _ps_is_in_val       :: Bool
+  , _ps_shared_strings  :: Map Int Text
+  , _ps_shared_ix       :: Int -- int is okay, because bigger then int blows up memory anyway
   }
 makeLenses 'MkPipeState
+
+initialState :: PipeState
+initialState = MkPipeState
+  { _ps_file            = InitialNoFile
+  , _ps_row             = mempty
+  , _ps_sheet_name      = mempty
+  , _ps_cell_row_index  = 0
+  , _ps_cell_col_index  = 0
+  , _ps_is_in_val       = False
+  , _ps_shared_strings  = mempty
+  , _ps_shared_ix       = 0
+  }
 
 readXlsx :: MonadIO m => MonadThrow m
   => PrimMonad m
   => ConduitT BS.ByteString SheetItem m ()
 readXlsx = (() <$ unZipStream)
-    .| (C.evalStateLC (MkPipeState InitialNoFile mempty mempty 0 0 False) $ (await >>= tagFiles)
+    .| (C.evalStateLC initialState $ (await >>= tagFiles)
       .| C.filterM (const $ not . has _UnkownFile <$> use ps_file)
       .| parseBytes def
-      .| parseSheet)
+      .| parseFiles)
 
 -- | there are various files in the excell file, which is a glorified zip folder
 -- here we tag them with things we know, and push it into the state monad.
@@ -113,28 +126,60 @@ tagFiles = \case
    await >>= tagFiles
   Nothing -> pure ()
 
-parseSheet ::
+parseFiles ::
   MonadIO m
   => MonadThrow m
   => PrimMonad m
   => MonadState PipeState m
   => ConduitT Event SheetItem  m ()
-parseSheet = await >>= parseSheetLoop
+parseFiles = await >>= parseFileLoop
 
 -- we significantly
-parseSheetLoop ::
+parseFileLoop ::
   MonadIO m
   => MonadThrow m
   => PrimMonad m
   => MonadState PipeState m
   => Maybe Event
   -> ConduitT Event SheetItem  m ()
-parseSheetLoop = \case
+parseFileLoop = \case
   Nothing -> pure ()
   Just evt -> do
     file <- use ps_file
     case file of
-      Sheet name -> do
+      Sheet name -> parseSheet evt name
+      SharedStrings -> parseStrings evt
+      _ -> await >>= parseFileLoop
+
+parseStrings ::
+  MonadIO m
+  => MonadThrow m
+  => PrimMonad m
+  => MonadState PipeState m
+  => Event -> ConduitT Event SheetItem m ()
+parseStrings evt = do
+    parseString evt
+    await >>= parseFileLoop
+
+parseString ::
+  MonadIO m
+  => MonadThrow m
+  => PrimMonad m
+  => MonadState PipeState m
+  => Event -> m ()
+parseString = \case
+  EventContent (ContentText txt) -> do
+    idx <- use ps_shared_ix
+    ps_shared_strings %= set (at idx) (Just txt)
+  _ -> pure ()
+
+parseSheet ::
+  MonadIO m
+  => MonadThrow m
+  => PrimMonad m
+  => MonadState PipeState m
+  => Event -> Text -> ConduitT Event SheetItem m ()
+parseSheet evt name = do
         prevSheetName <- use ps_sheet_name
         rix <- use ps_cell_row_index
         unless (prevSheetName == name) $ do
@@ -150,12 +195,10 @@ parseSheetLoop = \case
             traverse_ (\x -> do
                           liftIO $ print x
                           yield $ MkSheetItem name rix' x) mResult
-            await >>= parseSheetLoop
-      _ -> await >>= parseSheetLoop
+            await >>= parseFileLoop
 
-popRow :: MonadIO m => MonadState PipeState m => m CellRow
+popRow :: MonadState PipeState m => m CellRow
 popRow = do
-  liftIO $ print "popping row"
   row <- use ps_row
   ps_row .= mempty
   pure row
@@ -165,13 +208,13 @@ addCell txt = do
    inVal <- use ps_is_in_val
    when inVal $ do
       col <- use ps_cell_col_index
-      y <- use ps_row
       ps_row <>= (Map.singleton col $ Cell
         { _cellStyle   = Nothing
         , _cellValue   = Just $ CellText txt -- TODO type
         , _cellComment = Nothing
         , _cellFormula = Nothing
         })
+
 
 newtype PipeErrors = MkCoordinate CoordinateErrors
   deriving Show
@@ -192,15 +235,19 @@ setCoord list = do
   ps_cell_col_index .= (coordinates ^. _2)
   ps_cell_row_index .= (coordinates ^. _1)
 
+findName :: Text -> [(Name, [Content])] -> Maybe (Name, [Content])
+findName name = find ((name ==) . nameLocalName . fst)
+
+
 parseCoordinates :: [(Name, [Content])] -> Either CoordinateErrors (Int, Int)
 parseCoordinates list = do
-      nameValPair <- maybe (Left $ CoordinateNotFound list) Right $ find (("r" ==) . nameLocalName . fst) list
+      nameValPair <- maybe (Left $ CoordinateNotFound list) Right $ findName "r" list
       valContent <- maybe (Left $ NoListElement nameValPair list) Right $  nameValPair ^? _2 . ix 0
       valText <- maybe (Left $ NoTextContent valContent list) Right $ valContent ^? contentTextPrims
       maybe (Left $ DecodeFailure valText list) Right $ fromSingleCellRef $ CellRef valText
 
 matchEvent :: MonadIO m => MonadError PipeErrors m => MonadState PipeState m => Text -> Event -> m (Maybe CellRow)
-matchEvent currentSheet = \case
+matchEvent _currentSheet = \case
   EventContent (ContentText txt)                       -> Nothing <$ addCell txt
   EventBeginElement Name{nameLocalName = "c", ..} vals  -> Nothing <$ setCoord vals
   EventBeginElement Name {nameLocalName = "v"} _       -> Nothing <$ (ps_is_in_val .= True)
