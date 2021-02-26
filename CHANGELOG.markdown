@@ -1,5 +1,6 @@
-unreleased
+0.8.3
 ------------
+* compatibility with lens-5.0
 * don't output lists with no elements in stylesheet as it causes problems in
   Excel
   (thanks to David Hewson <david.hewson@tracsis.com>)

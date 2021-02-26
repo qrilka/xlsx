@@ -1,6 +1,6 @@
 Name:                xlsx
 
-Version:             0.8.2
+Version:             0.8.3
 
 Synopsis:            Simple and incomplete Excel file parser/writer
 Description:
@@ -108,7 +108,7 @@ Library
                      , microlens-th
     cpp-options: -DUSE_MICROLENS
   else
-    Build-depends:     lens         >= 3.8 && < 5
+    Build-depends:     lens         >= 3.8 && < 5.1
 
   Default-Language:     Haskell2010
   Other-Extensions:  DeriveDataTypeable
@@ -137,7 +137,7 @@ test-suite data-test
                , containers
                , Diff >= 0.3.0
                , groom
-               , lens >= 3.8 && < 5
+               , lens >= 3.8 && < 5.1
                , mtl
                , raw-strings-qq
                , smallcheck
