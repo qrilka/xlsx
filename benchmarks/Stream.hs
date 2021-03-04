@@ -32,6 +32,9 @@ main = do
         -- "data/testInput.xlsx"
         -- "data/6000.rows.x.26.cols.xlsx"
   bs <- BS.readFile filename
-  x <- runResourceT $ runConduit $ readXlsx (sourceFile filename) .| C.filter (("sheet1.xml" ==) . _si_sheet) .| C.foldl (\a b -> b : a) []
-  Text.putStrLn $ Text.intercalate "\n" $ format <$> x
-  pure ()
+  state <- runResourceT $ runConduit $ sourceFile filename .| parseSharedStrings
+  print state
+
+-- -  x <- runResourceT $ runConduit $ readXlsx (sourceFile filename) .| C.filter (("sheet1.xml" ==) . _si_sheet) .| C.foldl (\a b -> b : a) []
+-- -  Text.putStrLn $ Text.intercalate "\n" $ format <$> x
+-- -  pure ()

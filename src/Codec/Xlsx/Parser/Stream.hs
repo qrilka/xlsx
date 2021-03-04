@@ -11,6 +11,7 @@
 module Codec.Xlsx.Parser.Stream
   ( readXlsx
   , SheetItem(..)
+  , parseSharedStrings
   ) where
 
 import           Codec.Archive.Zip.Conduit.UnZip
@@ -97,7 +98,7 @@ data SharedStringState = MkSharedStringState
   { _ss_file           :: PsFiles
   , _ss_shared_strings :: Map Int Text
   , _ss_shared_ix      :: Int -- int is okay, because bigger then int blows up memory anyway
-  }
+  } deriving Show
 makeLenses 'MkSharedStringState
 
 class HasPSFiles a where
@@ -127,10 +128,10 @@ initialSharedString = MkSharedStringState
   , _ss_shared_ix       = 0
   }
 
-parseSharedStrings :: forall m . MonadIO m => MonadThrow m
+parseSharedStrings :: forall a m . MonadIO m => MonadThrow m
   => PrimMonad m
-  => forall i. ConduitT i BS.ByteString m () -> ConduitT i SheetItem m SharedStringState
-parseSharedStrings input = input .| (() <$ unZipStream)
+  => ConduitT BS.ByteString a m SharedStringState
+parseSharedStrings = (() <$ unZipStream)
           .| (C.execStateC initialSharedString $
              (await >>= tagFiles)
               .| C.filterM (const $ has _SharedStrings <$> use fileLens)
@@ -138,17 +139,27 @@ parseSharedStrings input = input .| (() <$ unZipStream)
               .| C.mapM_ parseString
              )
 
-readXlsx :: forall m . MonadIO m => MonadThrow m
+readXlsxWithState :: forall m . MonadIO m => MonadThrow m
   => PrimMonad m
-  => forall i. ConduitT i BS.ByteString m () -> ConduitT i SheetItem m ()
-readXlsx input = do
-    ssState <- parseSharedStrings input
-    let initial = set ps_shared_strings (ssState ^. ss_shared_strings) initialSheetState
-    input .| (() <$ unZipStream)
+  => SharedStringState -> ConduitT BS.ByteString SheetItem m ()
+readXlsxWithState ssState =
+      (() <$ unZipStream)
       .| (C.evalStateLC initial $ (await >>= tagFiles)
       .| C.filterM (const $ not . has _UnkownFile <$> use fileLens)
       .| parseBytes def
       .| parseFiles)
+    where
+      initial = set ps_shared_strings (ssState ^. ss_shared_strings) initialSheetState
+
+-- | first reads the share string table, then provides another conuit to be run again for the remaining data.
+--   reading happens twice
+readXlsx ::
+  forall m . MonadIO m => MonadThrow m
+  => PrimMonad m
+  => ConduitT () BS.ByteString m () -> m (ConduitT () SheetItem m ())
+readXlsx input = do
+    ssState <- C.runConduit $ input .| parseSharedStrings
+    pure $ input .| readXlsxWithState ssState
 
 -- | there are various files in the excell file, which is a glorified zip folder
 -- here we tag them with things we know, and push it into the state monad.
@@ -202,6 +213,7 @@ parseString = \case
   EventContent (ContentText txt) -> do
     idx <- use ss_shared_ix
     ss_shared_strings %= set (at idx) (Just txt)
+    ss_shared_ix += 1
   _ -> pure ()
 
 parseSheet ::
