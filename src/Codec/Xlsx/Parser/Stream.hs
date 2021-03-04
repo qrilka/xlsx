@@ -12,6 +12,7 @@ module Codec.Xlsx.Parser.Stream
   ( readXlsx
   , SheetItem(..)
   , parseSharedStrings
+  , readXlsxWithState
   ) where
 
 import           Codec.Archive.Zip.Conduit.UnZip
@@ -227,7 +228,7 @@ parseSheet evt name = do
         rix <- use ps_cell_row_index
         unless (prevSheetName == name) $ do
           ps_sheet_name .= name
-          popRow >>= yield . MkSheetItem name rix
+          popRow >>= yieldSheetItem name rix
 
         liftIO $ print (name, evt)
         parseRes <- runExceptT $ matchEvent name evt
@@ -235,10 +236,14 @@ parseSheet evt name = do
         case parseRes of
           Left err -> liftIO $ print err
           Right mResult -> do
-            traverse_ (\x -> do
-                          liftIO $ print x
-                          yield $ MkSheetItem name rix' x) mResult
+            traverse_ (yieldSheetItem name rix') mResult
             await >>= parseFileLoop
+
+yieldSheetItem :: MonadThrow m
+  => PrimMonad m
+  => Text -> Int -> CellRow ->  ConduitT Event SheetItem m ()
+yieldSheetItem name rix' row =
+  unless (row == mempty) $ yield $ MkSheetItem name rix' row
 
 popRow :: MonadState SheetState m => m CellRow
 popRow = do

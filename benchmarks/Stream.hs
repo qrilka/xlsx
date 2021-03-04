@@ -31,10 +31,7 @@ main = do
         "../temp/policy-bordereau-template.xlsx"
         -- "data/testInput.xlsx"
         -- "data/6000.rows.x.26.cols.xlsx"
-  bs <- BS.readFile filename
-  state <- runResourceT $ runConduit $ sourceFile filename .| parseSharedStrings
-  print state
-
--- -  x <- runResourceT $ runConduit $ readXlsx (sourceFile filename) .| C.filter (("sheet1.xml" ==) . _si_sheet) .| C.foldl (\a b -> b : a) []
--- -  Text.putStrLn $ Text.intercalate "\n" $ format <$> x
--- -  pure ()
+  conduit <- runResourceT $ readXlsx (sourceFile filename)
+  x <- runResourceT $ runConduit $ conduit  .| C.filter (("sheet1.xml" ==) . _si_sheet) .| C.foldl (\a b -> a <> [b]) []
+  Text.putStrLn $ Text.intercalate "\n" $ format <$> x
+  pure ()
