@@ -31,6 +31,7 @@ import qualified Data.Conduit.Combinators        as C
 import           Data.Foldable
 import           Data.Map                        (Map)
 import qualified Data.Map                        as Map
+import           Data.Maybe
 import           Data.Text                       (Text)
 import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
@@ -90,15 +91,13 @@ data SheetState = MkSheetState
   , _ps_cell_row_index :: Int
   , _ps_cell_col_index :: Int
   , _ps_is_in_val      :: Bool
-  , _ps_shared_strings :: Map Int Text
   , _ps_t              :: TVal -- the last detected value
   }
 makeLenses 'MkSheetState
 
 data SharedStringState = MkSharedStringState
-  { _ss_file           :: PsFiles
-  , _ss_shared_strings :: Map Int Text
-  , _ss_shared_ix      :: Int -- int is okay, because bigger then int blows up memory anyway
+  { _ss_file      :: PsFiles
+  , _ss_shared_ix :: Int -- int is okay, because bigger then int blows up memory anyway
   } deriving Show
 makeLenses 'MkSharedStringState
 
@@ -118,49 +117,59 @@ initialSheetState = MkSheetState
   , _ps_cell_row_index  = 0
   , _ps_cell_col_index  = 0
   , _ps_is_in_val       = False
-  , _ps_shared_strings  = mempty
   , _ps_t               = T_S
   }
 
 initialSharedString :: SharedStringState
 initialSharedString = MkSharedStringState
   { _ss_file            = InitialNoFile
-  , _ss_shared_strings  = mempty
   , _ss_shared_ix       = 0
   }
 
-parseSharedStrings :: forall a m . MonadIO m => MonadThrow m
+parseSharedStrings :: forall m . MonadIO m => MonadThrow m
   => PrimMonad m
-  => ConduitT BS.ByteString a m SharedStringState
+  => ConduitT BS.ByteString (Int, Text) m ()
 parseSharedStrings = (() <$ unZipStream)
-          .| (C.execStateC initialSharedString $
+          .| (C.evalStateLC initialSharedString $
              (await >>= tagFiles)
               .| C.filterM (const $ has _SharedStrings <$> use fileLens)
               .| parseBytes def
-              .| C.mapM_ parseString
+              .| C.concatMapM parseString
              )
 
-readXlsxWithState :: forall m . MonadIO m => MonadThrow m
+parseString :: MonadThrow m
   => PrimMonad m
-  => SharedStringState -> ConduitT BS.ByteString SheetItem m ()
-readXlsxWithState ssState =
+  => MonadState SharedStringState m
+  => Event -> m (Maybe (Int, Text))
+parseString = \case
+  EventContent (ContentText txt) -> do
+    idx <- use ss_shared_ix
+    ss_shared_ix += 1
+    pure $ Just (idx, txt)
+  _ -> pure Nothing
+
+-- | Allows the user to decide how to do shared string lookup.
+--   for example if the shared string amount is expected to be massive
+--   the filesystem could be used (or a database).
+readXlsxWith :: forall m . MonadIO m => MonadThrow m
+  => PrimMonad m
+  => (Int -> m Text) -> ConduitT BS.ByteString SheetItem m ()
+readXlsxWith stringFunc =
       (() <$ unZipStream)
-      .| (C.evalStateLC initial $ (await >>= tagFiles)
+      .| (C.evalStateLC initialSheetState $ (await >>= tagFiles)
       .| C.filterM (const $ not . has _UnkownFile <$> use fileLens)
       .| parseBytes def
-      .| parseFiles)
-    where
-      initial = set ps_shared_strings (ssState ^. ss_shared_strings) initialSheetState
+      .| parseFiles stringFunc)
 
 -- | first reads the share string table, then provides another conuit to be run again for the remaining data.
---   reading happens twice
+--   reading happens twice. All shared strings will be read into memory.
 readXlsx ::
   forall m . MonadIO m => MonadThrow m
   => PrimMonad m
   => ConduitT () BS.ByteString m () -> m (ConduitT () SheetItem m ())
 readXlsx input = do
-    ssState <- C.runConduit $ input .| parseSharedStrings
-    pure $ input .| readXlsxWithState ssState
+    ssState <- C.runConduit $ input .| parseSharedStrings .| C.foldMap (uncurry Map.singleton)
+    pure $ input .| readXlsxWith (\x -> pure $ fromMaybe "" $ ssState ^? at x . _Just)
 
 -- | there are various files in the excell file, which is a glorified zip folder
 -- here we tag them with things we know, and push it into the state monad.
@@ -187,8 +196,8 @@ parseFiles ::
   => MonadThrow m
   => PrimMonad m
   => MonadState SheetState m
-  => ConduitT Event SheetItem  m ()
-parseFiles = await >>= parseFileLoop
+  => (Int -> m Text) -> ConduitT Event SheetItem  m ()
+parseFiles ssfunC = await >>= parseFileLoop ssfunC
 
 -- we significantly
 parseFileLoop ::
@@ -196,34 +205,23 @@ parseFileLoop ::
   => MonadThrow m
   => PrimMonad m
   => MonadState SheetState m
-  => Maybe Event
+  => (Int -> m Text) -> Maybe Event
   -> ConduitT Event SheetItem  m ()
-parseFileLoop = \case
+parseFileLoop ssFunc = \case
   Nothing -> pure ()
   Just evt -> do
     file <- use ps_file
     case file of
-      Sheet name -> parseSheet evt name
-      _          -> await >>= parseFileLoop
-
-parseString :: MonadThrow m
-  => PrimMonad m
-  => MonadState SharedStringState m
-  => Event -> m ()
-parseString = \case
-  EventContent (ContentText txt) -> do
-    idx <- use ss_shared_ix
-    ss_shared_strings %= set (at idx) (Just txt)
-    ss_shared_ix += 1
-  _ -> pure ()
+      Sheet name -> parseSheet ssFunc evt name
+      _          -> await >>= parseFileLoop ssFunc
 
 parseSheet ::
   MonadIO m
   => MonadThrow m
   => PrimMonad m
   => MonadState SheetState m
-  => Event -> Text -> ConduitT Event SheetItem m ()
-parseSheet evt name = do
+  => (Int -> n Text) -> Event -> Text -> ConduitT Event SheetItem m ()
+parseSheet ssFunc evt name = do
         prevSheetName <- use ps_sheet_name
         rix <- use ps_cell_row_index
         unless (prevSheetName == name) $ do
@@ -231,19 +229,20 @@ parseSheet evt name = do
           popRow >>= yieldSheetItem name rix
 
         liftIO $ print (name, evt)
-        parseRes <- runExceptT $ matchEvent name evt
+        parseRes <- runExceptT $ matchEvent ssFunc evt
         rix' <- use ps_cell_row_index
         case parseRes of
           Left err -> liftIO $ print err
           Right mResult -> do
             traverse_ (yieldSheetItem name rix') mResult
-            await >>= parseFileLoop
+            await >>= parseFileLoop ssFunc
 
 yieldSheetItem :: MonadThrow m
   => PrimMonad m
   => Text -> Int -> CellRow ->  ConduitT Event SheetItem m ()
 yieldSheetItem name rix' row =
-  unless (row == mempty) $ yield $ MkSheetItem name rix' row
+  unless (row == mempty) $ -- seems nonsensical to yield rows with no cell contents
+    yield $ MkSheetItem name rix' row
 
 popRow :: MonadState SheetState m => m CellRow
 popRow = do
@@ -263,13 +262,14 @@ parseValue sstrings txt = \case
     Right $ CellText string
   T_N -> bimap ReadError CellDouble $ readEither $ Text.unpack txt
 
-addCell :: MonadError SheetErrors m => MonadState SheetState m => Text -> m ()
-addCell txt = do
+addCell :: MonadError SheetErrors m => MonadState SheetState m => (Int -> m Text) -> Text -> m ()
+addCell ssFunc txt = do
    inVal <- use ps_is_in_val
    when inVal $ do
       type' <- use ps_t
-      sstrings <- use ps_shared_strings
-      val <- liftEither $ first MkCell $ parseValue sstrings txt type'
+
+      someStr <- ssFunc 4
+      val <- liftEither $ first MkCell $ parseValue (Map.singleton 4 someStr) txt type'
 
       col <- use ps_cell_col_index
       ps_row <>= (Map.singleton col $ Cell
@@ -333,9 +333,9 @@ parseCoordinates list = do
       valText <- maybe (Left $ NoTextContent valContent list) Right $ valContent ^? contentTextPrims
       maybe (Left $ DecodeFailure valText list) Right $ fromSingleCellRef $ CellRef valText
 
-matchEvent :: MonadIO m => MonadError SheetErrors m => MonadState SheetState m => Text -> Event -> m (Maybe CellRow)
-matchEvent _currentSheet = \case
-  EventContent (ContentText txt)                       -> Nothing <$ addCell txt
+matchEvent :: MonadIO m => MonadError SheetErrors m => MonadState SheetState m => (Int -> m Text) -> Event -> m (Maybe CellRow)
+matchEvent ssFunc = \case
+  EventContent (ContentText txt)                       -> Nothing <$ addCell ssFunc txt
   EventBeginElement Name{nameLocalName = "c", ..} vals  -> Nothing <$ (setCoord vals >> setType vals)
   EventBeginElement Name {nameLocalName = "v"} _       -> Nothing <$ (ps_is_in_val .= True)
   EventEndElement Name {nameLocalName = "v"}           -> Nothing <$ (ps_is_in_val .= False)
