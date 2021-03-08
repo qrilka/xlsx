@@ -13,6 +13,7 @@ module Codec.Xlsx.Parser.Stream
   , SheetItem(..)
   , parseSharedStrings
   , readXlsxWithState
+  , CellRow
   ) where
 
 import           Codec.Archive.Zip.Conduit.UnZip
@@ -37,6 +38,8 @@ import qualified Data.Text.Encoding              as Text
 import           Data.XML.Types
 import           Text.Read
 import           Text.XML.Stream.Parse
+
+type CellRow = Map Int Cell
 
 data SheetItem = MkSheetItem
   { _si_sheet     :: Text

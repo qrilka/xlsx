@@ -84,7 +84,7 @@ main = defaultMain $
     , testCase "toXlsxEither: properly formatted" $
         Right testXlsx @==? toXlsxEither (fromXlsx testTime testXlsx)
     , testCase "toXlsxEither: invalid format" $
-        Left InvalidZipArchive @==? toXlsxEither "this is not a valid XLSX file"
+        Left (InvalidZipArchive "Did not find end of central directory signature") @==? toXlsxEither "this is not a valid XLSX file"
     , CommonTests.tests
     , CondFmtTests.tests
     , PivotTableTests.tests
