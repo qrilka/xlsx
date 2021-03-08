@@ -84,7 +84,7 @@ main = defaultMain $
     , testCase "toXlsxEither: properly formatted" $
         Right testXlsx @==? toXlsxEither (fromXlsx testTime testXlsx)
     , testCase "toXlsxEither: invalid format" $
-        Left (InvalidZipArchive "testarchive") @==? toXlsxEither "this is not a valid XLSX file"
+        Left InvalidZipArchive @==? toXlsxEither "this is not a valid XLSX file"
     , CommonTests.tests
     , CondFmtTests.tests
     , PivotTableTests.tests
@@ -429,9 +429,9 @@ testCustomPropertiesXml = [r|
 testFormattedResult :: Formatted
 testFormattedResult = Formatted cm styleSheet merges
   where
-    cm :: CellMap
-    cm = M.fromList [ (1, M.fromList [(1, cell11), (2, cell12)]),
-                      (2, M.singleton 5 cell25)]
+    cm = M.fromList [ ((1, 1), cell11)
+                    , ((1, 2), cell12)
+                    , ((2, 5), cell25) ]
     cell11 = Cell
         { _cellStyle   = Just 1
         , _cellValue   = Just (CellText "text at A1")
@@ -489,11 +489,11 @@ testFormatWorkbookResult :: Xlsx
 testFormatWorkbookResult = def & xlSheets .~ sheets
                                & xlStyles .~ renderStyleSheet style
   where
-    testCellMap1 = M.fromList [(1, Map.singleton 1 Cell { _cellStyle   = Nothing
+    testCellMap1 = M.fromList [((1, 1), Cell { _cellStyle   = Nothing
                                              , _cellValue   = Just (CellText "text at A1 Sheet1")
                                              , _cellComment = Nothing
                                              , _cellFormula = Nothing })]
-    testCellMap2 = M.fromList [(2, Map.singleton 3 Cell { _cellStyle   = Just 1
+    testCellMap2 = M.fromList [((2, 3), Cell { _cellStyle   = Just 1
                                              , _cellValue   = Just (CellDouble 1.23456)
                                              , _cellComment = Nothing
                                              , _cellFormula = Nothing })]
