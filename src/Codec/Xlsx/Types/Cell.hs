@@ -18,9 +18,6 @@ module Codec.Xlsx.Types.Cell
   , cellComment
   , cellFormula
   , CellMap
-  , CellRow
-  , toNested
-  , unNested
   ) where
 
 import Control.Arrow (first)
@@ -115,32 +112,10 @@ instance Default Cell where
 
 makeLenses ''Cell
 
-
 -- | Map containing cell values which are indexed by row and column
 -- if you need to use more traditional (x,y) indexing please you could
 -- use corresponding accessors from ''Codec.Xlsx.Lens''
-type CellMap = Map RowIndex CellRow
-
-type CellRow = Map ColIndex Cell
-
--- | Map (Int, Int) a was the original representation, this was changed
---   to give better support for streaming
---   (we can now stream an individual row)
---   'toNested' helps you go from that original representation to the new one.
---   'unNested' helps you go back.
---    toNested . unNested === id
-toNested :: Map (RowIndex, ColIndex) a -> Map RowIndex (Map ColIndex a)
-toNested old =
-  M.fromListWith (<>) $
-    (\((r,c), v) -> (r, M.singleton c v)) <$> M.toList old
-
--- | reverse of 'toNested'
-unNested :: Map RowIndex (Map ColIndex a) -> Map (RowIndex, ColIndex) a
-unNested old = M.fromList $ do
-  (row, dict) <- M.toList old
-  (\(col, val) -> ((row, col), val) ) <$> M.toList dict
-
-
+type CellMap = Map (Int, Int) Cell
 
 {-------------------------------------------------------------------------------
   Parsing

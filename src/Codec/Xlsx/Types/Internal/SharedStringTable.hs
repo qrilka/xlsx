@@ -95,7 +95,7 @@ sstConstruct =
     SharedStringTable . V.fromList . uniq . concatMap goSheet
   where
     goSheet :: Worksheet -> [XlsxText]
-    goSheet = mapMaybe (_cellValue >=> sstEntry) . join . Map.elems . fmap Map.elems . _wsCells
+    goSheet = mapMaybe (_cellValue >=> sstEntry) . Map.elems . _wsCells
 
     sstEntry :: CellValue -> Maybe XlsxText
     sstEntry (CellText text) = Just $ XlsxText text

@@ -16,7 +16,6 @@ import GHC.Generics (Generic)
 import Safe (fromJustNote)
 import Text.XML
 
-import Control.Lens hiding ((.=))
 import Codec.Xlsx.Types.Cell
 import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Types.Internal
@@ -156,8 +155,7 @@ generateCache cm PivotTable {..} =
       }
     ((r1, c1), (r2, c2)) =
       fromJustNote "Invalid src ref of pivot table " $ fromRange _pvtSrcRef
-    getCellValue :: (Int, Int) -> Maybe CellValue
-    getCellValue (row, col) = cm ^? at row . _Just .  at col . _Just . cellValue . _Just
+    getCellValue ix = M.lookup ix cm >>= _cellValue
     itemsByName =
       M.fromList $
       flip mapMaybe [c1 .. c2] $ \c -> do

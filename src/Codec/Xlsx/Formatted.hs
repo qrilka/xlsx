@@ -59,7 +59,6 @@ import Prelude hiding (mapM)
 import Safe (headNote, fromJustNote)
 
 import Codec.Xlsx.Types
-import Codec.Xlsx.Types.Cell
 
 {-------------------------------------------------------------------------------
   Internal: formatting state
@@ -235,13 +234,13 @@ data Formatted = Formatted {
 --
 -- If you don't already have a 'StyleSheet' you want to use as starting point
 -- then 'minimalStyleSheet' is a good choice.
-formatted :: Map (RowIndex, ColIndex) FormattedCell -> StyleSheet -> Formatted
+formatted :: Map (Int, Int) FormattedCell -> StyleSheet -> Formatted
 formatted cs styleSheet =
    let initSt         = stateFromStyleSheet styleSheet
        (cs', finalSt) = runState (mapM (uncurry formatCell) (M.toList cs)) initSt
        styleSheet'    = updateStyleSheetFromState styleSheet finalSt
    in Formatted {
-          formattedCellMap    = toNested $ M.fromList (concat cs')
+          formattedCellMap    = M.fromList (concat cs')
         , formattedStyleSheet = styleSheet'
         , formattedMerges     = reverse (finalSt ^. formattingMerges)
         }
@@ -255,7 +254,7 @@ formatWorkbook nfcss initStyle = extract go
         cs' <- forM (M.toList fcs) $ \(rc, fc) -> formatCell rc fc
         merges <- reverse . _formattingMerges <$> get
         return ( name
-               , def & wsCells  .~ toNested (M.fromList (concat cs'))
+               , def & wsCells  .~ M.fromList (concat cs')
                      & wsMerges .~ merges)
     extract (sheets, st) =
       def & xlSheets .~ sheets
@@ -264,10 +263,8 @@ formatWorkbook nfcss initStyle = extract go
 -- | reverse to 'formatted' which allows to get a map of formatted cells
 -- from an existing worksheet and its workbook's style sheet
 toFormattedCells :: CellMap -> [Range] -> StyleSheet -> Map (Int, Int) FormattedCell
-toFormattedCells m merges StyleSheet{..} = applyMerges $
-  unNested $ fmap toFormattedCell <$> m
+toFormattedCells m merges StyleSheet{..} = applyMerges $ M.map toFormattedCell m
   where
-    toFormattedCell :: Cell -> FormattedCell
     toFormattedCell cell@Cell{..} =
         FormattedCell
         { _formattedCell    = cell{ _cellStyle = Nothing } -- just to remove confusion
