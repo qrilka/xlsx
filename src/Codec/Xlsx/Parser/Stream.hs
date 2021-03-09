@@ -148,7 +148,6 @@ parseSharedStrings = (() <$ unZipStream)
              )
 
 parseString :: MonadThrow m
-  => PrimMonad m
   => MonadState SharedStringState m
   => Event -> m (Maybe (Int, Text))
 parseString = \case
@@ -190,7 +189,6 @@ tagFiles ::
   HasPSFiles env
   => MonadState env m
   => MonadThrow m
-  => PrimMonad m
   => Maybe (Either ZipEntry BS.ByteString) -> ConduitT (Either ZipEntry BS.ByteString) BS.ByteString m ()
 tagFiles = \case
   Just (Left zipEntry) -> do
@@ -204,7 +202,6 @@ tagFiles = \case
 
 parseFiles ::
    MonadThrow m
-  => PrimMonad m
   => MonadState SheetState m
   => ConduitT Event SheetItem  m ()
 parseFiles = await >>= parseFileLoop
@@ -212,7 +209,6 @@ parseFiles = await >>= parseFileLoop
 -- we significantly
 parseFileLoop ::
    MonadThrow m
-  => PrimMonad m
   => MonadState SheetState m
   => Maybe Event
   -> ConduitT Event SheetItem  m ()
@@ -226,7 +222,6 @@ parseFileLoop = \case
 
 parseSheet ::
    MonadThrow m
-  => PrimMonad m
   => MonadState SheetState m
   => Event -> Text -> ConduitT Event SheetItem m ()
 parseSheet evt name = do
@@ -245,7 +240,6 @@ parseSheet evt name = do
             await >>= parseFileLoop
 
 yieldSheetItem :: MonadThrow m
-  => PrimMonad m
   => Text -> Int -> CellRow ->  ConduitT Event SheetItem m ()
 yieldSheetItem name rix' row =
   unless (row == mempty) $ yield $ MkSheetItem name rix' row
