@@ -44,6 +44,7 @@ import           Text.Read
 import           Text.XML.Stream.Parse
 import Control.Monad.Catch
 
+-- TODO NonNull
 type CellRow = Map Int Cell
 
 data SheetItem = MkSheetItem
@@ -91,6 +92,8 @@ decodeFiles = \case
 
 data TVal = T_S -- string ?
           | T_N -- number ?
+          | T_B
+
 
 data SheetState = MkSheetState
   { _ps_file           :: PsFiles
@@ -261,6 +264,7 @@ parseValue sstrings txt = \case
     string <- maybe (Left $ SharedStringNotFound idx sstrings) Right $ sstrings ^? ix idx
     Right $ CellText string
   T_N -> bimap ReadError CellDouble $ readEither $ Text.unpack txt
+  T_B -> bimap ReadError CellBool $ readEither $ Text.unpack txt
 
 addCell :: MonadError SheetErrors m => MonadState SheetState m => Text -> m ()
 addCell txt = do
@@ -324,6 +328,7 @@ parseType list = do
     case valText of
       "n"   -> Right T_N
       "s"   -> Right T_S
+      "b"   -> Right T_S
       other -> Left $ UnkownType other list
 
 parseCoordinates :: [(Name, [Content])] -> Either CoordinateErrors (Int, Int)
