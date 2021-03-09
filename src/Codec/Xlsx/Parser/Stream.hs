@@ -6,20 +6,24 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 -- | Read .xlsx as a stream
 module Codec.Xlsx.Parser.Stream
   ( readXlsx
+  , readXlsxWithState
   , SheetItem(..)
   , parseSharedStrings
-  , readXlsxWithState
   , CellRow
+  , si_sheet
+  , si_row_index
+  , si_cell_row
   ) where
 
 import           Codec.Archive.Zip.Conduit.UnZip
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
-import           Conduit                         (MonadThrow, PrimMonad, await,
+import           Conduit                         (PrimMonad, await,
                                                   yield, (.|))
 import qualified Conduit                         as C
 import           Control.Lens
@@ -38,6 +42,7 @@ import qualified Data.Text.Encoding              as Text
 import           Data.XML.Types
 import           Text.Read
 import           Text.XML.Stream.Parse
+import Control.Monad.Catch
 
 type CellRow = Map Int Cell
 
@@ -46,6 +51,7 @@ data SheetItem = MkSheetItem
   , _si_row_index :: Int
   , _si_cell_row  :: CellRow
   } deriving Show
+makeLenses 'MkSheetItem
 
 -- http://officeopenxml.com/anatomyofOOXML-xlsx.php
 data PsFiles = UnkownFile Text
@@ -130,7 +136,7 @@ initialSharedString = MkSharedStringState
   , _ss_shared_ix       = 0
   }
 
-parseSharedStrings :: forall m . MonadIO m => MonadThrow m
+parseSharedStrings :: forall m . MonadThrow m
   => PrimMonad m
   => ConduitT BS.ByteString (Int, Text) m ()
 parseSharedStrings = (() <$ unZipStream)
@@ -155,7 +161,7 @@ parseString = \case
 
 -- TODO figure out how to allow user to lookup shared string instead
 -- of always reading into memory.
-readXlsxWithState :: forall m . MonadIO m => MonadThrow m
+readXlsxWithState :: forall m . MonadThrow m
   => PrimMonad m
   => Map Int Text -> ConduitT BS.ByteString SheetItem m ()
 readXlsxWithState sstate =
@@ -170,7 +176,7 @@ readXlsxWithState sstate =
 -- | first reads the share string table, then provides another conuit to be run again for the remaining data.
 --   reading happens twice. All shared strings will be read into memory.
 readXlsx ::
-  forall m . MonadIO m => MonadThrow m
+  forall m . MonadThrow m
   => PrimMonad m
   => ConduitT () BS.ByteString m () -> m (ConduitT () SheetItem m ())
 readXlsx input = do
@@ -183,7 +189,6 @@ readXlsx input = do
 tagFiles ::
   HasPSFiles env
   => MonadState env m
-  => MonadIO m
   => MonadThrow m
   => PrimMonad m
   => Maybe (Either ZipEntry BS.ByteString) -> ConduitT (Either ZipEntry BS.ByteString) BS.ByteString m ()
@@ -198,8 +203,7 @@ tagFiles = \case
   Nothing -> pure ()
 
 parseFiles ::
-  MonadIO m
-  => MonadThrow m
+   MonadThrow m
   => PrimMonad m
   => MonadState SheetState m
   => ConduitT Event SheetItem  m ()
@@ -207,8 +211,7 @@ parseFiles = await >>= parseFileLoop
 
 -- we significantly
 parseFileLoop ::
-  MonadIO m
-  => MonadThrow m
+   MonadThrow m
   => PrimMonad m
   => MonadState SheetState m
   => Maybe Event
@@ -222,8 +225,7 @@ parseFileLoop = \case
       _          -> await >>= parseFileLoop
 
 parseSheet ::
-  MonadIO m
-  => MonadThrow m
+   MonadThrow m
   => PrimMonad m
   => MonadState SheetState m
   => Event -> Text -> ConduitT Event SheetItem m ()
@@ -234,11 +236,10 @@ parseSheet evt name = do
           ps_sheet_name .= name
           popRow >>= yieldSheetItem name rix
 
-        liftIO $ print (name, evt)
         parseRes <- runExceptT $ matchEvent name evt
         rix' <- use ps_cell_row_index
         case parseRes of
-          Left err -> liftIO $ print err
+          Left err -> C.throwM err
           Right mResult -> do
             traverse_ (yieldSheetItem name rix') mResult
             await >>= parseFileLoop
@@ -288,7 +289,8 @@ data SheetErrors = MkCoordinate CoordinateErrors
                  | MkType TypeError
                  | MkCell AddCellErrors
 
-  deriving Show
+  deriving (Show, Exception)
+
 
 data CoordinateErrors = CoordinateNotFound [(Name, [Content])]
                       | NoListElement (Name, [Content]) [(Name, [Content])]
@@ -337,7 +339,7 @@ parseCoordinates list = do
       valText <- maybe (Left $ NoTextContent valContent list) Right $ valContent ^? contentTextPrims
       maybe (Left $ DecodeFailure valText list) Right $ fromSingleCellRef $ CellRef valText
 
-matchEvent :: MonadIO m => MonadError SheetErrors m => MonadState SheetState m => Text -> Event -> m (Maybe CellRow)
+matchEvent :: MonadError SheetErrors m => MonadState SheetState m => Text -> Event -> m (Maybe CellRow)
 matchEvent _currentSheet = \case
   EventContent (ContentText txt)                       -> Nothing <$ addCell txt
   EventBeginElement Name{nameLocalName = "c", ..} vals  -> Nothing <$ (setCoord vals >> setType vals)
