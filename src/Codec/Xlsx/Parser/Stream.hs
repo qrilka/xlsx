@@ -55,14 +55,22 @@ data SheetItem = MkSheetItem
 makeLenses 'MkSheetItem
 
 -- http://officeopenxml.com/anatomyofOOXML-xlsx.php
-data PsFiles = UnkownFile Text
+data PsFiles =
+             -- | Files that are encountered in the workbook but not part
+             --   of this sumtype get this tag. They are then ignored.
+              UnkownFile Text
+             -- | files with actual data (rows and cells)
              | Sheet Text
+             -- | Initial state, unrelated to excell format
              | InitialNoFile
+              -- | stores strings which are replaced by id's in sheet to save space
              | SharedStrings
              | Styles
+              -- | contains the names in the tabs and some internal id
              | Workbook
              | ContentTypes
              | Relationships
+              -- | contains relations ship between internal id and path
              | SheetRel Text
   deriving Show
 makePrisms ''PsFiles
@@ -90,9 +98,9 @@ decodeFiles = \case
           Sheet known
       else UnkownFile unkown
 
-data TVal = T_S -- string ?
-          | T_N -- number ?
-          | T_B
+data TVal = T_S -- ^ string
+          | T_N -- ^ number
+          | T_B -- ^ boolean
 
 
 data SheetState = MkSheetState
