@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE NamedFieldPuns      #-}
@@ -7,7 +6,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 -- | Read .xlsx as a stream
 module Codec.Xlsx.Parser.Stream
@@ -24,10 +23,10 @@ module Codec.Xlsx.Parser.Stream
 import           Codec.Archive.Zip.Conduit.UnZip
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
-import           Conduit                         (PrimMonad, await, yield, (.|))
+import           Conduit                         (PrimMonad, await,
+                                                  yield, (.|))
 import qualified Conduit                         as C
 import           Control.Lens
-import           Control.Monad.Catch
 import           Control.Monad.Except
 import           Control.Monad.State.Lazy
 import           Data.Bifunctor
@@ -41,9 +40,9 @@ import           Data.Text                       (Text)
 import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
 import           Data.XML.Types
-import           GHC.Stack
 import           Text.Read
 import           Text.XML.Stream.Parse
+import Control.Monad.Catch
 
 type CellRow = Map Int Cell
 
@@ -106,8 +105,8 @@ data SheetState = MkSheetState
 makeLenses 'MkSheetState
 
 data SharedStringState = MkSharedStringState
-  { _ss_file      :: PsFiles
-  , _ss_shared_ix :: Int -- int is okay, because bigger then int blows up memory anyway
+  { _ss_file           :: PsFiles
+  , _ss_shared_ix      :: Int -- int is okay, because bigger then int blows up memory anyway
   } deriving Show
 makeLenses 'MkSharedStringState
 
@@ -161,7 +160,7 @@ parseString = \case
 
 -- TODO figure out how to allow user to lookup shared string instead
 -- of always reading into memory.
-readXlsxWithState :: HasCallStack => forall m . MonadThrow m
+readXlsxWithState :: forall m . MonadThrow m
   => PrimMonad m
   => Map Int Text -> ConduitT BS.ByteString SheetItem m ()
 readXlsxWithState sstate =
@@ -176,7 +175,7 @@ readXlsxWithState sstate =
 -- | first reads the share string table, then provides another conuit to be run again for the remaining data.
 --   reading happens twice. All shared strings will be read into memory.
 readXlsx ::
-  HasCallStack => forall m . MonadThrow m
+  forall m . MonadThrow m
   => PrimMonad m
   => ConduitT () BS.ByteString m () -> m (ConduitT () SheetItem m ())
 readXlsx input = do
@@ -202,14 +201,14 @@ tagFiles = \case
   Nothing -> pure ()
 
 parseFiles ::
-   HasCallStack => MonadThrow m
+   MonadThrow m
   => MonadState SheetState m
   => ConduitT Event SheetItem  m ()
 parseFiles = await >>= parseFileLoop
 
 -- we significantly
 parseFileLoop ::
-   HasCallStack => MonadThrow m
+   MonadThrow m
   => MonadState SheetState m
   => Maybe Event
   -> ConduitT Event SheetItem  m ()
@@ -222,7 +221,7 @@ parseFileLoop = \case
       _          -> await >>= parseFileLoop
 
 parseSheet ::
-   HasCallStack => MonadThrow m
+   MonadThrow m
   => MonadState SheetState m
   => Event -> Text -> ConduitT Event SheetItem m ()
 parseSheet evt name = do
@@ -280,17 +279,12 @@ addCell txt = do
         })
 
 
--- https://maksbotan.github.io/posts/2021-01-20-callstacks.html
-data SheetErrors where
-  MkCoordinate :: HasCallStack => CoordinateErrors -> SheetErrors
-  MkType :: HasCallStack => TypeError -> SheetErrors
-  MkCell :: HasCallStack => AddCellErrors -> SheetErrors
-  deriving Exception
+data SheetErrors = MkCoordinate CoordinateErrors
+                 | MkType TypeError
+                 | MkCell AddCellErrors
 
-instance Show SheetErrors where
-  show (MkCoordinate errors) = "(MkCoordinate $ " <> show errors <> "/*" <> prettyCallStack callStack <> " */)"
-  show (MkType errors) = "(MkType $ " <> show errors <> "/*" <> prettyCallStack callStack <> " */)"
-  show (MkCell errors) = "(MkCell $ " <> show errors <> "/*" <> prettyCallStack callStack <> " */)"
+  deriving (Show, Exception)
+
 
 data CoordinateErrors = CoordinateNotFound [(Name, [Content])]
                       | NoListElement (Name, [Content]) [(Name, [Content])]
@@ -314,7 +308,7 @@ setCoord list = do
   ps_cell_col_index .= (coordinates ^. _2)
   ps_cell_row_index .= (coordinates ^. _1)
 
-setType :: HasCallStack => MonadError SheetErrors m => MonadState SheetState m => [(Name, [Content])] -> m ()
+setType :: MonadError SheetErrors m => MonadState SheetState m => [(Name, [Content])] -> m ()
 setType list = do
   type' <- liftEither $ first MkType $ parseType list
   ps_t .= type'
@@ -339,7 +333,7 @@ parseCoordinates list = do
       valText <- maybe (Left $ NoTextContent valContent list) Right $ valContent ^? contentTextPrims
       maybe (Left $ DecodeFailure valText list) Right $ fromSingleCellRef $ CellRef valText
 
-matchEvent :: HasCallStack => MonadError SheetErrors m => MonadState SheetState m => Text -> Event -> m (Maybe CellRow)
+matchEvent :: MonadError SheetErrors m => MonadState SheetState m => Text -> Event -> m (Maybe CellRow)
 matchEvent _currentSheet = \case
   EventContent (ContentText txt)                       -> Nothing <$ addCell txt
   EventBeginElement Name{nameLocalName = "c", ..} vals  -> Nothing <$ (setCoord vals >> setType vals)
