@@ -14,6 +14,7 @@ module Codec.Xlsx.Parser.Stream
   , readXlsxWithState
   , SheetItem(..)
   , parseSharedStrings
+  , parseStringsIntoMap
   , CellRow
   , si_sheet
   , si_row_index
@@ -73,6 +74,7 @@ data PsFiles =
               -- | contains relations ship between internal id and path
              | SheetRel Text
   deriving Show
+
 makePrisms ''PsFiles
 
 decodeFiles :: Text -> PsFiles
@@ -158,6 +160,11 @@ parseSharedStrings = (() <$ unZipStream)
               .| C.concatMapM parseString
              )
 
+parseStringsIntoMap :: forall m . MonadThrow m
+  => PrimMonad m
+  => ConduitT BS.ByteString C.Void m (Map Int Text)
+parseStringsIntoMap = parseSharedStrings .| C.foldMap (uncurry Map.singleton)
+
 parseString :: MonadThrow m
   => MonadState SharedStringState m
   => Event -> m (Maybe (Int, Text))
@@ -182,6 +189,7 @@ readXlsxWithState sstate =
       .| parseFiles)
     where
       initial = set ps_shared_strings sstate initialSheetState
+
 
 -- | first reads the share string table, then provides another conuit to be run again for the remaining data.
 --   reading happens twice. All shared strings will be read into memory.

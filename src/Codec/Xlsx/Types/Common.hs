@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Codec.Xlsx.Types.Common
   ( CellRef(..)
   , singleCellRef
@@ -22,6 +24,14 @@ module Codec.Xlsx.Types.Common
   , col2int
   , RowIndex
   , ColIndex
+  -- ** prisms
+  , _XlsxText
+  , _XlsxRichText
+  , _CellText
+  , _CellDouble
+  , _CellBool
+  , _CellRich
+  , _CellError
   ) where
 
 import GHC.Generics (Generic)
@@ -43,6 +53,7 @@ import Safe
 import Text.XML
 import Text.XML.Cursor
 
+import Control.Lens(makePrisms)
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.RichText
 import Codec.Xlsx.Writer.Internal
@@ -147,6 +158,7 @@ data XlsxText = XlsxText Text
               | XlsxRichText [RichTextRun]
               deriving (Eq, Ord, Show, Generic)
 
+
 instance NFData XlsxText
 
 xlsxTextToCellValue :: XlsxText -> CellValue
@@ -172,6 +184,7 @@ data CellValue
   | CellRich [RichTextRun]
   | CellError ErrorType
   deriving (Eq, Ord, Show, Generic)
+
 
 instance NFData CellValue
 
@@ -414,3 +427,6 @@ instance ToAttrVal ErrorType where
 
 type RowIndex = Int
 type ColIndex = Int
+
+makePrisms ''XlsxText
+makePrisms ''CellValue
