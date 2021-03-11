@@ -134,7 +134,9 @@ test-suite data-test
                , Diff
                , DrawingTests
                , PivotTableTests
+               , StreamTests
                , Test.SmallCheck.Series.Instances
+               , TestXlsx
   Build-Depends: base
                , bytestring
                , containers

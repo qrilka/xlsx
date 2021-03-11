@@ -51,6 +51,5 @@ tests =
             (x, my) <- toList $ indexed testTexts
             maybe [] (pure . (x,)) my
 
-
         testMap @==? res
     ]

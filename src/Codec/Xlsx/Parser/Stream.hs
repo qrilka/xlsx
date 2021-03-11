@@ -120,6 +120,7 @@ makeLenses 'MkSheetState
 data SharedStringState = MkSharedStringState
   { _ss_file           :: PsFiles
   , _ss_shared_ix      :: Int -- int is okay, because bigger then int blows up memory anyway
+  , _ss_string         :: Text
   } deriving Show
 makeLenses 'MkSharedStringState
 
@@ -147,6 +148,7 @@ initialSharedString :: SharedStringState
 initialSharedString = MkSharedStringState
   { _ss_file            = InitialNoFile
   , _ss_shared_ix       = 0
+  , _ss_string          = mempty
   }
 
 parseSharedStrings :: forall m . MonadThrow m
@@ -169,10 +171,13 @@ parseString :: MonadThrow m
   => MonadState SharedStringState m
   => Event -> m (Maybe (Int, Text))
 parseString = \case
-  EventContent (ContentText txt) -> do
+  EventBeginElement Name {nameLocalName = "t", ..} _ -> Nothing <$ (ss_string .= "")
+  EventEndElement Name {nameLocalName = "t", ..} -> do
     idx <- use ss_shared_ix
     ss_shared_ix += 1
+    txt <- use ss_string
     pure $ Just (idx, txt)
+  EventContent (ContentText txt) -> Nothing <$ (ss_string <>= txt)
   _ -> pure Nothing
 
 
