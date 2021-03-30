@@ -7,3 +7,4 @@ dist
 specs
 samples
 .stack-work
+*.lock
