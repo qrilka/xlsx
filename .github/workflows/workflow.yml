@@ -1,0 +1,45 @@
+on:
+    pull_request:
+    push:
+        branches:
+        - master
+
+jobs:
+  build:
+    name: CI
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: ubuntu-latest
+          stack-yaml: stack-lts-12.yaml
+          extra-args: ""
+        - os: ubuntu-latest
+          stack-yaml: stack-lts-14.yaml
+          extra-args: ""
+        - os: ubuntu-latest
+          stack-yaml: stack-lts-14.yaml
+          extra-args: "--flag xlsx:microlens"
+        - os: ubuntu-latest
+          stack-yaml: stack-lts-16.yaml
+          extra-args: ""
+        - os: ubuntu-latest
+          stack-yaml: stack-lts-17.yaml
+          extra-args: ""
+
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v2
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.stack
+          key: ${{ runner.os }}-${{ hashFiles(matrix.stack-yaml) }}-${{ matrix.extra-args }}
+      - name: Build and run tests
+        shell: bash
+        run: |
+            set -ex
+            stack upgrade
+            stack --version
+            stack test --fast --stack-yaml=${{ matrix.stack-yaml }} ${{ matrix.extra-args }}

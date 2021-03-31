@@ -1,3 +1,7 @@
+Unreleased
+------------
+* dropped support for GHC 8.0.* and 8.2.* and added support for GHC 8.10.*
+
 0.8.3
 ------------
 * compatibility with lens-5.0
