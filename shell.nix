@@ -1,0 +1,1 @@
+(import ./.).shell."${builtins.currentSystem}"

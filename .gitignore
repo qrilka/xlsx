@@ -1,6 +1,7 @@
 TAGS
 cabal-dev
 dist
+dist-newstyle
 *sandbox*
 #*#
 *.*~
@@ -8,3 +9,7 @@ specs
 samples
 .stack-work
 *.lock
+
+# nix
+result
+result-doc
