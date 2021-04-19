@@ -84,7 +84,7 @@ ixCellRC i = wsCells . ix i
 -- | lens to access cell in a worksheet using more traditional
 -- x+y coordinates
 ixCellXY :: (Int, Int) -> Traversal' Worksheet Cell
-ixCellXY = ixCellRC . swap
+ixCellXY i = ixCellRC $ swap i
 
 -- | accessor that can read, write or delete cell in a worksheet
 -- synonym of 'atCellRC' so uses row+column index
@@ -98,7 +98,7 @@ atCellRC i = wsCells . at i
 -- | lens to read, write or delete cell in a worksheet
 -- using more traditional x+y or row+column index
 atCellXY :: (Int, Int) -> Lens' Worksheet (Maybe Cell)
-atCellXY = atCellRC . swap
+atCellXY i = atCellRC $ swap i
 
 -- | lens to read, write or delete cell value in a worksheet
 -- with row+column coordinates, synonym for 'cellValueRC'
@@ -113,4 +113,4 @@ cellValueAtRC i = atCell i . non def . cellValue
 -- | lens to read, write or delete cell value in a worksheet
 -- using traditional x+y coordinates
 cellValueAtXY :: (Int, Int) -> Lens' Worksheet (Maybe CellValue)
-cellValueAtXY = cellValueAtRC . swap
+cellValueAtXY i = cellValueAtRC $ swap i

@@ -340,7 +340,7 @@ formatCell (row, col) cell = do
     mapM go block
   where
     go :: ((Int, Int), FormattedCell) -> State FormattingState ((Int, Int), Cell)
-    go (pos, c@ FormattedCell{..}) = do
+    go (pos, c@FormattedCell{..}) = do
       styleId <- cellStyleId c
       return (pos, _formattedCell{_cellStyle = styleId})
 

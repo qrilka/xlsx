@@ -217,6 +217,21 @@ data Anchor p g = Anchor
     } deriving (Eq, Show, Generic)
 instance (NFData p, NFData g) => NFData (Anchor p g)
 
+data GenericDrawing p g = Drawing
+    { _xdrAnchors :: [Anchor p g]
+    } deriving (Eq, Show, Generic)
+instance (NFData p, NFData g) => NFData (GenericDrawing p g)
+
+-- See 20.5.2.35 "wsDr (Worksheet Drawing)" (p. 3176)
+type Drawing = GenericDrawing FileInfo ChartSpace
+
+type UnresolvedDrawing = GenericDrawing RefId RefId
+
+makeLenses ''Anchor
+makeLenses ''DrawingObject
+makeLenses ''BlipFillProperties
+makeLenses ''GenericDrawing
+
 -- | simple drawing object anchoring using one cell as a top lelft
 -- corner and dimensions of that object
 simpleAnchorXY :: (Int, Int) -- ^ x+y coordinates of a cell used as
@@ -232,21 +247,6 @@ simpleAnchorXY (x, y) sz obj =
   , _anchObject = obj
   , _anchClientData = def
   }
-
-data GenericDrawing p g = Drawing
-    { _xdrAnchors :: [Anchor p g]
-    } deriving (Eq, Show, Generic)
-instance (NFData p, NFData g) => NFData (GenericDrawing p g)
-
--- See 20.5.2.35 "wsDr (Worksheet Drawing)" (p. 3176)
-type Drawing = GenericDrawing FileInfo ChartSpace
-
-type UnresolvedDrawing = GenericDrawing RefId RefId
-
-makeLenses ''Anchor
-makeLenses ''DrawingObject
-makeLenses ''BlipFillProperties
-makeLenses ''GenericDrawing
 
 {-------------------------------------------------------------------------------
   Default instances
