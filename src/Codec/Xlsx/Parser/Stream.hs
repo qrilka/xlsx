@@ -1,20 +1,80 @@
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE DerivingVia         #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE MultiWayIf          #-}
 {-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE StrictData          #-}
 {-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE DeriveAnyClass #-}
 
--- | Read .xlsx as a stream
+
+-- | Parse `.xlsx` using streams
+--
+-- The prime goal of this module was to be able to use stream processing
+-- capabilities of `conduit` library to be able to parse `.xlsx` files in
+-- constant memory. Below I explain why this is not possible.
+--
+-- A .xlsx file is essentially an archive with a bunch of .xml's underneath.
+--
+-- Here's a sample of how data looks internally:
+--
+-- ```
+-- .
+-- ├── [Content_Types].xml
+-- ├── _rels
+-- ├── docProps
+-- │   ├── app.xml
+-- │   └── core.xml
+-- └── xl
+--     ├── _rels
+--     │   └── workbook.xml.rels
+--     ├── calcChain.xml
+--     ├── sharedStrings.xml
+--     ├── styles.xml
+--     ├── theme
+--     │   └── theme1.xml
+--     ├── workbook.xml
+--     └── worksheets
+--         ├── sheet1.xml
+--         └── sheet2.xml
+-- ```
+--
+-- Here we mostly pay attention to `sharedStrings.xml` and `workesheets/` subdirectory.
+--
+-- The `sharedStrings.xml` file stores *all* the unique strings in all of the worksheets
+-- `.xlsx` file and all (actually not all, some of the numbers are not stored in shared
+-- strings table for reason I could find explanation for) strings are referenced from this
+-- shared strings table. This is used mostly to safe space and causes a problem for us to
+-- use conduits in first place, since to be able to parse sheets we have to store this table
+-- in memory which does not agree with our only requirement.
+--
+-- The parsing is then separated to two stages:
+--
+--   1. We parse shared string table in `parseSharedStringsC` conduit and collect entries
+--      using strict state monad. This is done that way because `xml-types` library uses
+--      eventful approach on separating xml structures.
+--   2. We parse the sheets using shared string table that is loaded onto memory in
+--      `readXlsxWithSharedStringMapC`.
+--
+-- Well, actually we do not parse things in this module, just construct conduit for it,
+-- for the example usage of this parser please refer to `benchmarks/Stream.hs` file.
+--
 module Codec.Xlsx.Parser.Stream
-  ( readXlsx
-  , readXlsxWithState
+  ( readXlsxC
+  , readXlsxWithSharedStringMapC
   , SheetItem(..)
-  , parseSharedStrings
-  , parseStringsIntoMap
+  , parseSharedStringsC
+  , parseSharedStringsIntoMapC
   , CellRow
   , si_sheet
   , si_row_index
@@ -24,114 +84,118 @@ module Codec.Xlsx.Parser.Stream
 import           Codec.Archive.Zip.Conduit.UnZip
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
-import           Conduit                         (PrimMonad, await,
-                                                  yield, (.|))
+import           Conduit                         (PrimMonad, await, yield, (.|))
 import qualified Conduit                         as C
 import           Control.Lens
+import           Control.Monad.Catch
 import           Control.Monad.Except
-import           Control.Monad.State.Lazy
+import           Control.Monad.State.Strict
 import           Data.Bifunctor
 import qualified Data.ByteString                 as BS
 import           Data.Conduit                    (ConduitT)
 import qualified Data.Conduit.Combinators        as C
 import           Data.Foldable
-import           Data.Map                        (Map)
-import qualified Data.Map                        as Map
+import           Data.Map.Strict                 (Map)
+import qualified Data.Map.Strict                 as Map
 import           Data.Text                       (Text)
 import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
 import           Data.XML.Types
+import           Debug.Trace
+import           GHC.Generics
+import           NoThunks.Class
 import           Text.Read
 import           Text.XML.Stream.Parse
-import Control.Monad.Catch
 
--- TODO NonNull
 type CellRow = Map Int Cell
 
+-- | Sheet item
+--
+-- The current sheet at a time, every sheet is constructed of these items.
 data SheetItem = MkSheetItem
-  { _si_sheet     :: Text
-  , _si_row_index :: Int
-  , _si_cell_row  :: CellRow
-  } deriving Show
+  { _si_sheet     :: Text      -- ^ Name of the sheet
+  , _si_row_index :: Int       -- ^ Row number
+  , _si_cell_row  :: ~CellRow  -- ^ Row itself
+  } deriving stock (Generic, Show)
 makeLenses 'MkSheetItem
 
+deriving via AllowThunksIn
+  '[ "_si_cell_row"
+   ] SheetItem
+  instance NoThunks SheetItem
+
+-- | File tags that we match with zip entries to be able to separate them and use needed
 -- http://officeopenxml.com/anatomyofOOXML-xlsx.php
-data PsFiles =
-             -- | Files that are encountered in the workbook but not part
-             --   of this sumtype get this tag. They are then ignored.
-              UnkownFile Text
-             -- | files with actual data (rows and cells)
-             | Sheet Text
-             -- | Initial state, unrelated to excell format
-             | InitialNoFile
-              -- | stores strings which are replaced by id's in sheet to save space
-             | SharedStrings
+data PsFileTag =
+              Ignored Text    -- ^ Files that appear in workbook, but get ignored
+             | Sheet Text     -- ^ Sheet itself
+             | InitialNoFile  -- ^ Initial state, not related to excel files and hence should be moved to some other data
+             | SharedStrings  -- ^ Shared strings file
              | Styles
-              -- | contains the names in the tabs and some internal id
-             | Workbook
+             | Workbook       -- ^ Contains names of the tabs and shared string ids
              | ContentTypes
              | Relationships
-              -- | contains relations ship between internal id and path
-             | SheetRel Text
-  deriving Show
+             | FormulaChain   -- ^ Contains all the formulas in the sheet
+             | SheetRel Text  -- ^ Contains relations between internal ids and paths
+  deriving stock (Generic, Show)
+  deriving anyclass NoThunks
 
-makePrisms ''PsFiles
+makePrisms ''PsFileTag
 
-decodeFiles :: Text -> PsFiles
-decodeFiles = \case
-  "xl/sharedStrings.xml" -> SharedStrings
-  "xl/styles.xml"        -> Styles
-  "xl/workbook.xml"      -> Workbook
-  "[Content_Types].xml"  -> ContentTypes
-  "_rels/.rels"          -> Relationships
-  unkown                 -> let
-      ws = "xl/worksheets/"
-      wsL = Text.length ws
-    in
-    if Text.take wsL unkown == ws then
-      let
-        known = Text.drop wsL unkown
-        rel = "_rels/"
-        relL = Text.length rel
-      in
-        if Text.take relL known == rel then
-          SheetRel $ Text.drop relL known
-        else
-          Sheet known
-      else UnkownFile unkown
+type SharedStringMap = Map Int Text
 
-data TVal = T_S -- ^ string
-          | T_N -- ^ number
-          | T_B -- ^ boolean
+-- | Type of the excel value
+--
+-- Note: Some values are untyped and rules of their type resolution are not known.
+-- They may be treated simply as strings as well as they may be context-dependent.
+-- By far we do not bother with it.
+data ExcelValueType
+  = T_S -- ^ string
+  | T_N -- ^ number
+  | T_B -- ^ boolean
+  | Untyped -- ^ Not all values are types
+  deriving stock (Generic, Show)
+  deriving anyclass NoThunks
 
-
+-- | State for parsing sheets
 data SheetState = MkSheetState
-  { _ps_file           :: PsFiles
-  , _ps_row            :: CellRow
-  , _ps_sheet_name     :: Text
-  , _ps_cell_row_index :: Int
-  , _ps_cell_col_index :: Int
-  , _ps_is_in_val      :: Bool
-  , _ps_shared_strings :: Map Int Text
-  , _ps_t              :: TVal -- the last detected value
-  }
+  { _ps_file           :: PsFileTag       -- ^ File tag that we associate from `tagFilesC`
+  , _ps_row            :: ~CellRow        -- ^ Current row
+  , _ps_sheet_name     :: Text            -- ^ Current sheet name
+  , _ps_cell_row_index :: Int             -- ^ Current row number
+  , _ps_cell_col_index :: Int             -- ^ Current column number
+  , _ps_is_in_val      :: Bool            -- ^ Flag for indexing wheter the parser is in value or not
+  , _ps_shared_strings :: SharedStringMap -- ^ Shared string map
+  , _ps_type           :: ExcelValueType  -- ^ The last detected value type
+  } deriving stock (Generic, Show)
 makeLenses 'MkSheetState
 
+deriving via AllowThunksIn
+  '[ "_ps_row"
+   ] SheetState
+  instance NoThunks SheetState
+
+-- | State for parsing shared strings
 data SharedStringState = MkSharedStringState
-  { _ss_file           :: PsFiles
-  , _ss_shared_ix      :: Int -- int is okay, because bigger then int blows up memory anyway
-  , _ss_string         :: Text
-  } deriving Show
+  { _ss_file      :: PsFileTag -- ^ File tag of the current file we are in
+  , _ss_shared_ix :: Int       -- ^ Id of a shared string, int is okay, because bigger int blows up memory anyway
+  , _ss_string    :: Text      -- ^ String we are parsing
+  } deriving stock (Generic, Show)
+    deriving anyclass NoThunks
 makeLenses 'MkSharedStringState
 
+type HasSheetState = MonadState SheetState
+type HasSharedStringState = MonadState SharedStringState
+
 class HasPSFiles a where
-  fileLens :: Lens' a PsFiles
+  fileLens :: Lens' a PsFileTag
 
 instance HasPSFiles SheetState where
   fileLens = ps_file
 instance HasPSFiles SharedStringState where
   fileLens = ss_file
 
+-- | Initial parsing state
 initialSheetState :: SheetState
 initialSheetState = MkSheetState
   { _ps_file            = InitialNoFile
@@ -141,9 +205,10 @@ initialSheetState = MkSheetState
   , _ps_cell_col_index  = 0
   , _ps_is_in_val       = False
   , _ps_shared_strings  = mempty
-  , _ps_t               = T_S
+  , _ps_type            = Untyped
   }
 
+-- | Initial parsing state
 initialSharedString :: SharedStringState
 initialSharedString = MkSharedStringState
   { _ss_file            = InitialNoFile
@@ -151,222 +216,330 @@ initialSharedString = MkSharedStringState
   , _ss_string          = mempty
   }
 
-parseSharedStrings :: forall m . MonadThrow m
-  => PrimMonad m
+-- | Classify zip entries
+getFileTag :: Text -> PsFileTag
+getFileTag = \case
+  "xl/sharedStrings.xml" -> SharedStrings
+  "xl/styles.xml"        -> Styles
+  "xl/workbook.xml"      -> Workbook
+  "xl/calcChain.xml"     -> FormulaChain
+  "[Content_Types].xml"  -> ContentTypes
+  "_rels/.rels"          -> Relationships
+  unknown
+    | ws `Text.isPrefixOf` unknown ->
+      let unknown' = Text.drop (Text.length ws) unknown
+      in if
+      | rel `Text.isPrefixOf` unknown' ->
+        SheetRel $ Text.drop (Text.length rel) unknown'
+      | otherwise -> Sheet unknown'
+    | otherwise -> Ignored unknown
+  where
+    ws = "xl/worksheets"
+    rel = "_rels/"
+
+-- | Conduit for parsing shared strings
+--
+-- This is essentially parsing a zip stream with each entry stored as bytestring
+-- that we tag before proceeding with parsing the elements.
+parseSharedStringsC
+  :: ( MonadThrow m
+     , PrimMonad m
+     )
   => ConduitT BS.ByteString (Int, Text) m ()
-parseSharedStrings = (() <$ unZipStream)
-          .| (C.evalStateLC initialSharedString $
-             (await >>= tagFiles)
-              .| C.filterM (const $ has _SharedStrings <$> use fileLens)
-              .| parseBytes def
-              .| C.concatMapM parseString
-             )
+parseSharedStringsC = (() <$ unZipStream) .| C.evalStateLC initialSharedString go
+  where
+    go = (await >>= tagFilesC)
+         .| C.filterM (const $ has _SharedStrings <$> use fileLens)
+         .| parseBytes def
+         .| C.concatMapM parseSharedString
 
-parseStringsIntoMap :: forall m . MonadThrow m
-  => PrimMonad m
+-- | Conduit that returns shared strings map
+--
+-- This is used mostly for testing.
+parseSharedStringsIntoMapC
+  :: ( MonadThrow m
+     , PrimMonad m
+     )
   => ConduitT BS.ByteString C.Void m (Map Int Text)
-parseStringsIntoMap = parseSharedStrings .| C.foldMap (uncurry Map.singleton)
+parseSharedStringsIntoMapC = parseSharedStringsC .| C.foldMap (uncurry Map.singleton)
 
-parseString :: MonadThrow m
-  => MonadState SharedStringState m
+-- | Parse shared string entry from xml event and return it once
+-- we've reached the end of given element
+parseSharedString
+  :: ( MonadThrow m
+     , HasSharedStringState m
+     )
   => Event -> m (Maybe (Int, Text))
-parseString = \case
-  EventBeginElement Name {nameLocalName = "t", ..} _ -> Nothing <$ (ss_string .= "")
-  EventEndElement Name {nameLocalName = "t", ..} -> do
-    idx <- use ss_shared_ix
+parseSharedString = \case
+  EventBeginElement Name {nameLocalName = "t"} _ -> Nothing <$ (ss_string .= "")
+  EventEndElement Name {nameLocalName = "t"} -> do
+    !idx <- use ss_shared_ix
     ss_shared_ix += 1
-    txt <- use ss_string
+    !txt <- use ss_string
     pure $ Just (idx, txt)
   EventContent (ContentText txt) -> Nothing <$ (ss_string <>= txt)
   _ -> pure Nothing
 
-
--- TODO figure out how to allow user to lookup shared string instead
--- of always reading into memory.
-readXlsxWithState :: forall m . MonadThrow m
-  => PrimMonad m
-  => Map Int Text -> ConduitT BS.ByteString SheetItem m ()
-readXlsxWithState sstate =
-      (() <$ unZipStream)
-      .| (C.evalStateLC initial $ (await >>= tagFiles)
-      .| C.filterM (const $ not . has _UnkownFile <$> use fileLens)
-      .| parseBytes def
-      .| parseFiles)
+-- | Parse sheet with shared strings map provided
+--
+-- This is essentially parsing of a zip stream in which we ignore all unrecognised
+-- files, literally just parsing `worksheets/*.xml` here.
+readXlsxWithSharedStringMapC
+  :: ( MonadThrow m
+     , PrimMonad m
+     )
+  => SharedStringMap
+  -> ConduitT BS.ByteString SheetItem m ()
+readXlsxWithSharedStringMapC sstate = (() <$ unZipStream) .| C.evalStateLC initial parseFileCState
     where
+      parseFileCState = (await >>= tagFilesC)
+        .| C.filterM (const $ not . has _Ignored <$> use fileLens)
+        .| parseBytes def
+        .| parseFileC
       initial = set ps_shared_strings sstate initialSheetState
 
+-- | Parse xlsx file from a bytestring
+--
+-- This first reads the shared string table, then it provides another conduit
+-- for parsing the rest of the data. Reading happens twice. All shared strings
+-- are stored into memory wrapped in state monad.
+readXlsxC
+  :: ( MonadThrow m
+     , PrimMonad m
+     )
+  => ConduitT () BS.ByteString m ()
+  -> m (ConduitT () SheetItem m ())
+readXlsxC input = do
+    ssState <- C.runConduit $
+         input
+      .| parseSharedStringsC
+      .| C.foldMap (uncurry Map.singleton)
+    pure $
+         input
+      .| readXlsxWithSharedStringMapC ssState
 
--- | first reads the share string table, then provides another conuit to be run again for the remaining data.
---   reading happens twice. All shared strings will be read into memory.
-readXlsx ::
-  forall m . MonadThrow m
-  => PrimMonad m
-  => ConduitT () BS.ByteString m () -> m (ConduitT () SheetItem m ())
-readXlsx input = do
-    ssState <- C.runConduit $ input .| parseSharedStrings .| C.foldMap (uncurry Map.singleton)
-    pure $ input .| readXlsxWithState ssState
-
--- | there are various files in the excell file, which is a glorified zip folder
--- here we tag them with things we know, and push it into the state monad.
--- we need a state monad to make the excell parsing conduit to function
-tagFiles ::
-  HasPSFiles env
-  => MonadState env m
-  => MonadThrow m
-  => Maybe (Either ZipEntry BS.ByteString) -> ConduitT (Either ZipEntry BS.ByteString) BS.ByteString m ()
-tagFiles = \case
+-- | Tag zip entries with `PsFileTags`
+--
+-- Essentiall `.xlsx` file is a zip archive with bunch of `.xml`s stored
+-- inside. This conduit ensures that we recognise all the needed files to
+-- work with later. All of the tags are pushed in a state monad.
+tagFilesC
+  :: ( HasPSFiles env
+     , MonadState env m
+     , MonadThrow m
+     )
+  => Maybe (Either ZipEntry BS.ByteString)
+  -> ConduitT (Either ZipEntry BS.ByteString) BS.ByteString m ()
+tagFilesC = \case
   Just (Left zipEntry) -> do
-   let filePath = either id Text.decodeUtf8 (zipEntryName zipEntry)
-   fileLens .= decodeFiles filePath
-   await >>= tagFiles
+   let !filePath = either id Text.decodeUtf8 (zipEntryName zipEntry)
+   fileLens .= getFileTag filePath
+   await >>= tagFilesC
   Just (Right fdata) -> do
-   yield fdata
-   await >>= tagFiles
+    -- strange behaviour indeed, why it does not await already yielded data?
+    yield fdata
+    await >>= tagFilesC
   Nothing -> pure ()
 
-parseFiles ::
-   MonadThrow m
-  => MonadState SheetState m
-  => ConduitT Event SheetItem  m ()
-parseFiles = await >>= parseFileLoop
+-- | Parse a xml event
+parseFileC
+  :: ( MonadThrow m
+     , HasSheetState m
+     )
+  => ConduitT Event SheetItem m ()
+parseFileC = await >>= parseEventLoop
+  where
+    parseEventLoop
+      :: ( MonadThrow m
+         , HasSheetState m
+         )
+      => Maybe Event
+      -> ConduitT Event SheetItem m ()
+    parseEventLoop = \case
+      Nothing -> pure ()
+      Just evt -> use fileLens >>= \case
+        Sheet name -> parseSheetC evt name
+        _          -> await >>= parseEventLoop
 
--- we significantly
-parseFileLoop ::
-   MonadThrow m
-  => MonadState SheetState m
-  => Maybe Event
-  -> ConduitT Event SheetItem  m ()
-parseFileLoop = \case
-  Nothing -> pure ()
-  Just evt -> do
-    file <- use ps_file
-    case file of
-      Sheet name -> parseSheet evt name
-      _          -> await >>= parseFileLoop
+-- | Parse sheet
+--
+-- We extract previous sheet name from the state and as well
+-- as a current row index. If we're still in the same sheet
+-- then we're returning currently stored row.
+-- If we're on a different sheet, then parse the event and
+-- return newly generated sheet item.
+parseSheetC
+  :: ( MonadThrow m
+     , HasSheetState m
+     )
+  => Event
+  -> Text
+  -> ConduitT Event SheetItem m ()
+parseSheetC event name = do
+  prevSheetName <- use ps_sheet_name
+  rix <- use ps_cell_row_index
+  unless (prevSheetName == name) $
+    popRow >>= yieldSheetItem name rix
 
-parseSheet ::
-   MonadThrow m
-  => MonadState SheetState m
-  => Event -> Text -> ConduitT Event SheetItem m ()
-parseSheet evt name = do
-        prevSheetName <- use ps_sheet_name
-        rix <- use ps_cell_row_index
-        unless (prevSheetName == name) $ do
-          ps_sheet_name .= name
-          popRow >>= yieldSheetItem name rix
+  parseRes <- runExceptT $ matchEvent name event
+  rix' <- use ps_cell_row_index
+  case parseRes of
+    Left err -> C.throwM err
+    Right mResult -> do
+      traverse_ (yieldSheetItem name rix') mResult
+      parseFileC
 
-        parseRes <- runExceptT $ matchEvent name evt
-        rix' <- use ps_cell_row_index
-        case parseRes of
-          Left err -> C.throwM err
-          Right mResult -> do
-            traverse_ (yieldSheetItem name rix') mResult
-            await >>= parseFileLoop
-
-yieldSheetItem :: MonadThrow m
-  => Text -> Int -> CellRow ->  ConduitT Event SheetItem m ()
+-- | `SheetItem` constructor
+yieldSheetItem
+  :: MonadThrow m
+  => Text
+  -> Int
+  -> CellRow
+  -> ConduitT Event SheetItem m ()
 yieldSheetItem name rix' row =
-  unless (row == mempty) $ yield $ MkSheetItem name rix' row
+  unless (row == mempty) $ yield (MkSheetItem name rix' row)
 
-popRow :: MonadState SheetState m => m CellRow
+-- | Return row from the state and empty it
+popRow :: HasSheetState m => m CellRow
 popRow = do
   row <- use ps_row
   ps_row .= mempty
   pure row
 
-data AddCellErrors = ReadError String
-                   | SharedStringNotFound Int (Map Int Text)
-                   deriving Show
+data AddCellErrors
+  = ReadError String                        -- ^ Could not read current cell value
+  | SharedStringNotFound Int (Map Int Text) -- ^ Could not find string by index in shared string table
+  deriving Show
 
-parseValue :: Map Int Text -> Text -> TVal -> Either AddCellErrors CellValue
+-- | Parse the given value
+--
+-- If it's a string, we try to get it our of a shared string table
+parseValue :: SharedStringMap -> Text -> ExcelValueType -> Either AddCellErrors CellValue
 parseValue sstrings txt = \case
   T_S -> do
     (idx :: Int) <- first ReadError $ readEither $ Text.unpack txt
-    string <- maybe (Left $ SharedStringNotFound idx sstrings) Right $ sstrings ^? ix idx
+    string <- maybe (Left $ SharedStringNotFound idx sstrings) Right $ sstrings ^? ix idx -- TODO: are all strings shared?
     Right $ CellText string
   T_N -> bimap ReadError CellDouble $ readEither $ Text.unpack txt
   T_B -> bimap ReadError CellBool $ readEither $ Text.unpack txt
+  Untyped -> Right (parseUntypedValue txt)
 
-addCell :: MonadError SheetErrors m => MonadState SheetState m => Text -> m ()
-addCell txt = do
-   inVal <- use ps_is_in_val
-   when inVal $ do
-      type' <- use ps_t
-      sstrings <- use ps_shared_strings
-      val <- liftEither $ first MkCell $ parseValue sstrings txt type'
+-- TODO: some of the cells are untyped and we need to test whether
+-- they all are strings or something more complicated
+parseUntypedValue :: Text -> CellValue
+parseUntypedValue = CellText
 
-      col <- use ps_cell_col_index
-      ps_row <>= (Map.singleton col $ Cell
-        { _cellStyle   = Nothing
-        , _cellValue   = Just val
-        , _cellComment = Nothing
-        , _cellFormula = Nothing
-        })
+-- | Adds a cell to row in state monad
+addCellToRow
+  :: ( MonadError SheetErrors m
+     , HasSheetState m
+     )
+  => Text -> m ()
+addCellToRow txt = do
+  inVal <- use ps_is_in_val
+  when inVal $ do
+    type' <- use ps_type
+    sstrings <- use ps_shared_strings
+    val <- liftEither $ first ParseCellError $ parseValue sstrings txt type'
 
+    col <- use ps_cell_col_index
+    ps_row <>= (Map.singleton col $ Cell
+      { _cellStyle   = Nothing
+      , _cellValue   = Just val
+      , _cellComment = Nothing
+      , _cellFormula = Nothing
+      })
 
-data SheetErrors = MkCoordinate CoordinateErrors
-                 | MkType TypeError
-                 | MkCell AddCellErrors
+data SheetErrors
+  = ParseCoordinateError CoordinateErrors -- ^ Error while parsing coordinates
+  | ParseTypeError TypeError              -- ^ Error while parsing types
+  | ParseCellError AddCellErrors          -- ^ Error while parsing cells
+  deriving stock Show
+  deriving anyclass Exception
 
-  deriving (Show, Exception)
+type SheetValue = (Name, [Content])
+type SheetValues = [SheetValue]
 
+data CoordinateErrors
+  = CoordinateNotFound SheetValues         -- ^ If the coordinate was not specified in "r" attribute
+  | NoListElement SheetValue SheetValues   -- ^ If the value is empty for some reason
+  | NoTextContent Content SheetValues      -- ^ If the value has something besides `ContentText` inside
+  | DecodeFailure Text SheetValues         -- ^ If malformed coordinate text was passed
+  deriving stock Show
+  deriving anyclass Exception
 
-data CoordinateErrors = CoordinateNotFound [(Name, [Content])]
-                      | NoListElement (Name, [Content]) [(Name, [Content])]
-                      | NoTextContent Content [(Name, [Content])]
-                      | DecodeFailure Text [(Name, [Content])]
+data TypeError
+  = TypeNotFound SheetValues
+  | TypeNoListElement SheetValue SheetValues
+  | UnkownType Text SheetValues
+  | TypeNoTextContent Content SheetValues
   deriving Show
-
-data TypeError = TypeNotFound [(Name, [Content])]
-              | TypeNoListElement (Name, [Content]) [(Name, [Content])]
-              | UnkownType Text [(Name, [Content])]
-              | TypeNoTextContent Content [(Name, [Content])]
-              deriving Show
+  deriving anyclass Exception
 
 contentTextPrims :: Prism' Content Text
 contentTextPrims = prism' ContentText (\case ContentText x -> Just x
-                                             _ -> Nothing)
+                                             _             -> Nothing)
 
-setCoord :: MonadError SheetErrors m => MonadState SheetState m => [(Name, [Content])] -> m ()
+-- | Update state coordinates accordingly to `parseCoordinates`
+setCoord
+  :: ( MonadError SheetErrors m
+     , HasSheetState m
+     )
+  => SheetValues -> m ()
 setCoord list = do
-  coordinates <- liftEither $ first MkCoordinate $ parseCoordinates list
+  coordinates <- liftEither $ first ParseCoordinateError $ parseCoordinates list
   ps_cell_col_index .= (coordinates ^. _2)
   ps_cell_row_index .= (coordinates ^. _1)
 
-setType :: MonadError SheetErrors m => MonadState SheetState m => [(Name, [Content])] -> m ()
+-- | Parse type from values and update state accordingly
+setType
+  :: ( MonadError SheetErrors m
+     , HasSheetState m
+     )
+  => SheetValues -> m ()
 setType list = do
-  type' <- liftEither $ first MkType $ parseType list
-  ps_t .= type'
+  type' <- liftEither $ first ParseTypeError $ parseType list
+  ps_type .= type'
 
-findName :: Text -> [(Name, [Content])] -> Maybe (Name, [Content])
+-- | Find sheet value by its name
+findName :: Text -> SheetValues -> Maybe SheetValue
 findName name = find ((name ==) . nameLocalName . fst)
 
-parseType :: [(Name, [Content])] -> Either TypeError TVal
-parseType list = do
-    nameValPair <- maybe (Left (TypeNotFound list)) Right $ findName "t" list
-    valContent <- maybe (Left $ TypeNoListElement nameValPair list) Right $  nameValPair ^? _2 . ix 0
-    valText <- maybe (Left $ TypeNoTextContent valContent list) Right $ valContent ^? contentTextPrims
-    case valText of
-      "n"   -> Right T_N
-      "s"   -> Right T_S
-      "b"   -> Right T_S
-      other -> Left $ UnkownType other list
+-- | Parse value type
+parseType :: SheetValues -> Either TypeError ExcelValueType
+parseType list =
+  case findName "t" list of
+    Nothing -> pure Untyped
+    Just nameValPair -> do
+      valContent <- maybe (Left $ TypeNoListElement nameValPair list) Right $  nameValPair ^? _2 . ix 0
+      valText    <- maybe (Left $ TypeNoTextContent valContent list)  Right $ valContent ^? contentTextPrims
+      case valText of
+        "n"   -> Right T_N
+        "s"   -> Right T_S
+        "b"   -> Right T_S
+        other -> Left $ UnkownType other list
 
-parseCoordinates :: [(Name, [Content])] -> Either CoordinateErrors (Int, Int)
+-- | Parse coordinates from a list of xml elements if such were found on "r" key
+parseCoordinates :: SheetValues -> Either CoordinateErrors (Int, Int)
 parseCoordinates list = do
-      nameValPair <- maybe (Left $ CoordinateNotFound list) Right $ findName "r" list
-      valContent <- maybe (Left $ NoListElement nameValPair list) Right $  nameValPair ^? _2 . ix 0
-      valText <- maybe (Left $ NoTextContent valContent list) Right $ valContent ^? contentTextPrims
+      nameValPair <- maybe (Left $ CoordinateNotFound list)        Right $ findName "r" list
+      valContent  <- maybe (Left $ NoListElement nameValPair list) Right $ nameValPair ^? _2 . ix 0
+      valText     <- maybe (Left $ NoTextContent valContent list)  Right $ valContent ^? contentTextPrims
       maybe (Left $ DecodeFailure valText list) Right $ fromSingleCellRef $ CellRef valText
 
-matchEvent :: MonadError SheetErrors m => MonadState SheetState m => Text -> Event -> m (Maybe CellRow)
+-- | Update state accordingly the xml event given, basically parse a xml and return row
+-- if we've ended parsing.
+-- (I wish xml docs were more elaborate on their structures)
+matchEvent
+  :: ( MonadError SheetErrors m
+     , HasSheetState m
+     )
+  => Text -> Event -> m (Maybe CellRow)
 matchEvent _currentSheet = \case
-  EventContent (ContentText txt)                       -> Nothing <$ addCell txt
-  EventBeginElement Name{nameLocalName = "c", ..} vals  -> Nothing <$ (setCoord vals >> setType vals)
-  EventBeginElement Name {nameLocalName = "v"} _       -> Nothing <$ (ps_is_in_val .= True)
-  EventEndElement Name {nameLocalName = "v"}           -> Nothing <$ (ps_is_in_val .= False)
-  -- EventBeginElement Name {nameLocalName = "c"} _    -> Nothing <$ ps_is_in_cell .= True
-  -- EventEndElement Name {nameLocalName = "c"}        -> Nothing <$ ps_is_in_cell .= False
-  EventBeginElement Name {nameLocalName = "row"} _     -> Nothing <$ popRow
-  EventEndElement Name{nameLocalName = "row", ..}       -> Just <$> popRow
-  _ -> pure Nothing
+  EventContent (ContentText txt)                    -> Nothing <$ addCellToRow txt
+  EventBeginElement Name{nameLocalName = "c"} vals  -> Nothing <$ (setCoord vals >> setType vals)
+  EventBeginElement Name {nameLocalName = "v"} _    -> Nothing <$ (ps_is_in_val .= True)
+  EventEndElement Name {nameLocalName = "v"}        -> Nothing <$ (ps_is_in_val .= False)
+  EventBeginElement Name {nameLocalName = "row"} _  -> Nothing <$ popRow
+  EventEndElement Name{nameLocalName = "row"}       -> Just <$> popRow
+  _                                                 -> pure Nothing
