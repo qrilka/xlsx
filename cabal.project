@@ -1,3 +1,0 @@
-packages: xlsx.cabal 
-with-compiler: ghc-8.8.4
-optimization: 2

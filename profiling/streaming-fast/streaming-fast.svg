@@ -1,0 +1,522 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="278" onload="init(evt)" viewBox="0 0 1200 278" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs >
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	.func_g:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	var details, searchbtn, matchedtxt, svg;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+	}
+
+	// mouse-over for info
+	function s(node) {		// show
+		info = g_to_text(node);
+		details.nodeValue = "Function: " + info;
+	}
+	function c() {			// clear
+		details.nodeValue = ' ';
+	}
+
+	// ctrl-F for search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+	})
+
+	// functions
+	function find_child(parent, name, attr) {
+		var children = parent.childNodes;
+		for (var i=0; i<children.length;i++) {
+			if (children[i].tagName == name)
+				return (attr != undefined) ? children[i].attributes[attr].value : children[i];
+		}
+		return;
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_"+attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_"+attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_"+attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes["width"].value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes["x"].value = parseFloat(r.attributes["x"].value) +3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2*12*0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		// Fit in full text width
+		if (/^ *$/.test(txt) || t.getSubStringLength(0, txt.length) < w)
+			return;
+
+		for (var x=txt.length-2; x>0; x--) {
+			if (t.getSubStringLength(0, x+2) <= w) {
+				t.textContent = txt.substring(0,x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for(var i=0, c=e.childNodes; i<c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes["x"] != undefined) {
+				orig_save(e, "x");
+				e.attributes["x"].value = (parseFloat(e.attributes["x"].value) - x - 10) * ratio + 10;
+				if(e.tagName == "text") e.attributes["x"].value = find_child(e.parentNode, "rect", "x") + 3;
+			}
+			if (e.attributes["width"] != undefined) {
+				orig_save(e, "width");
+				e.attributes["width"].value = parseFloat(e.attributes["width"].value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for(var i=0, c=e.childNodes; i<c.length; i++) {
+			zoom_child(c[i], x-10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes["x"] != undefined) {
+				orig_save(e, "x");
+				e.attributes["x"].value = 10;
+			}
+			if (e.attributes["width"] != undefined) {
+				orig_save(e, "width");
+				e.attributes["width"].value = parseInt(svg.width.baseVal.value) - (10*2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for(var i=0, c=e.childNodes; i<c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr["width"].value);
+		var xmin = parseFloat(attr["x"].value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr["y"].value);
+		var ratio = (svg.width.baseVal.value - 2*10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		var unzoombtn = document.getElementById("unzoom");
+		unzoombtn.style["opacity"] = "1.0";
+
+		var el = document.getElementsByTagName("g");
+		for(var i=0;i<el.length;i++){
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a["x"].value);
+			var ew = parseFloat(a["width"].value);
+			// Is it an ancestor
+			if (0 == 0) {
+				var upstack = parseFloat(a["y"].value) > ymin;
+			} else {
+				var upstack = parseFloat(a["y"].value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.style["opacity"] = "0.5";
+					zoom_parent(e);
+					e.onclick = function(e){unzoom(); zoom(this);};
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.style["display"] = "none";
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.style["display"] = "none";
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					e.onclick = function(e){zoom(this);};
+					update_text(e);
+				}
+			}
+		}
+	}
+	function unzoom() {
+		var unzoombtn = document.getElementById("unzoom");
+		unzoombtn.style["opacity"] = "0.0";
+
+		var el = document.getElementsByTagName("g");
+		for(i=0;i<el.length;i++) {
+			el[i].style["display"] = "block";
+			el[i].style["opacity"] = "1";
+			zoom_reset(el[i]);
+			update_text(el[i]);
+		}
+	}
+
+	// search
+	function reset_search() {
+		var el = document.getElementsByTagName("rect");
+		for (var i=0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)", "");
+			if (term != null) {
+				search(term)
+			}
+		} else {
+			reset_search();
+			searching = 0;
+			searchbtn.style["opacity"] = "0.1";
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.style["opacity"] = "0.0";
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		var re = new RegExp(term);
+		var el = document.getElementsByTagName("g");
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			if (e.attributes["class"].value != "func_g")
+				continue;
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (rect == null) {
+				// the rect might be wrapped in an anchor
+				// if nameattr href is being used
+				if (rect = find_child(e, "a")) {
+				    rect = find_child(r, "rect");
+				}
+			}
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes["width"].value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes["x"].value);
+				orig_save(rect, "fill");
+				rect.attributes["fill"].value =
+				    "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+
+		searchbtn.style["opacity"] = "1.0";
+		searchbtn.firstChild.nodeValue = "Reset Search"
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.style["opacity"] = "1.0";
+		pct = 100 * count / maxwidth;
+		if (pct == 100)
+			pct = "100"
+		else
+			pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+	function searchover(e) {
+		searchbtn.style["opacity"] = "1.0";
+	}
+	function searchout(e) {
+		if (searching) {
+			searchbtn.style["opacity"] = "1.0";
+		} else {
+			searchbtn.style["opacity"] = "0.1";
+		}
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="278.0" fill="url(#background)"  />
+<text text-anchor="middle" x="600.00" y="24" font-size="17" font-family="Verdana" fill="rgb(0,0,0)"  >Flame Graph</text>
+<text text-anchor="" x="10.00" y="261" font-size="12" font-family="Verdana" fill="rgb(0,0,0)" id="details" > </text>
+<text text-anchor="" x="10.00" y="24" font-size="12" font-family="Verdana" fill="rgb(0,0,0)" id="unzoom" onclick="unzoom()" style="opacity:0.0;cursor:pointer" >Reset Zoom</text>
+<text text-anchor="" x="1090.00" y="24" font-size="12" font-family="Verdana" fill="rgb(0,0,0)" id="search" onmouseover="searchover()" onmouseout="searchout()" onclick="search_prompt()" style="opacity:0.1;cursor:pointer" >Search</text>
+<text text-anchor="" x="1090.00" y="261" font-size="12" font-family="Verdana" fill="rgb(0,0,0)" id="matched" > </text>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.maybeAttr (43 samples, 4.30%)</title><rect x="399.4" y="69" width="50.7" height="15.0" fill="rgb(213,99,2)" rx="2" ry="2" />
+<text text-anchor="" x="402.40" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>UNKNOWN (3 samples, 0.30%)</title><rect x="1186.5" y="213" width="3.5" height="15.0" fill="rgb(232,112,10)" rx="2" ry="2" />
+<text text-anchor="" x="1189.46" y="223.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.contentBs (66 samples, 6.60%)</title><rect x="263.7" y="85" width="77.9" height="15.0" fill="rgb(224,200,53)" rx="2" ry="2" />
+<text text-anchor="" x="266.70" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec.Xls..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Main.parseFileFast (994 samples, 99.40%)</title><rect x="13.5" y="181" width="1173.0" height="15.0" fill="rgb(243,128,6)" rx="2" ry="2" />
+<text text-anchor="" x="16.54" y="191.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Main.parseFileFast</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>GHC.IO.Encoding.Iconv.CAF (3 samples, 0.30%)</title><rect x="10.0" y="197" width="3.5" height="15.0" fill="rgb(215,22,44)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="207.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.toAttrParser (6 samples, 0.60%)</title><rect x="443.1" y="53" width="7.0" height="15.0" fill="rgb(217,75,21)" rx="2" ry="2" />
+<text text-anchor="" x="446.06" y="63.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Xeno.DOM.Internal.name (31 samples, 3.10%)</title><rect x="597.6" y="69" width="36.6" height="15.0" fill="rgb(250,19,49)" rx="2" ry="2" />
+<text text-anchor="" x="600.64" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Xen..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.fromAttrDef (46 samples, 4.60%)</title><rect x="395.9" y="85" width="54.2" height="15.0" fill="rgb(232,24,17)" rx="2" ry="2" />
+<text text-anchor="" x="398.86" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Archive.Zip.toArchiveOrFail (3 samples, 0.30%)</title><rect x="50.1" y="117" width="3.6" height="15.0" fill="rgb(225,14,47)" rx="2" ry="2" />
+<text text-anchor="" x="53.12" y="127.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.maybeAttr (81 samples, 8.10%)</title><rect x="450.1" y="85" width="95.6" height="15.0" fill="rgb(215,167,43)" rx="2" ry="2" />
+<text text-anchor="" x="453.14" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec.Xlsx...</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Xeno.DOM.Internal.contents (16 samples, 1.60%)</title><rect x="322.7" y="69" width="18.9" height="15.0" fill="rgb(246,47,4)" rx="2" ry="2" />
+<text text-anchor="" x="325.70" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Text.XML.parseLBS (3 samples, 0.30%)</title><rect x="995.3" y="117" width="3.5" height="15.0" fill="rgb(206,90,2)" rx="2" ry="2" />
+<text text-anchor="" x="998.30" y="127.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Types.Internal.SharedStringTable.sstItem (12 samples, 1.20%)</title><rect x="929.2" y="85" width="14.2" height="15.0" fill="rgb(207,29,23)" rx="2" ry="2" />
+<text text-anchor="" x="932.22" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>MAIN.MAIN (997 samples, 99.70%)</title><rect x="10.0" y="213" width="1176.5" height="15.0" fill="rgb(208,174,15)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="223.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >MAIN.MAIN</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Text.XML.Stream.Parse.detectUtf (3 samples, 0.30%)</title><rect x="995.3" y="69" width="3.5" height="15.0" fill="rgb(225,31,22)" rx="2" ry="2" />
+<text text-anchor="" x="998.30" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.parseAttributes (138 samples, 13.80%)</title><rect x="634.2" y="85" width="162.9" height="15.0" fill="rgb(212,132,15)" rx="2" ry="2" />
+<text text-anchor="" x="637.22" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec.Xlsx.Parser.Int..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Compression.Zlib.Internal.decompress (25 samples, 2.50%)</title><rect x="20.6" y="69" width="29.5" height="15.0" fill="rgb(237,9,10)" rx="2" ry="2" />
+<text text-anchor="" x="23.62" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Co..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Util.eitherDecimal (6 samples, 0.60%)</title><rect x="538.6" y="69" width="7.1" height="15.0" fill="rgb(225,185,32)" rx="2" ry="2" />
+<text text-anchor="" x="541.64" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.childList (31 samples, 3.10%)</title><rect x="227.1" y="85" width="36.6" height="15.0" fill="rgb(229,62,26)" rx="2" ry="2" />
+<text text-anchor="" x="230.12" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Cod..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Xeno.DOM.Internal.children (44 samples, 4.40%)</title><rect x="943.4" y="101" width="51.9" height="15.0" fill="rgb(232,70,5)" rx="2" ry="2" />
+<text text-anchor="" x="946.38" y="111.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Xeno...</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Util.eitherDecimal (112 samples, 11.20%)</title><rect x="797.1" y="85" width="132.1" height="15.0" fill="rgb(209,102,1)" rx="2" ry="2" />
+<text text-anchor="" x="800.06" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec.Xlsx.Parse..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Archive.Zip.fromEntry (25 samples, 2.50%)</title><rect x="20.6" y="117" width="29.5" height="15.0" fill="rgb(249,123,3)" rx="2" ry="2" />
+<text text-anchor="" x="23.62" y="127.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Co..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Main.main (994 samples, 99.40%)</title><rect x="13.5" y="197" width="1173.0" height="15.0" fill="rgb(211,152,40)" rx="2" ry="2" />
+<text text-anchor="" x="16.54" y="207.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Main.main</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.maybeAttrBs (34 samples, 3.40%)</title><rect x="345.1" y="69" width="40.1" height="15.0" fill="rgb(205,45,38)" rx="2" ry="2" />
+<text text-anchor="" x="348.12" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Cod..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.collectChildren (798 samples, 79.80%)</title><rect x="53.7" y="117" width="941.6" height="15.0" fill="rgb(224,19,43)" rx="2" ry="2" />
+<text text-anchor="" x="56.66" y="127.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec.Xlsx.Parser.Internal.Fast.collectChildren</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.maybeAttrBs (25 samples, 2.50%)</title><rect x="413.6" y="53" width="29.5" height="15.0" fill="rgb(250,186,16)" rx="2" ry="2" />
+<text text-anchor="" x="416.56" y="63.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Co..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Compression.Zlib.Stream.unsafeLiftIO (6 samples, 0.60%)</title><rect x="43.0" y="37" width="7.1" height="15.0" fill="rgb(212,181,30)" rx="2" ry="2" />
+<text text-anchor="" x="46.04" y="47.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.maybeChild (12 samples, 1.20%)</title><rect x="249.5" y="69" width="14.2" height="15.0" fill="rgb(249,208,24)" rx="2" ry="2" />
+<text text-anchor="" x="252.54" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Compression.Zlib.Raw.decompress (25 samples, 2.50%)</title><rect x="20.6" y="101" width="29.5" height="15.0" fill="rgb(251,9,34)" rx="2" ry="2" />
+<text text-anchor="" x="23.62" y="111.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Co..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.toAttrParser (9 samples, 0.90%)</title><rect x="385.2" y="69" width="10.7" height="15.0" fill="rgb(218,160,48)" rx="2" ry="2" />
+<text text-anchor="" x="388.24" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Compression.Zlib.Raw.decompressWith (25 samples, 2.50%)</title><rect x="20.6" y="85" width="29.5" height="15.0" fill="rgb(238,91,54)" rx="2" ry="2" />
+<text text-anchor="" x="23.62" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Co..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.requireAndParse (707 samples, 70.70%)</title><rect x="109.1" y="101" width="834.3" height="15.0" fill="rgb(253,200,38)" rx="2" ry="2" />
+<text text-anchor="" x="112.12" y="111.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec.Xlsx.Parser.Internal.Fast.requireAndParse</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.maybeAttrBs (31 samples, 3.10%)</title><rect x="502.1" y="69" width="36.5" height="15.0" fill="rgb(223,47,17)" rx="2" ry="2" />
+<text text-anchor="" x="505.06" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Cod..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Xeno.DOM.parse (159 samples, 15.90%)</title><rect x="998.8" y="117" width="187.7" height="15.0" fill="rgb(252,196,11)" rx="2" ry="2" />
+<text text-anchor="" x="1001.84" y="127.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Xeno.DOM.parse</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Compression.Zlib.Stream.runStream (25 samples, 2.50%)</title><rect x="20.6" y="53" width="29.5" height="15.0" fill="rgb(229,41,50)" rx="2" ry="2" />
+<text text-anchor="" x="23.62" y="63.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Co..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.toXlsxFast (994 samples, 99.40%)</title><rect x="13.5" y="149" width="1173.0" height="15.0" fill="rgb(236,184,33)" rx="2" ry="2" />
+<text text-anchor="" x="16.54" y="159.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec.Xlsx.Parser.toXlsxFast</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Text.XML.Stream.Parse.parseBytesPos (3 samples, 0.30%)</title><rect x="995.3" y="85" width="3.5" height="15.0" fill="rgb(246,205,39)" rx="2" ry="2" />
+<text text-anchor="" x="998.30" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Xeno.DOM.Internal.attributes (91 samples, 9.10%)</title><rect x="689.7" y="69" width="107.4" height="15.0" fill="rgb(222,174,14)" rx="2" ry="2" />
+<text text-anchor="" x="692.68" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Xeno.DOM.Inte..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.maybeChild (75 samples, 7.50%)</title><rect x="545.7" y="85" width="88.5" height="15.0" fill="rgb(243,100,22)" rx="2" ry="2" />
+<text text-anchor="" x="548.72" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec.Xlsx..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Text.XML.sinkDoc (3 samples, 0.30%)</title><rect x="995.3" y="101" width="3.5" height="15.0" fill="rgb(215,68,15)" rx="2" ry="2" />
+<text text-anchor="" x="998.30" y="111.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.Internal.Fast.fromAttr (46 samples, 4.60%)</title><rect x="341.6" y="85" width="54.3" height="15.0" fill="rgb(213,67,22)" rx="2" ry="2" />
+<text text-anchor="" x="344.58" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Main.parseFileFast.(...) (994 samples, 99.40%)</title><rect x="13.5" y="165" width="1173.0" height="15.0" fill="rgb(222,48,37)" rx="2" ry="2" />
+<text text-anchor="" x="16.54" y="175.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Main.parseFileFast.(...)</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Xlsx.Parser.toXlsxEitherFast (994 samples, 99.40%)</title><rect x="13.5" y="133" width="1173.0" height="15.0" fill="rgb(235,200,15)" rx="2" ry="2" />
+<text text-anchor="" x="16.54" y="143.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >Codec.Xlsx.Parser.toXlsxEitherFast</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Codec.Compression.Zlib.Stream.inflate (19 samples, 1.90%)</title><rect x="20.6" y="37" width="22.4" height="15.0" fill="rgb(250,96,5)" rx="2" ry="2" />
+<text text-anchor="" x="23.62" y="47.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >C..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>all (1,000 samples, 100%)</title><rect x="10.0" y="229" width="1180.0" height="15.0" fill="rgb(247,127,6)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="239.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>Xeno.DOM.Internal.name (3 samples, 0.30%)</title><rect x="260.2" y="53" width="3.5" height="15.0" fill="rgb(249,210,22)" rx="2" ry="2" />
+<text text-anchor="" x="263.16" y="63.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+</svg>
