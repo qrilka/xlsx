@@ -104,6 +104,7 @@ Library
                    , zip-stream   >= 0.2.0.1
                    , xml-types   
                    , exceptions
+                   , nothunks
   if flag(microlens)
     Build-depends:     microlens    >= 0.4 && < 0.5
                      , microlens-mtl
@@ -154,6 +155,7 @@ test-suite data-test
                , xlsx
                , xml-conduit >= 1.1.0
                , conduit
+               , filepath 
   if flag(microlens)
     Build-depends:     microlens    >= 0.4 && < 0.5
                      , microlens-mtl
@@ -176,13 +178,21 @@ benchmark bench
                , xlsx
   default-language: Haskell2010
 
-executable streamin
+executable streaming
   hs-source-dirs: benchmarks
   main-is: Stream.hs
+  -- ghc-options:
+  --   -threaded
+  --   -fprof-auto
+  --   -fprof-cafs
+  --   -eventlog
+  --   -prof 
+  --   "-with-rtsopts=-N -l -p -s -hT -i0.1 -K100M"
   build-depends: base
                , bytestring
                , criterion
                , xlsx
                , conduit
+               , containers
                , text
   default-language: Haskell2010

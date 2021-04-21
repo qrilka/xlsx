@@ -1,55 +1,51 @@
-{-# LANGUAGE CPP #-}
+-- {-# OPTIONS_GHC -F -pgmF tasty-discover #-}
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Main
   ( main
   ) where
 
-#ifdef USE_MICROLENS
-import Lens.Micro
-import Lens.Micro.Mtl
-#else
-import Control.Lens
-#endif
-import Control.Monad.State.Lazy
-import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy as LB
+import           Control.Lens
+import           Control.Monad.State.Lazy
+import           Data.ByteString.Lazy                        (ByteString)
+import qualified Data.ByteString.Lazy                        as LB
+import           Data.Map                                    (Map)
+import qualified Data.Map                                    as M
+import           Data.Time.Clock.POSIX                       (POSIXTime)
+import qualified Data.Vector                                 as V
 import qualified StreamTests
-import Data.Map (Map)
-import qualified Data.Map as M
-import Data.Time.Clock.POSIX (POSIXTime)
-import qualified Data.Vector as V
-import Text.RawString.QQ
-import Text.XML
+import           Text.RawString.QQ
+import           Text.XML
 
-import Test.Tasty (defaultMain, testGroup)
-import Test.Tasty.HUnit (testCase)
+import           Test.Tasty                                  (defaultMain,
+                                                              testGroup)
+import           Test.Tasty.HUnit                            (testCase)
 
-import Test.Tasty.HUnit ((@=?))
-import TestXlsx
+import           Test.Tasty.HUnit                            ((@=?))
+import           TestXlsx
 
-import Codec.Xlsx
-import Codec.Xlsx.Formatted
-import Codec.Xlsx.Types.Internal
-import Codec.Xlsx.Types.Internal.CommentTable
-import Codec.Xlsx.Types.Internal.CustomProperties
-       as CustomProperties
-import Codec.Xlsx.Types.Internal.SharedStringTable
+import           Codec.Xlsx
+import           Codec.Xlsx.Formatted
+import           Codec.Xlsx.Types.Internal
+import           Codec.Xlsx.Types.Internal.CommentTable
+import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
+import           Codec.Xlsx.Types.Internal.SharedStringTable
 
-import AutoFilterTests
-import Common
-import CommonTests
-import CondFmtTests
-import Diff
-import PivotTableTests
-import DrawingTests
+import           AutoFilterTests
+import           Common
+import           CommonTests
+import           CondFmtTests
+import           Diff
+import           DrawingTests
+import           PivotTableTests
 
 main :: IO ()
 main = defaultMain $
   testGroup "Tests"
-    [ testCase "write . read == id" $ do
+    [
+       testCase "write . read == id" $ do
         let bs = fromXlsx testTime testXlsx
         LB.writeFile "data-test.xlsx" bs
         testXlsx @==? toXlsx (fromXlsx testTime testXlsx)
