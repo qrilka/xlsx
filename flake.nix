@@ -28,9 +28,10 @@
 
         defaultPackage = self.packages.${system}.${packageName};
 
-        shell = pkgs.mkShell {
+        devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
             haskell-language-server
+            stylish-haskell
             ghcid
             zlib 
             cabal-install

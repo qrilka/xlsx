@@ -1,1 +1,1 @@
-(import ./.).shell."${builtins.currentSystem}"
+(import ./.).devShell."${builtins.currentSystem}"
