@@ -3,7 +3,6 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE DerivingStrategies  #-}
 {-# LANGUAGE DerivingVia         #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -17,18 +16,29 @@
 {-# LANGUAGE StrictData          #-}
 {-# LANGUAGE TemplateHaskell     #-}
 
-
--- | Parse `.xlsx` using streams
+-- |
+-- Module      : Codex.Xlsx.Parser.Stream
+-- Description : Stream parser for xlsx files
+-- Copyright   :
+--   (c) Jappie Klooster, 2021
+--   Adam, 2021
+-- License     : MIT
+-- Stability   : experimental
+-- Portability : POSIX
 --
+-- Parse @.xlsx@ using conduit streaming capabilities.
+--
+-- == Goal
 -- The prime goal of this module was to be able to use stream processing
--- capabilities of `conduit` library to be able to parse `.xlsx` files in
--- constant memory. Below I explain why this is not possible.
+-- capabilities of `conduit` library to be able to parse @.xlsx@ files in
+-- constant memory. Below I explain why this is problematic.
 --
--- A .xlsx file is essentially an archive with a bunch of .xml's underneath.
+-- == Implementation
+-- A @.xlsx@ file is essentially an archive with a bunch of @.xml@'s underneath.
 --
 -- Here's a sample of how data looks internally:
 --
--- ```
+-- @
 -- .
 -- ├── [Content_Types].xml
 -- ├── _rels
@@ -47,12 +57,12 @@
 --     └── worksheets
 --         ├── sheet1.xml
 --         └── sheet2.xml
--- ```
+-- @
 --
--- Here we mostly pay attention to `sharedStrings.xml` and `workesheets/` subdirectory.
+-- Here we mostly pay attention to @sharedStrings.xml@ and @workesheets/@ subdirectory.
 --
--- The `sharedStrings.xml` file stores *all* the unique strings in all of the worksheets
--- `.xlsx` file and all (actually not all, some of the numbers are not stored in shared
+-- The @sharedStrings.xml@ file stores all the unique strings in all of the worksheets
+-- @.xlsx@ file and all (actually not all, some of the numbers are not stored in shared
 -- strings table for reason I could find explanation for) strings are referenced from this
 -- shared strings table. This is used mostly to safe space and causes a problem for us to
 -- use conduits in first place, since to be able to parse sheets we have to store this table
@@ -60,22 +70,78 @@
 --
 -- The parsing is then separated to two stages:
 --
---   1. We parse shared string table in `parseSharedStringsC` conduit and collect entries
---      using strict state monad. This is done that way because `xml-types` library uses
+--   1. We parse shared string table in @parseSharedStringsC@ conduit and collect entries
+--      using strict state monad. This is done that way because @xml-types@ library uses
 --      eventful approach on separating xml structures.
 --   2. We parse the sheets using shared string table that is loaded onto memory in
---      `readXlsxWithSharedStringMapC`.
+--      @readXlsxWithSharedStringMapC@.
 --
 -- Well, actually we do not parse things in this module, just construct conduit for it,
--- for the example usage of this parser please refer to `benchmarks/Stream.hs` file.
+-- for the example usage of this parser you can refer to @benchmarks/Stream.hs@ file or read
+-- the subsection explaining its @parseFileStream@ below.
 --
+-- == How to use this parser
+--
+-- The starting point of parsing @.xlsx@ via conduits is `readXlsxC` parser.
+-- Basically what it does is that it constructs a conduit parser for some
+-- existing conduit (or sink if you prefer in this case) that produces `BS.ByteString`
+-- which is then passed to our parser conduits and wrapped into some @PrimMonad m@ monad.
+--
+-- Consider the type of conduits
+--
+-- @
+-- ConduitT a b m r
+--          ^------- The value conduit consumes
+--            ^------ The intermediate result that is passed to other conduits in the pipeline
+--              ^----- The base monad that tells what kind of effects we can perform with the value
+--                ^---- The result of the entire pipeline
+-- @
+--
+-- If you're doing it in @IO@ it could be simply invoked from @sourceFile@ that constructs
+-- the needed conduit from the source filepath it was given and later the conduit can be
+-- evaluated by calling @runResourceT@ that takes the given @ResourceT@
+-- (produced by `readXlsxC` function) and returns the value in base monad it was specified.
+--
+-- In types
+--
+-- @
+-- parseFileC :: FilePath -> IO ByteString
+-- parseFileC filePath = do
+--   (inputC :: ConduitT () SheetItem (ResourceT IO) ()) <-
+--       (sourceFile filepath :: ConduitT () ByteString (ResourceT IO) ())
+--        -- ^ Construct a conduit that returns @ByteString@ with @IO@ based effects
+--     & \s -> (readXlsxC s :: ResourceT IO (ConduitT () SheetItem (ResourceT IO) ()))
+--        -- ^ Construct a conduit that parses the given chunk of @ByteString@ value
+--        -- and parses it to @SheetItem@
+--     & \s -> (runResourceT s :: IO (ConduitT () SheetItem (ResourceT IO) ()))
+--        -- ^ This is needed because we want to allocate the needed resources and be able
+--        -- to safely clean up after
+--   res <-
+--         (parseConduit inputC :: ConduitT () Void (ResourceT IO) [SheetItem])
+--         -- ^ Construct a conduit that only returns resulting value out of the
+--         -- given @inputC@ conduit so that we can collect all the values it parses
+--       & \s -> (runConduit s :: ResourceT IO [SheetItem])
+--       & \s -> (runResourceT s :: IO [SheetItem])
+--   pure res
+--   where
+--     -- Fold all the intermediate results of the given conduit and
+--     -- return the conduit that only returns resulting value.
+--     parseConduit
+--       :: Monad m
+--       => ConduitM a SheetItem m () -> ConduitM () Void m [SheetItem]
+--
+-- @
+{-# LANGUAGE TypeApplications    #-}
 module Codec.Xlsx.Parser.Stream
-  ( readXlsxC
+  ( -- * Parsers
+    readXlsxC
   , readXlsxWithSharedStringMapC
-  , SheetItem(..)
   , parseSharedStringsC
   , parseSharedStringsIntoMapC
+  -- * Structs
   , CellRow
+  , SheetItem(..)
+  -- ** `SheetItem` lens
   , si_sheet
   , si_row_index
   , si_cell_row
@@ -100,6 +166,7 @@ import qualified Data.Map.Strict                 as Map
 import           Data.Text                       (Text)
 import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
+import qualified Data.Text.Read                  as Read
 import           Data.XML.Types
 import           Debug.Trace
 import           GHC.Generics
@@ -150,9 +217,10 @@ type SharedStringMap = Map Int Text
 -- They may be treated simply as strings as well as they may be context-dependent.
 -- By far we do not bother with it.
 data ExcelValueType
-  = T_S -- ^ string
-  | T_N -- ^ number
-  | T_B -- ^ boolean
+  = TS      -- ^ shared string
+  | TStr    -- ^ original string
+  | TN      -- ^ number
+  | TB      -- ^ boolean
   | Untyped -- ^ Not all values are types
   deriving stock (Generic, Show)
   deriving anyclass NoThunks
@@ -283,7 +351,7 @@ parseSharedString = \case
 -- | Parse sheet with shared strings map provided
 --
 -- This is essentially parsing of a zip stream in which we ignore all unrecognised
--- files, literally just parsing `worksheets/*.xml` here.
+-- files, literally just parsing @worksheets/*.xml@ here.
 readXlsxWithSharedStringMapC
   :: ( MonadThrow m
      , PrimMonad m
@@ -320,7 +388,7 @@ readXlsxC input = do
 
 -- | Tag zip entries with `PsFileTags`
 --
--- Essentiall `.xlsx` file is a zip archive with bunch of `.xml`s stored
+-- Essentiall @.xlsx@ file is a zip archive with bunch of @.xml@s stored
 -- inside. This conduit ensures that we recognise all the needed files to
 -- work with later. All of the tags are pushed in a state monad.
 tagFilesC
@@ -389,7 +457,7 @@ parseSheetC event name = do
       traverse_ (yieldSheetItem name rix') mResult
       parseFileC
 
--- | `SheetItem` constructor
+-- | @SheetItem@ constructor
 yieldSheetItem
   :: MonadThrow m
   => Text
@@ -407,8 +475,12 @@ popRow = do
   pure row
 
 data AddCellErrors
-  = ReadError String                        -- ^ Could not read current cell value
-  | SharedStringNotFound Int (Map Int Text) -- ^ Could not find string by index in shared string table
+  = ReadError -- ^ Could not read current cell value
+      Text    -- ^ Original value
+      String  -- ^ Error message
+  | SharedStringNotFound -- ^ Could not find string by index in shared string table
+      Int                -- ^ Given index
+      (Map Int Text)     -- ^ Given map to lookup in
   deriving Show
 
 -- | Parse the given value
@@ -416,12 +488,13 @@ data AddCellErrors
 -- If it's a string, we try to get it our of a shared string table
 parseValue :: SharedStringMap -> Text -> ExcelValueType -> Either AddCellErrors CellValue
 parseValue sstrings txt = \case
-  T_S -> do
-    (idx :: Int) <- first ReadError $ readEither $ Text.unpack txt
-    string <- maybe (Left $ SharedStringNotFound idx sstrings) Right $ sstrings ^? ix idx -- TODO: are all strings shared?
+  TS -> do
+    (idx, _) <- ReadError txt `first` Read.decimal @Int txt
+    string <- maybe (Left $ SharedStringNotFound idx sstrings) Right $ sstrings ^? ix idx
     Right $ CellText string
-  T_N -> bimap ReadError CellDouble $ readEither $ Text.unpack txt
-  T_B -> bimap ReadError CellBool $ readEither $ Text.unpack txt
+  TStr -> pure $ CellText txt
+  TN -> bimap (ReadError txt) (CellDouble . fst) $ Read.double txt
+  TB -> bimap (ReadError txt) CellBool . readEither $ Text.unpack txt
   Untyped -> Right (parseUntypedValue txt)
 
 -- TODO: some of the cells are untyped and we need to test whether
@@ -463,7 +536,7 @@ type SheetValues = [SheetValue]
 data CoordinateErrors
   = CoordinateNotFound SheetValues         -- ^ If the coordinate was not specified in "r" attribute
   | NoListElement SheetValue SheetValues   -- ^ If the value is empty for some reason
-  | NoTextContent Content SheetValues      -- ^ If the value has something besides `ContentText` inside
+  | NoTextContent Content SheetValues      -- ^ If the value has something besides @ContentText@ inside
   | DecodeFailure Text SheetValues         -- ^ If malformed coordinate text was passed
   deriving stock Show
   deriving anyclass Exception
@@ -480,7 +553,7 @@ contentTextPrims :: Prism' Content Text
 contentTextPrims = prism' ContentText (\case ContentText x -> Just x
                                              _             -> Nothing)
 
--- | Update state coordinates accordingly to `parseCoordinates`
+-- | Update state coordinates accordingly to @parseCoordinates@
 setCoord
   :: ( MonadError SheetErrors m
      , HasSheetState m
@@ -514,9 +587,10 @@ parseType list =
       valContent <- maybe (Left $ TypeNoListElement nameValPair list) Right $  nameValPair ^? _2 . ix 0
       valText    <- maybe (Left $ TypeNoTextContent valContent list)  Right $ valContent ^? contentTextPrims
       case valText of
-        "n"   -> Right T_N
-        "s"   -> Right T_S
-        "b"   -> Right T_S
+        "n"   -> Right TN
+        "s"   -> Right TS
+        "str" -> Right TStr
+        "b"   -> Right TS -- For some reason bools are also indexed
         other -> Left $ UnkownType other list
 
 -- | Parse coordinates from a list of xml elements if such were found on "r" key
