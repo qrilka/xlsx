@@ -21,6 +21,8 @@
 --   massive excell files while remaining in constant memory.
 module Codec.Xlsx.Writer.Stream
   ( writeSharedStrings
+  , writeXlsx
+  , writeSstXml
   -- testing
   , getSetNumber
   , initialSharedString
@@ -37,6 +39,8 @@ import           Control.Monad.Catch
 import           Control.Monad.Except
 import           Control.Monad.State.Strict
 import           Data.Bifunctor
+import Data.ByteString(ByteString)
+import Data.ByteString.Builder(Builder)
 import qualified Data.ByteString                 as BS
 import           Data.Conduit                    (ConduitT)
 import qualified Data.Conduit.Combinators        as C
@@ -53,9 +57,10 @@ import           Debug.Trace
 import           GHC.Generics
 import           NoThunks.Class
 import           Text.Read
-import           Text.XML.Stream.Parse
+import           Text.XML.Stream.Render
 import           Codec.Xlsx.Parser.Stream
 import Data.Maybe
+import Data.List
 
 newtype SharedStringState = MkSharedStringState
   { _string_map :: Map Text Int
@@ -93,7 +98,39 @@ mapFold  row =
     items = row ^.. si_cell_row . traversed . cellValue . _Just . _CellText
 
 -- | creates a unique number for every encountered string in the stream
-writeSharedStrings :: ( MonadThrow m , PrimMonad m)
-  => ConduitT SheetItem (Text, Int) m (Map Text Int)
+--   This is used for creating a required structure in the xlsx format
+--   called shared strings. Every string get's transformed into a number
+writeSharedStrings :: Monad m  =>
+  ConduitT SheetItem (Text, Int) m (Map Text Int)
 writeSharedStrings = fmap (view string_map) $ C.execStateC initialSharedString $
   C.mapFoldableM mapFold
+
+-- TODO maybe should use bimap instead: https://hackage.haskell.org/package/bimap-0.4.0/docs/Data-Bimap.html
+-- it guarantees uniqueness of both text and int
+writeXlsx :: PrimMonad m  =>
+  Map Text Int ->
+  ConduitT SheetItem Builder m ()
+writeXlsx sstable = error "x"
+
+writeSstXml  ::  PrimMonad m  =>  Map Text Int  -> forall i. ConduitT i Builder m ()
+writeSstXml sstable = writeSst sstable .| writeEvents
+
+writeSst ::  Monad m  => Map Text Int  -> forall i.  ConduitT i Event m ()
+writeSst sstable = do
+  yield EventBeginDocument
+  yield $ EventBeginElement "sst" []
+  traverse (\(e, _)  -> do
+                yield $ EventBeginElement "si" []
+                yield $ EventBeginElement "t" []
+                yield $ EventContent (ContentText e)
+                yield $ EventEndElement "t"
+                yield $ EventEndElement "si"
+                ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sstable
+  yield $ EventEndElement "sst"
+  yield EventEndDocument
+
+writeDataRows :: Monad m  => Map Text Int -> ConduitT SheetItem Event m ()
+writeDataRows = error "i"
+
+writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
+writeEvents = renderBuilder (def {rsPretty=True})
