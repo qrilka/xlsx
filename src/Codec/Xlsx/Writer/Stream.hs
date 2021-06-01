@@ -22,8 +22,10 @@
 module Codec.Xlsx.Writer.Stream
   ( writeSharedStrings
   , writeXlsx
+
+  -- tests by hand
   , writeSstXml
-  -- testing
+  -- automated testing
   , getSetNumber
   , initialSharedString
   , string_map
@@ -42,9 +44,11 @@ import           Data.Bifunctor
 import Data.ByteString(ByteString)
 import Data.ByteString.Builder(Builder)
 import qualified Data.ByteString                 as BS
+import qualified Data.ByteString.Lazy                 as LBS
 import           Data.Conduit                    (ConduitT)
 import qualified Data.Conduit.Combinators        as C
-import qualified Data.Conduit.List as C
+import qualified Data.Conduit.List as CL
+import Codec.Archive.Zip.Conduit.Zip
 import           Data.Foldable
 import           Data.Map.Strict                 (Map)
 import qualified Data.Map.Strict                 as Map
@@ -61,6 +65,10 @@ import           Text.XML.Stream.Render
 import           Codec.Xlsx.Parser.Stream
 import Data.Maybe
 import Data.List
+import Data.Word
+import Data.Coerce
+import Data.Time
+import Codec.Xlsx.Writer.Internal(toAttrVal)
 
 newtype SharedStringState = MkSharedStringState
   { _string_map :: Map Text Int
@@ -103,14 +111,30 @@ mapFold  row =
 writeSharedStrings :: Monad m  =>
   ConduitT SheetItem (Text, Int) m (Map Text Int)
 writeSharedStrings = fmap (view string_map) $ C.execStateC initialSharedString $
-  C.mapFoldableM mapFold
+  CL.mapFoldableM mapFold
 
 -- TODO maybe should use bimap instead: https://hackage.haskell.org/package/bimap-0.4.0/docs/Data-Bimap.html
 -- it guarantees uniqueness of both text and int
-writeXlsx :: PrimMonad m  =>
+writeXlsx :: MonadThrow m => PrimMonad m  =>
   Map Text Int ->
-  ConduitT SheetItem Builder m ()
-writeXlsx sstable = error "x"
+  ConduitT SheetItem ByteString m Word64
+writeXlsx sstable =
+  combinedFiles sstable .| zipStream (defaultZipOptions { zipOpt64 = True})
+
+combinedFiles :: PrimMonad m  =>
+  Map Text Int ->
+  ConduitT SheetItem (ZipEntry, ZipData m) m ()
+combinedFiles sstable = do
+  yield (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSstXml sstable .| C.builderToByteString)
+  writeWorkSheet sstable .| writeEvents .| C.builderToByteString .| C.map (\x -> (zipEntry "xl/worksheets/sheet1.xml", ZipDataByteString $ LBS.fromStrict x))
+
+zipEntry :: Text -> ZipEntry
+zipEntry x = ZipEntry
+  { zipEntryName = Left x
+  , zipEntryTime = LocalTime (toEnum 0) midnight
+  , zipEntrySize = Nothing
+  , zipEntryExternalAttributes = Nothing
+  }
 
 writeSstXml  ::  PrimMonad m  =>  Map Text Int  -> forall i. ConduitT i Builder m ()
 writeSstXml sstable = writeSst sstable .| writeEvents
@@ -129,8 +153,55 @@ writeSst sstable = do
   yield $ EventEndElement "sst"
   yield EventEndDocument
 
-writeDataRows :: Monad m  => Map Text Int -> ConduitT SheetItem Event m ()
-writeDataRows = error "i"
-
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
 writeEvents = renderBuilder (def {rsPretty=True})
+
+writeWorkSheet :: Monad m => Map Text Int  -> ConduitT SheetItem Event m ()
+writeWorkSheet sstable = do
+  yield EventBeginDocument
+  yield $ EventBeginElement "worksheet" []
+  yield $ EventBeginElement "sheetData" []
+  C.concatMap (mapItem sstable)
+  yield $ EventEndElement "sheetData"
+  yield $ EventEndElement "worksheet"
+  yield EventEndDocument
+
+
+
+mapItem :: Map Text Int -> SheetItem -> [Event]
+mapItem sstable sheetItem = do
+  [EventBeginElement "row"  [("r", [ContentText $ toAttrVal rowIx])]]
+  itraverse (mapCell sstable rowIx) $ sheetItem ^. si_cell_row
+  [EventEndElement "row"]
+
+  where
+    rowIx = sheetItem ^. si_row_index
+
+mapCell :: Map Text Int -> RowIndex -> ColIndex -> Cell -> [Event]
+mapCell sstable rix cix cell =
+  [ EventBeginElement "c"  [("r", [ContentText ref])]
+  , EventBeginElement "v"  []
+  , EventContent $ ContentText $ renderCell sstable cell
+  , EventEndElement "v"
+  , EventEndElement "c"
+  ]
+  where
+    ref :: Text
+    ref = coerce $ singleCellRef (rix, cix)
+
+renderCell :: Map Text Int -> Cell -> Text
+renderCell sstable cell =  renderValue sstable val
+  where
+    val :: CellValue
+    val = fromMaybe (CellText mempty) $ cell ^? cellValue . _Just
+
+renderValue :: Map Text Int -> CellValue -> Text
+renderValue sstable = \case
+  CellText x -> let
+    int :: Int
+    int = fromMaybe (error "could not find in sstable") $ sstable ^? ix x
+    in toAttrVal int
+  CellDouble x -> toAttrVal x
+  CellBool b -> toAttrVal b
+  CellRich _ -> error "rich text is not supported yet"
+  CellError err  -> toAttrVal err
