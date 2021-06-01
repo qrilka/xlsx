@@ -34,33 +34,22 @@ module Codec.Xlsx.Writer.Stream
 import           Codec.Archive.Zip.Conduit.UnZip
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
-import           Conduit                         (PrimMonad, await, yield, (.|))
+import           Conduit                         (PrimMonad, yield, (.|))
 import qualified Conduit                         as C
 import           Control.Lens
 import           Control.Monad.Catch
-import           Control.Monad.Except
 import           Control.Monad.State.Strict
-import           Data.Bifunctor
 import Data.ByteString(ByteString)
 import Data.ByteString.Builder(Builder)
-import qualified Data.ByteString                 as BS
 import qualified Data.ByteString.Lazy                 as LBS
 import           Data.Conduit                    (ConduitT)
 import qualified Data.Conduit.Combinators        as C
 import qualified Data.Conduit.List as CL
 import Codec.Archive.Zip.Conduit.Zip
-import           Data.Foldable
 import           Data.Map.Strict                 (Map)
 import qualified Data.Map.Strict                 as Map
 import           Data.Text                       (Text)
-import qualified Data.Text                       as Text
-import qualified Data.Text.Encoding              as Text
-import qualified Data.Text.Read                  as Read
 import           Data.XML.Types
-import           Debug.Trace
-import           GHC.Generics
-import           NoThunks.Class
-import           Text.Read
 import           Text.XML.Stream.Render
 import           Codec.Xlsx.Parser.Stream
 import Data.Maybe
@@ -143,7 +132,7 @@ writeSst ::  Monad m  => Map Text Int  -> forall i.  ConduitT i Event m ()
 writeSst sstable = do
   yield EventBeginDocument
   yield $ EventBeginElement "sst" []
-  traverse (\(e, _)  -> do
+  void $ traverse (\(e, _)  -> do
                 yield $ EventBeginElement "si" []
                 yield $ EventBeginElement "t" []
                 yield $ EventContent (ContentText e)
@@ -170,8 +159,8 @@ writeWorkSheet sstable = do
 
 mapItem :: Map Text Int -> SheetItem -> [Event]
 mapItem sstable sheetItem = do
-  [EventBeginElement "row"  [("r", [ContentText $ toAttrVal rowIx])]]
-  itraverse (mapCell sstable rowIx) $ sheetItem ^. si_cell_row
+  void [EventBeginElement "row"  [("r", [ContentText $ toAttrVal rowIx])]]
+  void $ itraverse (mapCell sstable rowIx) $ sheetItem ^. si_cell_row
   [EventEndElement "row"]
 
   where
