@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module StreamTests
   ( tests
@@ -35,6 +37,14 @@ import           Test.Tasty.HUnit                            (testCase)
 import           TestXlsx
 import           Text.RawString.QQ
 import           Text.XML
+import qualified Codec.Xlsx.Writer.Stream as SW
+import Control.Monad.State.Lazy
+import Test.Tasty.SmallCheck
+import qualified Data.Set as Set
+import Data.Set (Set)
+import Text.Printf
+import Debug.Trace
+import Data.Set.Lens
 
 tempPath :: FilePath
 tempPath = "test" </> "temp"
@@ -63,9 +73,46 @@ mkTestCase testName filename xlsx = testCase testName $ do
 
 tests :: TestTree
 tests =
-  testGroup
-    "Stream tests"
-    [ mkTestCase "Get's out the shared strings" "data-test.xlsx" testXlsx
-    , mkTestCase "Workbook result is parsed correctly" "workbook-test.xlsx" testFormatWorkbookResult -- TODO: compare to testFormatWorkbook
-    , mkTestCase "Workbook is parsed correctly" "format-workbook-test.xlsx" testFormatWorkbook
+  testGroup "Stream tests"
+    [
+      testGroup "Reader"
+      [ mkTestCase "Get's out the shared strings" "data-test.xlsx" testXlsx
+      , mkTestCase "Workbook result is parsed correctly" "workbook-test.xlsx" testFormatWorkbookResult -- TODO: compare to testFormatWorkbook
+      , mkTestCase "Workbook is parsed correctly" "format-workbook-test.xlsx" testFormatWorkbook
+      ],
+      testGroup "Writer"
+      [ testProperty "Input same as the output" testInputSameAsOutput
+      , testProperty "Set of input texts is same as map length" testSetOfInputTextsIsSameAsMapLength
+      , testProperty "Set of input texts is as value set length" testSetOfInputTextsIsSameAsValueSetLength
+      ]
     ]
+
+
+-- test if the input text is also the result (a property we use for convenience)
+testInputSameAsOutput :: Text -> Either String String
+testInputSameAsOutput someText =
+  if someText  == out then Right msg  else Left msg
+
+  where
+    out = fst $ evalState (SW.getSetNumber someText) SW.initialSharedString
+    msg = printf "'%s' = '%s'" (Text.unpack out) (Text.unpack someText)
+
+-- test if unique strings actually get set in the map as keys
+testSetOfInputTextsIsSameAsMapLength :: [Text] -> Bool
+testSetOfInputTextsIsSameAsMapLength someTexts =
+    length result == length unqTexts
+  where
+   result  :: Map Text Int
+   result = view SW.string_map $ traverse SW.getSetNumber someTexts `execState` SW.initialSharedString
+   unqTexts :: Set Text
+   unqTexts = Set.fromList someTexts
+
+-- test for every unique string we get a unique number
+testSetOfInputTextsIsSameAsValueSetLength :: [Text] -> Bool
+testSetOfInputTextsIsSameAsValueSetLength someTexts =
+    length result == length unqTexts
+  where
+   result  :: Set Int
+   result = setOf (SW.string_map . traversed) $ traverse SW.getSetNumber someTexts `execState` SW.initialSharedString
+   unqTexts :: Set Text
+   unqTexts = Set.fromList someTexts
