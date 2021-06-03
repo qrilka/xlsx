@@ -153,15 +153,14 @@ combinedFiles sstable = do
   yield (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| writeEvents .| C.builderToByteString)
   writeWorkSheet sstable .| writeEvents .| C.builderToByteString .| C.map (\x -> (zipEntry "xl/worksheets/sheet1.xml", ZipDataByteString $ LBS.fromStrict x))
 
+el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
+el x = tag x mempty
 
--- | what is this you ask? This is required by excell,
---   we kept on throwing things trough the tests untill excell became happy.
---   That is all
+-- | required by excell.
 writeContentTypes :: Monad m => forall i.  ConduitT i Event m ()
 writeContentTypes = do
   yield EventBeginDocument
-  yield $ EventBeginElement "Types" []
-  yield $ EventEndElement "Types"
+  el "Types" $ pure ()
   yield EventEndDocument
 
 zipEntry :: Text -> ZipEntry
@@ -178,15 +177,9 @@ writeSstXml sstable = writeSst sstable .| writeEvents
 writeSst ::  Monad m  => Map Text Int  -> forall i.  ConduitT i Event m ()
 writeSst sstable = do
   yield EventBeginDocument
-  yield $ EventBeginElement "sst" []
-  void $ traverse (\(e, _)  -> do
-                yield $ EventBeginElement "si" []
-                yield $ EventBeginElement "t" []
-                yield $ EventContent (ContentText e)
-                yield $ EventEndElement "t"
-                yield $ EventEndElement "si"
-                ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sstable
-  yield $ EventEndElement "sst"
+  el "sst" $
+    void $ traverse (el "si" .  el "t" . content . fst
+                  ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sstable
   yield EventEndDocument
 
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
@@ -195,11 +188,8 @@ writeEvents = renderBuilder (def {rsPretty=True})
 writeWorkSheet :: Monad m => Map Text Int  -> ConduitT SheetItem Event m ()
 writeWorkSheet sstable = do
   yield EventBeginDocument
-  yield $ EventBeginElement "worksheet" []
-  yield $ EventBeginElement "sheetData" []
-  C.concatMap (mapItem sstable)
-  yield $ EventEndElement "sheetData"
-  yield $ EventEndElement "worksheet"
+  el "worksheet" $
+    el "sheetData" $ C.concatMap (mapItem sstable)
   yield EventEndDocument
 
 

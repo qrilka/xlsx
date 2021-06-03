@@ -95,9 +95,9 @@ tests =
 
 readWriteSimple :: IO ()
 readWriteSimple = do
-  eadStr  <- C.runResourceT $ readXlsxC (C.sourceFile "data/simple.xlsx")
+  readStr  <- C.runResourceT $ readXlsxC (C.sourceFile "data/simple.xlsx")
   bs <- runConduitRes $ void (SW.writeXlsx readStr) .| C.foldC
-  case (toXlsxEither $ LB.fromStrict bs) of
+  case toXlsxEither $ LB.fromStrict bs of
     Right _ -> putStrLn "success"
     Left x -> do
       putStrLn "writing failed file failed.xlsx"
