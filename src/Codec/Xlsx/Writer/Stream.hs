@@ -151,6 +151,7 @@ combinedFiles :: PrimMonad m  =>
 combinedFiles sstable = do
   yield (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSstXml sstable .| C.builderToByteString)
   yield (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| writeEvents .| C.builderToByteString)
+  yield (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkBook .| writeEvents .| C.builderToByteString)
   writeWorkSheet sstable .| writeEvents .| C.builderToByteString .| C.map (\x -> (zipEntry "xl/worksheets/sheet1.xml", ZipDataByteString $ LBS.fromStrict x))
 
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
@@ -161,6 +162,13 @@ writeContentTypes :: Monad m => forall i.  ConduitT i Event m ()
 writeContentTypes = do
   yield EventBeginDocument
   el "Types" $ pure ()
+  yield EventEndDocument
+
+-- | required by excell.
+writeWorkBook :: Monad m => forall i.  ConduitT i Event m ()
+writeWorkBook = do
+  yield EventBeginDocument
+  el "workbook" $ pure ()
   yield EventEndDocument
 
 zipEntry :: Text -> ZipEntry
