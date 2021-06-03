@@ -29,9 +29,7 @@ import Data.Void
 main :: IO ()
 main = do
   readStr  <- runResourceT $ readXlsxC (C.sourceFile "data/simple.xlsx")
-  runConduitRes $ do
-    sstrings  <- readStr .| sharedStrings
-    readStr .| (void $ writeXlsx sstrings)  .| C.sinkFile "out.xlsx"
+  runConduitRes $ void (writeXlsx readStr) .| C.sinkFile "out/out.zip"
   pure ()
 
 

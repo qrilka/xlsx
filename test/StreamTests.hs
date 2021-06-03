@@ -8,7 +8,7 @@
 module StreamTests
   ( tests
   ) where
-
+import Control.Exception
 import           Codec.Xlsx
 import           Codec.Xlsx.Parser.Stream
 import           Codec.Xlsx.Types.Common
@@ -19,6 +19,7 @@ import           Control.Exception                           (bracket)
 import           Control.Lens                                hiding (indexed)
 import           Data.ByteString.Lazy                        (ByteString)
 import qualified Data.ByteString.Lazy                        as LB
+import qualified Data.ByteString  as BS
 import           Data.Map                                    (Map)
 import qualified Data.Map                                    as M
 import qualified Data.Map                                    as Map
@@ -45,6 +46,8 @@ import Data.Set (Set)
 import Text.Printf
 import Debug.Trace
 import Data.Set.Lens
+import Control.DeepSeq
+import Data.Conduit
 
 tempPath :: FilePath
 tempPath = "test" </> "temp"
@@ -84,8 +87,22 @@ tests =
       [ testProperty "Input same as the output" testInputSameAsOutput
       , testProperty "Set of input texts is same as map length" testSetOfInputTextsIsSameAsMapLength
       , testProperty "Set of input texts is as value set length" testSetOfInputTextsIsSameAsValueSetLength
+      ],
+      testGroup "Reader/Writer"
+      [ testCase "Write as stream, see if memory based implementation can read it" readWriteSimple
       ]
     ]
+
+readWriteSimple :: IO ()
+readWriteSimple = do
+  eadStr  <- C.runResourceT $ readXlsxC (C.sourceFile "data/simple.xlsx")
+  bs <- runConduitRes $ void (SW.writeXlsx readStr) .| C.foldC
+  case (toXlsxEither $ LB.fromStrict bs) of
+    Right _ -> putStrLn "success"
+    Left x -> do
+      putStrLn "writing failed file failed.xlsx"
+      BS.writeFile "failed.xlsx" bs
+      throwIO x
 
 
 -- test if the input text is also the result (a property we use for convenience)

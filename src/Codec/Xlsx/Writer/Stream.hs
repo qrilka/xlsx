@@ -21,11 +21,11 @@
 --   massive excell files while remaining in constant memory.
 module Codec.Xlsx.Writer.Stream
   ( writeXlsx
+  , writeXlsxWithSharedStrings
   , sharedStrings
   , sharedStringsStream
 
-
-  -- automated testing
+  -- automated testing -- TODO move to internal
   , getSetNumber
   , initialSharedString
   , string_map
@@ -43,6 +43,7 @@ import           Control.Monad.State.Strict
 import Data.ByteString(ByteString)
 import Data.ByteString.Builder(Builder)
 import qualified Data.ByteString.Lazy                 as LBS
+import qualified Data.ByteString.Builder as BS
 import           Data.Conduit                    (ConduitT)
 import qualified Data.Conduit.Combinators        as C
 import qualified Data.Conduit.List as CL
@@ -91,12 +92,11 @@ mapFold :: MonadState SharedStringState m => SheetItem  -> m [(Text,Int)]
 mapFold  row =
   traverse getSetNumber items
   where
-
     items :: [Text]
     items = row ^.. si_cell_row . traversed . cellValue . _Just . _CellText
 
-
--- this
+-- | Process sheetItems into shared strings structure to be put into
+--   'writeXlsxWithSharedStrings'
 sharedStrings :: Monad m  => ConduitT SheetItem b m (Map Text Int)
 sharedStrings = void sharedStringsStream .| CL.foldMap (uncurry Map.singleton)
 
@@ -112,22 +112,57 @@ sharedStringsStream :: Monad m  =>
 sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString $
   CL.mapFoldableM mapFold
 
+-- | Transform a SheetItem stream into a stream that creates the xlsx file format
+--   (to be consumed by sinkfile for example)
+--  This first runs 'sharedStrings' and then 'writeXlsxWithSharedStrings'.
+--  If you want xlsx files this is the most obvious function to use.
+--  the others are exposed in case you can cache the shared strings for example.
+writeXlsx :: MonadThrow m => PrimMonad m  =>
+  ConduitT () SheetItem m ()  ->
+  ConduitT () ByteString m Word64
+writeXlsx sheetC = do
+    sstrings  <- sheetC .| sharedStrings
+    sheetC .|  writeXlsxWithSharedStrings sstrings
+
+
+recomendedZipOptions :: ZipOptions
+recomendedZipOptions = defaultZipOptions {
+  zipOpt64 = False -- TODO renable
+  -- There is a magick number in the zip archive package,
+  -- https://hackage.haskell.org/package/zip-archive-0.4.1/docs/src/Codec.Archive.Zip.html#local-6989586621679055672
+  -- if we enable 64bit the number doesn't align causing the test to fail.
+  -- I'll make the test pass, and after that I'll make the
+  }
 
 -- TODO provide a safe default interface and also add this in case you need perfromance
 -- TODO maybe should use bimap instead: https://hackage.haskell.org/package/bimap-0.4.0/docs/Data-Bimap.html
 -- it guarantees uniqueness of both text and int
-writeXlsx :: MonadThrow m => PrimMonad m  =>
+writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m  =>
   Map Text Int ->
   ConduitT SheetItem ByteString m Word64
-writeXlsx sstable =
-  combinedFiles sstable .| zipStream (defaultZipOptions { zipOpt64 = True})
+writeXlsxWithSharedStrings sstable = do
+  res  <- combinedFiles sstable .| zipStream recomendedZipOptions
+  -- yield (LBS.toStrict $ BS.toLazyByteString $ BS.word32LE 0x06054b50) -- insert magic number for fun.
+  pure res
 
 combinedFiles :: PrimMonad m  =>
   Map Text Int ->
   ConduitT SheetItem (ZipEntry, ZipData m) m ()
 combinedFiles sstable = do
   yield (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSstXml sstable .| C.builderToByteString)
+  yield (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| writeEvents .| C.builderToByteString)
   writeWorkSheet sstable .| writeEvents .| C.builderToByteString .| C.map (\x -> (zipEntry "xl/worksheets/sheet1.xml", ZipDataByteString $ LBS.fromStrict x))
+
+
+-- | what is this you ask? This is required by excell,
+--   we kept on throwing things trough the tests untill excell became happy.
+--   That is all
+writeContentTypes :: Monad m => forall i.  ConduitT i Event m ()
+writeContentTypes = do
+  yield EventBeginDocument
+  yield $ EventBeginElement "Types" []
+  yield $ EventEndElement "Types"
+  yield EventEndDocument
 
 zipEntry :: Text -> ZipEntry
 zipEntry x = ZipEntry

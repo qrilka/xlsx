@@ -157,6 +157,7 @@ test-suite data-test
                , xml-conduit >= 1.1.0
                , conduit
                , filepath 
+               , deepseq
   if flag(microlens)
     Build-depends:     microlens    >= 0.4 && < 0.5
                      , microlens-mtl
