@@ -20,15 +20,16 @@
 -- | writes excell files from a stream, which allows creation of
 --   massive excell files while remaining in constant memory.
 module Codec.Xlsx.Writer.Stream
-  ( writeSharedStrings
-  , writeXlsx
+  ( writeXlsx
+  , sharedStrings
+  , sharedStringsStream
 
-  -- tests by hand
-  , writeSstXml
+
   -- automated testing
   , getSetNumber
   , initialSharedString
   , string_map
+
   ) where
 
 import           Codec.Archive.Zip.Conduit.UnZip
@@ -94,14 +95,25 @@ mapFold  row =
     items :: [Text]
     items = row ^.. si_cell_row . traversed . cellValue . _Just . _CellText
 
+
+-- this
+sharedStrings :: Monad m  => ConduitT SheetItem b m (Map Text Int)
+sharedStrings = void sharedStringsStream .| CL.foldMap (uncurry Map.singleton)
+
 -- | creates a unique number for every encountered string in the stream
 --   This is used for creating a required structure in the xlsx format
 --   called shared strings. Every string get's transformed into a number
-writeSharedStrings :: Monad m  =>
+--
+--   exposed to allow further processing, we also know the map after processing
+--   but I don't think conduit provides a way of getting that out.
+--   use 'sharedStrings' to just get the map
+sharedStringsStream :: Monad m  =>
   ConduitT SheetItem (Text, Int) m (Map Text Int)
-writeSharedStrings = fmap (view string_map) $ C.execStateC initialSharedString $
+sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString $
   CL.mapFoldableM mapFold
 
+
+-- TODO provide a safe default interface and also add this in case you need perfromance
 -- TODO maybe should use bimap instead: https://hackage.haskell.org/package/bimap-0.4.0/docs/Data-Bimap.html
 -- it guarantees uniqueness of both text and int
 writeXlsx :: MonadThrow m => PrimMonad m  =>

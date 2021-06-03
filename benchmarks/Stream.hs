@@ -22,10 +22,18 @@ import           Debug.Trace
 import           Prelude                  hiding (foldl)
 import qualified Data.ByteString.Lazy as BS
 import Data.Text.Encoding as Text
+import Codec.Xlsx.Parser.Stream
+import Control.Monad
+import Data.Void
 
 main :: IO ()
 main = do
-  out  <- runConduit $ writeSstXml map' .| C.fold
-  Text.putStrLn (Text.decodeUtf8 $ BS.toStrict $ BS.toLazyByteString out)
-  where
-    map' = Map.fromList [("a", 1), ("b", 2), ("c", 3), ("d", 10), ("e", 0), ("f", -3), ("z", 11)]
+  readStr  <- runResourceT $ readXlsxC (C.sourceFile "data/simple.xlsx")
+  runConduitRes $ do
+    sstrings  <- readStr .| sharedStrings
+    readStr .| (void $ writeXlsx sstrings)  .| C.sinkFile "out.xlsx"
+  pure ()
+
+
+extremlyUnsafe :: Void
+extremlyUnsafe = error "evaluated extremly unsafe"
