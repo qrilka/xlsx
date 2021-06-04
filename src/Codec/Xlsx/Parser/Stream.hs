@@ -502,8 +502,10 @@ parseValue sstrings txt = \case
     Right $ CellText string
   TStr -> pure $ CellText txt
   TN -> bimap (ReadError txt) (CellDouble . fst) $ Read.double txt
-  TB -> bimap (ReadError txt) CellBool . readEither $ Text.unpack txt
   TE -> bimap (ReadError txt) (CellError . fst) $ fromAttrVal txt
+  TB | txt == "1" -> Right $ CellBool True
+     | txt == "0" -> Right $ CellBool False
+     | otherwise -> Left $ ReadError txt "Could not read Excel boolean value (expected 0 or 1)"
   Untyped -> Right (parseUntypedValue txt)
 
 -- TODO: some of the cells are untyped and we need to test whether
@@ -599,7 +601,7 @@ parseType list =
         "n"   -> Right TN
         "s"   -> Right TS
         "str" -> Right TStr
-        "b"   -> Right TS -- For some reason bools are also indexed
+        "b"   -> Right TB
         "e"   -> Right TE
         other -> Left $ UnkownType other list
 
