@@ -52,10 +52,11 @@ import Data.Conduit
 tempPath :: FilePath
 tempPath = "test" </> "temp"
 
+toBs = LB.toStrict . fromXlsx testTime
+
 mkTestCase :: TestName -> Xlsx -> TestTree
 mkTestCase testName xlsx = testCase testName $ do
-  let bs = LB.toStrict $ fromXlsx testTime xlsx
-  res <- C.runResourceT $ C.runConduit $  yield bs .| parseSharedStringsIntoMapC
+  res <- C.runResourceT $ C.runConduit $  yield (toBs xlsx) .| parseSharedStringsIntoMapC
 
   let
     testSst :: Vector XlsxText
@@ -87,16 +88,18 @@ tests =
       , testProperty "Set of input texts is as value set length" testSetOfInputTextsIsSameAsValueSetLength
       ],
       testGroup "Reader/Writer"
-      [ testCase "Write as stream, see if memory based implementation can read it" readWriteSimple
+      [ testCase "Write as stream, see if memory based implementation can read it" (readWrite testXlsx)
       ]
     ]
 
-readWriteSimple :: IO ()
-readWriteSimple = do
-  readStr  <- C.runResourceT $ readXlsxC (C.sourceFile "data/simple.xlsx")
+readWrite :: Xlsx -> IO ()
+readWrite input = do
+  BS.writeFile "input.xml" (toBs input)
+  readStr  <- C.runResourceT $ readXlsxC $ yield (toBs input)
   bs <- runConduitRes $ void (SW.writeXlsx readStr) .| C.foldC
+  putStrLn "going back to either"
   case toXlsxEither $ LB.fromStrict bs of
-    Right _ -> putStrLn "success"
+    Right result  -> result @==? input
     Left x -> do
       putStrLn "writing failed file failed.xlsx"
       BS.writeFile "failed.xlsx" bs
