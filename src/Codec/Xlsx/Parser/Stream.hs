@@ -168,11 +168,11 @@ import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
 import qualified Data.Text.Read                  as Read
 import           Data.XML.Types
-import           Debug.Trace
 import           GHC.Generics
 import           NoThunks.Class
 import           Text.Read
 import           Text.XML.Stream.Parse
+import Codec.Xlsx.Parser.Internal
 
 type CellRow = Map Int Cell
 
@@ -221,6 +221,7 @@ data ExcelValueType
   | TStr    -- ^ original string
   | TN      -- ^ number
   | TB      -- ^ boolean
+  | TE      -- ^ excell error, the sheet can contain error values, for example if =1/0, causes division by zero
   | Untyped -- ^ Not all values are types
   deriving stock (Generic, Show)
   deriving anyclass NoThunks
@@ -495,6 +496,7 @@ parseValue sstrings txt = \case
   TStr -> pure $ CellText txt
   TN -> bimap (ReadError txt) (CellDouble . fst) $ Read.double txt
   TB -> bimap (ReadError txt) CellBool . readEither $ Text.unpack txt
+  TE -> bimap (ReadError txt) (CellError . fst) $ fromAttrVal txt
   Untyped -> Right (parseUntypedValue txt)
 
 -- TODO: some of the cells are untyped and we need to test whether
@@ -591,6 +593,7 @@ parseType list =
         "s"   -> Right TS
         "str" -> Right TStr
         "b"   -> Right TS -- For some reason bools are also indexed
+        "e"   -> Right TE
         other -> Left $ UnkownType other list
 
 -- | Parse coordinates from a list of xml elements if such were found on "r" key
