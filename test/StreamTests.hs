@@ -52,12 +52,10 @@ import Data.Conduit
 tempPath :: FilePath
 tempPath = "test" </> "temp"
 
-mkTestCase :: TestName -> FilePath -> Xlsx -> TestTree
-mkTestCase testName filename xlsx = testCase testName $ do
-  let filepath = tempPath </> filename
-  let bs = fromXlsx testTime xlsx
-  LB.writeFile filepath bs
-  res <- C.runResourceT $ C.runConduit $  C.sourceFile filepath .| parseSharedStringsIntoMapC
+mkTestCase :: TestName -> Xlsx -> TestTree
+mkTestCase testName xlsx = testCase testName $ do
+  let bs = LB.toStrict $ fromXlsx testTime xlsx
+  res <- C.runResourceT $ C.runConduit $  yield bs .| parseSharedStringsIntoMapC
 
   let
     testSst :: Vector XlsxText
@@ -79,9 +77,9 @@ tests =
   testGroup "Stream tests"
     [
       testGroup "Reader"
-      [ mkTestCase "Get's out the shared strings" "data-test.xlsx" testXlsx
-      , mkTestCase "Workbook result is parsed correctly" "workbook-test.xlsx" testFormatWorkbookResult -- TODO: compare to testFormatWorkbook
-      , mkTestCase "Workbook is parsed correctly" "format-workbook-test.xlsx" testFormatWorkbook
+      [ mkTestCase "Get's out the shared strings" testXlsx
+      , mkTestCase "Workbook result is parsed correctly" testFormatWorkbookResult -- TODO: compare to testFormatWorkbook
+      , mkTestCase "Workbook is parsed correctly" testFormatWorkbook
       ],
       testGroup "Writer"
       [ testProperty "Input same as the output" testInputSameAsOutput
