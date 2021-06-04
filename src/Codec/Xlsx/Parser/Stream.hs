@@ -427,7 +427,14 @@ parseFileC = await >>= parseEventLoop
     parseEventLoop = \case
       Nothing -> pure ()
       Just evt -> use fileLens >>= \case
-        Sheet name -> parseSheetC evt name
+        Sheet name -> do
+          prevSheetName <- use ps_sheet_name
+          when (prevSheetName /= name) $
+            -- TODO: this is the last part of the file name containing
+            -- a particular sheet, not the actual sheet name as it
+            -- appears in the Excel UI.
+            ps_sheet_name .= name
+          parseSheetC evt name
         _          -> await >>= parseEventLoop
 
 -- | Parse sheet
