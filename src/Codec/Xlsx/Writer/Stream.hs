@@ -60,6 +60,7 @@ import Data.Coerce
 import Data.Time
 import Codec.Xlsx.Writer.Internal(toAttrVal)
 import Data.Foldable
+import Codec.Xlsx.Parser.Internal(n_)
 
 newtype SharedStringState = MkSharedStringState
   { _string_map :: Map Text Int
@@ -213,8 +214,8 @@ eventsToBS :: PrimMonad m  => ConduitT Event ByteString m ()
 eventsToBS = writeEvents .| C.builderToByteString
 
 writeSst ::  Monad m  => Map Text Int  -> forall i.  ConduitT i Event m ()
-writeSst sstable = doc "sst" $
-    void $ traverse (el "si" .  el "t" . content . fst
+writeSst sstable = doc (n_ "sst") $
+    void $ traverse (el (n_ "si") .  el (n_ "t") . content . fst
                   ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sstable
 
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()

@@ -90,8 +90,8 @@ tests =
       ],
 
       testGroup "Reader/Writer"
-      [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
-      , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testFormatWorkbook
+      [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite testFormatWorkbook
+      -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
       ]
     ]
 
