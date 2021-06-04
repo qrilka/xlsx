@@ -43,7 +43,6 @@ import           Control.Monad.State.Strict
 import Data.ByteString(ByteString)
 import Data.ByteString.Builder(Builder)
 import qualified Data.ByteString.Lazy                 as LBS
-import qualified Data.ByteString.Builder as BS
 import           Data.Conduit                    (ConduitT)
 import qualified Data.Conduit.Combinators        as C
 import qualified Data.Conduit.List as CL
@@ -60,6 +59,7 @@ import Data.Word
 import Data.Coerce
 import Data.Time
 import Codec.Xlsx.Writer.Internal(toAttrVal)
+import Data.Foldable
 
 newtype SharedStringState = MkSharedStringState
   { _string_map :: Map Text Int
@@ -149,27 +149,57 @@ combinedFiles :: PrimMonad m  =>
   Map Text Int ->
   ConduitT SheetItem (ZipEntry, ZipData m) m ()
 combinedFiles sstable = do
-  yield (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSstXml sstable .| C.builderToByteString)
-  yield (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| writeEvents .| C.builderToByteString)
-  yield (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkBook .| writeEvents .| C.builderToByteString)
-  writeWorkSheet sstable .| writeEvents .| C.builderToByteString .| C.map (\x -> (zipEntry "xl/worksheets/sheet1.xml", ZipDataByteString $ LBS.fromStrict x))
+  yield (zipEntry "/xl/sharedStrings.xml", ZipDataSource $ writeSst sstable .| eventsToBS)
+  yield (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
+  yield (zipEntry "/xl/workbook.xml", ZipDataSource $ writeWorkBook .| eventsToBS)
+  yield (zipEntry "/xl/_rels/workbook.xml.rels", ZipDataSource $ writeRels .| eventsToBS)
+  writeWorkSheet sstable .| eventsToBS .| C.map (\x -> (zipEntry "/xl/worksheets/sheet1.xml", ZipDataByteString $ LBS.fromStrict x))
 
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 el x = tag x mempty
 
+override :: Monad m => Text -> Text -> forall i.  ConduitT i Event m ()
+override content part =
+    tag "Override" (attr "ContentType" content  <> attr "PartName" part) $ pure ()
+
+
 -- | required by excell.
 writeContentTypes :: Monad m => forall i.  ConduitT i Event m ()
-writeContentTypes = do
-  yield EventBeginDocument
-  el "Types" $ pure ()
-  yield EventEndDocument
+writeContentTypes = doc "Types" $ do
+    override "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" "/xl/workbook.xml"
+    override "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" "/xl/sharedStrings.xml"
+    override "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" "/xl/worksheets/sheet1.xml"
+    override "application/vnd.openxmlformats-package.relationships+xml" "/xl/_rels/workbook.xml.rels"
 
 -- | required by excell.
 writeWorkBook :: Monad m => forall i.  ConduitT i Event m ()
-writeWorkBook = do
+writeWorkBook = doc "workbook" $ do
+    el "sheets" $ do
+      tag "sheet"
+        (attr "name" "Sheet1" <> attr "sheetId" "1" <> attr "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id" "rId3") $
+        pure ()
+
+doc :: Monad m => Name ->  forall i.  ConduitT i Event m () -> ConduitT i Event m ()
+doc root docM = do
   yield EventBeginDocument
-  el "workbook" $ pure ()
+  el root docM
   yield EventEndDocument
+
+
+relationship :: Monad m => Text -> Text -> Text ->  forall i.  ConduitT i Event m ()
+relationship target id' type' =
+  tag "Relationship"
+    (attr "Type" type'
+      <> attr "Id" id'
+      <> attr "Target" target
+    ) $ pure ()
+
+writeRels :: Monad m => forall i.  ConduitT i Event m ()
+writeRels = doc "Relationships" $  do
+  relationship "sharedStrings.xml" "rId1" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
+  relationship "worksheets/sheet1.xml" "rId3" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
+
+
 
 zipEntry :: Text -> ZipEntry
 zipEntry x = ZipEntry
@@ -179,33 +209,29 @@ zipEntry x = ZipEntry
   , zipEntryExternalAttributes = Nothing
   }
 
-writeSstXml  ::  PrimMonad m  =>  Map Text Int  -> forall i. ConduitT i Builder m ()
-writeSstXml sstable = writeSst sstable .| writeEvents
+eventsToBS :: PrimMonad m  => ConduitT Event ByteString m ()
+eventsToBS = writeEvents .| C.builderToByteString
 
 writeSst ::  Monad m  => Map Text Int  -> forall i.  ConduitT i Event m ()
-writeSst sstable = do
-  yield EventBeginDocument
-  el "sst" $
+writeSst sstable = doc "sst" $
     void $ traverse (el "si" .  el "t" . content . fst
                   ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sstable
-  yield EventEndDocument
 
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
 writeEvents = renderBuilder (def {rsPretty=True})
 
 writeWorkSheet :: Monad m => Map Text Int  -> ConduitT SheetItem Event m ()
-writeWorkSheet sstable = do
-  yield EventBeginDocument
-  el "worksheet" $
+writeWorkSheet sstable = doc "worksheet" $ do
     el "sheetData" $ C.concatMap (mapItem sstable)
-  yield EventEndDocument
 
 
 
 mapItem :: Map Text Int -> SheetItem -> [Event]
-mapItem sstable sheetItem = do
-  void [EventBeginElement "row"  [("r", [ContentText $ toAttrVal rowIx])]]
-  void $ itraverse (mapCell sstable rowIx) $ sheetItem ^. si_cell_row
+mapItem sstable sheetItem =
+  [EventBeginElement "row"  [("r", [ContentText $ toAttrVal rowIx])]]
+   <>
+  (ifoldMap (mapCell sstable rowIx) $ sheetItem ^. si_cell_row)
+   <>
   [EventEndElement "row"]
 
   where

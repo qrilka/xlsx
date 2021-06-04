@@ -82,27 +82,30 @@ tests =
       , mkTestCase "Workbook result is parsed correctly" testFormatWorkbookResult -- TODO: compare to testFormatWorkbook
       , mkTestCase "Workbook is parsed correctly" testFormatWorkbook
       ],
+
       testGroup "Writer"
       [ testProperty "Input same as the output" testInputSameAsOutput
       , testProperty "Set of input texts is same as map length" testSetOfInputTextsIsSameAsMapLength
       , testProperty "Set of input texts is as value set length" testSetOfInputTextsIsSameAsValueSetLength
       ],
+
       testGroup "Reader/Writer"
-      [ testCase "Write as stream, see if memory based implementation can read it" (readWrite testXlsx)
+      [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
+      , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testFormatWorkbook
       ]
     ]
 
 readWrite :: Xlsx -> IO ()
 readWrite input = do
-  BS.writeFile "input.xml" (toBs input)
+  BS.writeFile "in/input.xlsx" (toBs input)
   readStr  <- C.runResourceT $ readXlsxC $ yield (toBs input)
   bs <- runConduitRes $ void (SW.writeXlsx readStr) .| C.foldC
   putStrLn "going back to either"
+  BS.writeFile "out/out.xlsx" bs -- TODO remove, for debugging
   case toXlsxEither $ LB.fromStrict bs of
-    Right result  -> result @==? input
+    Right result  ->
+      input @==?  result
     Left x -> do
-      putStrLn "writing failed file failed.xlsx"
-      BS.writeFile "failed.xlsx" bs
       throwIO x
 
 
