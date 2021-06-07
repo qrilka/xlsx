@@ -62,8 +62,8 @@ import Data.Word
 import Data.Coerce
 import Data.Time
 import Codec.Xlsx.Writer.Internal(toAttrVal)
-import Data.Foldable
 import Codec.Xlsx.Parser.Internal(n_)
+import Codec.Xlsx.Types.Internal.Relationships(odr, pr)
 
 newtype SharedStringState = MkSharedStringState
   { _string_map :: Map Text Int
@@ -153,11 +153,11 @@ combinedFiles :: PrimMonad m  =>
   Map Text Int ->
   ConduitT SheetItem (ZipEntry, ZipData m) m ()
 combinedFiles sstable = do
-  yield (zipEntry "/xl/sharedStrings.xml", ZipDataSource $ writeSst sstable .| eventsToBS)
+  yield (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sstable .| eventsToBS)
   yield (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
-  yield (zipEntry "/xl/workbook.xml", ZipDataSource $ writeWorkBook .| eventsToBS)
-  yield (zipEntry "/xl/_rels/workbook.xml.rels", ZipDataSource $ writeRels .| eventsToBS)
-  writeWorkSheet sstable .| eventsToBS .| C.map (\x -> (zipEntry "/xl/worksheets/sheet1.xml", ZipDataByteString $ LBS.fromStrict x))
+  yield (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkBook .| eventsToBS)
+  yield (zipEntry "xl/_rels/workbook.xml.rels", ZipDataSource $ writeRels .| eventsToBS)
+  writeWorkSheet sstable .| eventsToBS .| C.map (\x -> (zipEntry "xl/worksheets/sheet1.xml", ZipDataByteString $ LBS.fromStrict x))
 
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 el x = tag x mempty
@@ -184,7 +184,7 @@ writeWorkBook = doc (n_ "workbook") $ do
       tag (n_ "sheet")
         (attr (n_ "name") "Sheet1"
          <> attr (n_ "sheetId") "1" <>
-         attr "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id" "rId3") $
+         attr (pr "id") "rId3") $
         pure ()
 
 doc :: Monad m => Name ->  forall i.  ConduitT i Event m () -> ConduitT i Event m ()
@@ -195,14 +195,14 @@ doc root docM = do
 
 relationship :: Monad m => Text -> Text -> Text ->  forall i.  ConduitT i Event m ()
 relationship target id' type' =
-  tag "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"
-    (attr "{http://schemas.openxmlformats.org/package/2006/relationships}Type" type'
-      <> attr "{http://schemas.openxmlformats.org/package/2006/relationships}Id" id'
-      <> attr "{http://schemas.openxmlformats.org/package/2006/relationships}Target" target
+  tag (pr "Relationship")
+    (attr "Type" type'
+      <> attr "Id" id'
+      <> attr "Target" target
     ) $ pure ()
 
 writeRels :: Monad m => forall i.  ConduitT i Event m ()
-writeRels = doc "{http://schemas.openxmlformats.org/package/2006/relationships}Relationships" $  do
+writeRels = doc (pr "Relationships") $  do
   relationship "sharedStrings.xml" "rId1" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
   relationship "worksheets/sheet1.xml" "rId3" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
 
