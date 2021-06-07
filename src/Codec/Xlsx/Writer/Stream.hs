@@ -179,12 +179,12 @@ writeContentTypes = doc "{http://schemas.openxmlformats.org/package/2006/content
 
 -- | required by excell.
 writeWorkBook :: Monad m => forall i.  ConduitT i Event m ()
-writeWorkBook = doc (n_ "workbook") $ do
+writeWorkBook = doc ("workbook") $ do
     el (n_ "sheets") $ do
       tag (n_ "sheet")
-        (attr (n_ "name") "Sheet1"
-         <> attr (n_ "sheetId") "1" <>
-         attr (pr "id") "rId3") $
+        (attr "name" "Sheet1"
+         <> attr "sheetId" "1" <>
+         attr (odr "id") "rId3") $
         pure ()
 
 doc :: Monad m => Name ->  forall i.  ConduitT i Event m () -> ConduitT i Event m ()
