@@ -429,6 +429,7 @@ parseFileC = await >>= parseEventLoop
       Just evt -> use fileLens >>= \case
         Sheet name -> do
           prevSheetName <- use ps_sheet_name
+          rix <- use ps_cell_row_index
           when (prevSheetName /= name) $
             -- TODO: this is the last part of the file name containing
             -- a particular sheet, not the actual sheet name as it
@@ -454,14 +455,21 @@ parseSheetC
 parseSheetC event name = do
   prevSheetName <- use ps_sheet_name
   rix <- use ps_cell_row_index
-  unless (prevSheetName == name) $
+  -- only consider yielding the sheet item if this is a _new_ sheet name.
+  -- The idea is to here yield the entire excel row in one chunk. i.e. we've started a previous
+  unless (prevSheetName == name) $ do
+    -- Take the ps_row from state, set the ps_row to null, yield if not empty.
+    -- The point is to 'get rid' of the final sheet item in the previous worksheet.
     popRow >>= yieldSheetItem name rix
 
+  -- Now continue, either on the current mid-way row or from the beginning after yielding the above.
+  -- match the event
   parseRes <- runExceptT $ matchEvent name event
   rix' <- use ps_cell_row_index
   case parseRes of
     Left err -> C.throwM err
     Right mResult -> do
+      -- Yield the result if Just
       traverse_ (yieldSheetItem name rix') mResult
       parseFileC
 
@@ -473,7 +481,8 @@ yieldSheetItem
   -> CellRow
   -> ConduitT Event SheetItem m ()
 yieldSheetItem name rix' row =
-  unless (row == mempty) $ yield (MkSheetItem name rix' row)
+  unless (row == mempty) $
+    yield (MkSheetItem name rix' row)
 
 -- | Return row from the state and empty it
 popRow :: HasSheetState m => m CellRow
@@ -626,6 +635,10 @@ matchEvent _currentSheet = \case
   EventBeginElement Name{nameLocalName = "c"} vals  -> Nothing <$ (setCoord vals >> setType vals)
   EventBeginElement Name {nameLocalName = "v"} _    -> Nothing <$ (ps_is_in_val .= True)
   EventEndElement Name {nameLocalName = "v"}        -> Nothing <$ (ps_is_in_val .= False)
+  -- If beginning of row, empty the state and return nothing [why exactly?]
   EventBeginElement Name {nameLocalName = "row"} _  -> Nothing <$ popRow
+  -- If at the end of the row, we have collected the whole row into
+  -- the current state. Empty the state and return the row.
   EventEndElement Name{nameLocalName = "row"}       -> Just <$> popRow
+  -- Skip everything else, e.g. the formula elements <f>
   _                                                 -> pure Nothing
