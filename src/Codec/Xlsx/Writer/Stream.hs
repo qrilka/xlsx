@@ -18,7 +18,10 @@
 {-# LANGUAGE TypeApplications    #-}
 
 -- | writes excell files from a stream, which allows creation of
---   massive excell files while remaining in constant memory.
+--   large excell files while remaining in constant memory.
+--
+--   This module uses the Clark notation a lot for xml namespaces:
+--   <https://hackage.haskell.org/package/xml-types-0.3.8/docs/Data-XML-Types.html#t:Name>
 module Codec.Xlsx.Writer.Stream
   ( writeXlsx
   , writeXlsxWithSharedStrings
@@ -160,13 +163,15 @@ el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT
 el x = tag x mempty
 
 override :: Monad m => Text -> Text -> forall i.  ConduitT i Event m ()
-override content part =
-    tag "Override" (attr "ContentType" content  <> attr "PartName" part) $ pure ()
+override content' part =
+    tag "{http://schemas.openxmlformats.org/package/2006/content-types}Override"
+      (attr "{http://schemas.openxmlformats.org/package/2006/content-types}ContentType" content'
+       <> attr "{http://schemas.openxmlformats.org/package/2006/content-types}PartName" part) $ pure ()
 
 
 -- | required by excell.
 writeContentTypes :: Monad m => forall i.  ConduitT i Event m ()
-writeContentTypes = doc "Types" $ do
+writeContentTypes = doc "{http://schemas.openxmlformats.org/package/2006/content-types}Types" $ do
     override "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" "/xl/workbook.xml"
     override "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" "/xl/sharedStrings.xml"
     override "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" "/xl/worksheets/sheet1.xml"
@@ -174,10 +179,12 @@ writeContentTypes = doc "Types" $ do
 
 -- | required by excell.
 writeWorkBook :: Monad m => forall i.  ConduitT i Event m ()
-writeWorkBook = doc "workbook" $ do
-    el "sheets" $ do
-      tag "sheet"
-        (attr "name" "Sheet1" <> attr "sheetId" "1" <> attr "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id" "rId3") $
+writeWorkBook = doc (n_ "workbook") $ do
+    el (n_ "sheets") $ do
+      tag (n_ "sheet")
+        (attr (n_ "name") "Sheet1"
+         <> attr (n_ "sheetId") "1" <>
+         attr "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id" "rId3") $
         pure ()
 
 doc :: Monad m => Name ->  forall i.  ConduitT i Event m () -> ConduitT i Event m ()
@@ -186,17 +193,16 @@ doc root docM = do
   el root docM
   yield EventEndDocument
 
-
 relationship :: Monad m => Text -> Text -> Text ->  forall i.  ConduitT i Event m ()
 relationship target id' type' =
-  tag "Relationship"
-    (attr "Type" type'
-      <> attr "Id" id'
-      <> attr "Target" target
+  tag "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"
+    (attr "{http://schemas.openxmlformats.org/package/2006/relationships}Type" type'
+      <> attr "{http://schemas.openxmlformats.org/package/2006/relationships}Id" id'
+      <> attr "{http://schemas.openxmlformats.org/package/2006/relationships}Target" target
     ) $ pure ()
 
 writeRels :: Monad m => forall i.  ConduitT i Event m ()
-writeRels = doc "Relationships" $  do
+writeRels = doc "{http://schemas.openxmlformats.org/package/2006/relationships}Relationships" $  do
   relationship "sharedStrings.xml" "rId1" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
   relationship "worksheets/sheet1.xml" "rId3" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
 
@@ -222,29 +228,29 @@ writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
 writeEvents = renderBuilder (def {rsPretty=True})
 
 writeWorkSheet :: Monad m => Map Text Int  -> ConduitT SheetItem Event m ()
-writeWorkSheet sstable = doc "worksheet" $ do
-    el "sheetData" $ C.concatMap (mapItem sstable)
+writeWorkSheet sstable = doc (n_ "worksheet") $ do
+    el (n_ "sheetData") $ C.concatMap (mapItem sstable)
 
 
 
 mapItem :: Map Text Int -> SheetItem -> [Event]
 mapItem sstable sheetItem =
-  [EventBeginElement "row"  [("r", [ContentText $ toAttrVal rowIx])]]
+  [EventBeginElement (n_ "row")  [((n_ "r"), [ContentText $ toAttrVal rowIx])]]
    <>
   (ifoldMap (mapCell sstable rowIx) $ sheetItem ^. si_cell_row)
    <>
-  [EventEndElement "row"]
+  [EventEndElement (n_ "row")]
 
   where
     rowIx = sheetItem ^. si_row_index
 
 mapCell :: Map Text Int -> RowIndex -> ColIndex -> Cell -> [Event]
 mapCell sstable rix cix cell =
-  [ EventBeginElement "c"  [("r", [ContentText ref])]
-  , EventBeginElement "v"  []
+  [ EventBeginElement (n_ "c")  [((n_ "r"), [ContentText ref])]
+  , EventBeginElement (n_ "v")  []
   , EventContent $ ContentText $ renderCell sstable cell
-  , EventEndElement "v"
-  , EventEndElement "c"
+  , EventEndElement (n_ "v")
+  , EventEndElement (n_ "c")
   ]
   where
     ref :: Text
