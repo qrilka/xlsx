@@ -30,6 +30,7 @@ import qualified Data.Text                                   as Text
 import           Data.Vector                                 (Vector, indexed,
                                                               toList)
 import           Diff
+import System.Directory (getTemporaryDirectory)
 import           System.FilePath.Posix
 import           Test.Tasty                                  (TestName,
                                                               TestTree,
@@ -51,15 +52,11 @@ import Control.DeepSeq
 import Data.Conduit
 import Codec.Xlsx.Formatted
 
-tempPath :: FilePath
-tempPath = "test" </> "temp"
-
 toBs = LB.toStrict . fromXlsx testTime
 
 mkTestCase :: TestName -> Xlsx -> TestTree
 mkTestCase testName xlsx = testCase testName $ do
   res <- C.runResourceT $ C.runConduit $  yield (toBs xlsx) .| parseSharedStringsIntoMapC
-
   let
     testSst :: Vector XlsxText
     testSst = sstTable $ sstConstruct (xlsx ^.. xlSheets . traversed . _2)
