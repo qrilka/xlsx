@@ -94,9 +94,10 @@ sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString 
 --  This first runs 'sharedStrings' and then 'writeXlsxWithSharedStrings'.
 --  If you want xlsx files this is the most obvious function to use.
 --  the others are exposed in case you can cache the shared strings for example.
-writeXlsx :: MonadThrow m => PrimMonad m  =>
-  ConduitT () SheetItem m ()  ->
-  ConduitT () ByteString m Word64
+writeXlsx :: MonadThrow m
+    => PrimMonad m
+    => ConduitT () SheetItem m () -- ^ the conduit producing sheetitems
+    -> ConduitT () ByteString m Word64 -- ^ result conduit producing xlsx files
 writeXlsx sheetC = do
     sstrings  <- sheetC .| sharedStrings
     sheetC .|  writeXlsxWithSharedStrings sstrings
@@ -114,7 +115,8 @@ recomendedZipOptions = defaultZipOptions {
 -- TODO maybe should use bimap instead: https://hackage.haskell.org/package/bimap-0.4.0/docs/Data-Bimap.html
 -- it guarantees uniqueness of both text and int
 -- | This write excell file with a shared strings lookup table.
---   It appears that's optional. Failed lookups will result in valid xlsx.
+--   It appears that it is optional.
+--   Failed lookups will result in valid xlsx.
 --   There are several conditions on shared strings,
 --
 --      1. Every text to int is unique on both text and int.
@@ -125,9 +127,9 @@ recomendedZipOptions = defaultZipOptions {
 --   This is provided because the user may have a more efficient way of
 --   constructing this table then the library can provide,
 --   for example trough database operations.
-writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m  =>
-  Map Text Int ->
-  ConduitT SheetItem ByteString m Word64
+writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m
+    => Map Text Int -- ^ shared strings table
+    -> ConduitT SheetItem ByteString m Word64
 writeXlsxWithSharedStrings sstable = do
   res  <- combinedFiles sstable .| zipStream recomendedZipOptions
   -- yield (LBS.toStrict $ BS.toLazyByteString $ BS.word32LE 0x06054b50) -- insert magic number for fun.
