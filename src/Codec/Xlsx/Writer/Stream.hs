@@ -138,9 +138,18 @@ recomendedZipOptions = defaultZipOptions {
   -- I'll make the test pass, and after that I'll make the
   }
 
--- TODO provide a safe default interface and also add this in case you need perfromance
 -- TODO maybe should use bimap instead: https://hackage.haskell.org/package/bimap-0.4.0/docs/Data-Bimap.html
 -- it guarantees uniqueness of both text and int
+-- | This write excell file with a shared strings lookup table.
+--   It appears that's optional. Failed lookups will result in valid xlsx.
+--   There are several conditions on shared strings,
+--   1. Every text to int is unique on both text and int.
+--   2. Every Int should have a gap no greater then 1. [("xx", 3), ("yy", 4)] is okay, whereas [("xx", 3), ("yy", 5)] is not.
+--   3. It's expected this starts from 0.
+--
+--   Use 'sharedStringsStream' to get a good one (or as a reference)
+--   This is provided because the user may have a more efficient way of
+--   constructing this table then the library can provide.
 writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m  =>
   Map Text Int ->
   ConduitT SheetItem ByteString m Word64
