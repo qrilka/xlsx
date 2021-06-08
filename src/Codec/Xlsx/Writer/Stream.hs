@@ -17,11 +17,23 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TypeApplications    #-}
 
--- | writes excell files from a stream, which allows creation of
+-- | Writes excell files from a stream, which allows creation of
 --   large excell files while remaining in constant memory.
 --
 --   This module uses the Clark notation a lot for xml namespaces:
 --   <https://hackage.haskell.org/package/xml-types-0.3.8/docs/Data-XML-Types.html#t:Name>
+--
+--   To validate the result is correct xml:
+--
+--   @
+--       docker run -v /home/jappie/projects/xlsx:/app/xlsx-validator/xlsx -it vindvaki/xlsx-validator xlsx-validator xlsx/out/out.xlsx
+--   @
+--
+--   This will put the xlsx project root in the current working
+--   directory of xlsx validator,
+--   allowing you to run that program on the output from
+--   streaming (which in this example was written to out/out.xlsx).
+--   This gives a much more descriptive error reporting than excel.
 module Codec.Xlsx.Writer.Stream
   ( writeXlsx
   , writeXlsxWithSharedStrings
@@ -162,10 +174,16 @@ combinedFiles :: PrimMonad m  =>
   Map Text Int ->
   ConduitT SheetItem (ZipEntry, ZipData m) m ()
 combinedFiles sstable = do
+   -- massive amount of boilerplate needed for excel to function
   yield (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sstable .| eventsToBS)
   yield (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
-  yield (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkBook .| eventsToBS)
-  yield (zipEntry "xl/_rels/workbook.xml.rels", ZipDataSource $ writeRels .| eventsToBS)
+  yield (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook .| eventsToBS)
+  yield (zipEntry "xl/_rels/workbook.xml.rels", ZipDataSource $ writeWorkbookRels .| eventsToBS)
+
+   -- this boilerplate isn't necessary for the test to succeed, but excel
+   -- itself insists it's necessary (although it refuses to tell us or the user why)
+  yield (zipEntry "_rels/.rels", ZipDataSource $ writeRootRels .| eventsToBS)
+   -- actual data
   writeWorkSheet sstable .| eventsToBS .| C.map (\x -> (zipEntry "xl/worksheets/sheet1.xml", ZipDataByteString $ LBS.fromStrict x))
 
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
@@ -174,8 +192,8 @@ el x = tag x mempty
 override :: Monad m => Text -> Text -> forall i.  ConduitT i Event m ()
 override content' part =
     tag "{http://schemas.openxmlformats.org/package/2006/content-types}Override"
-      (attr "{http://schemas.openxmlformats.org/package/2006/content-types}ContentType" content'
-       <> attr "{http://schemas.openxmlformats.org/package/2006/content-types}PartName" part) $ pure ()
+      (attr "ContentType" content'
+       <> attr "PartName" part) $ pure ()
 
 
 -- | required by excell.
@@ -185,10 +203,11 @@ writeContentTypes = doc "{http://schemas.openxmlformats.org/package/2006/content
     override "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" "/xl/sharedStrings.xml"
     override "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" "/xl/worksheets/sheet1.xml"
     override "application/vnd.openxmlformats-package.relationships+xml" "/xl/_rels/workbook.xml.rels"
+    override "application/vnd.openxmlformats-package.relationships+xml" "/_rels/.rels"
 
 -- | required by excell.
-writeWorkBook :: Monad m => forall i.  ConduitT i Event m ()
-writeWorkBook = doc ("workbook") $ do
+writeWorkbook :: Monad m => forall i.  ConduitT i Event m ()
+writeWorkbook = doc (n_ "workbook") $ do
     el (n_ "sheets") $ do
       tag (n_ "sheet")
         (attr "name" "Sheet1"
@@ -210,11 +229,16 @@ relationship target id' type' =
       <> attr "Target" target
     ) $ pure ()
 
-writeRels :: Monad m => forall i.  ConduitT i Event m ()
-writeRels = doc (pr "Relationships") $  do
+writeWorkbookRels :: Monad m => forall i.  ConduitT i Event m ()
+writeWorkbookRels = doc (pr "Relationships") $  do
   relationship "sharedStrings.xml" "rId1" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
   relationship "worksheets/sheet1.xml" "rId3" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
 
+writeRootRels :: Monad m => forall i.  ConduitT i Event m ()
+writeRootRels = doc (pr "Relationships") $  do
+  relationship "xl/workbook.xml" "rId1" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+  -- relationship "docProps/core.xml" "rId2" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/metadata/core-properties"
+  -- relationship "docProps/app.xml" "rId3" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties"
 
 
 zipEntry :: Text -> ZipEntry
