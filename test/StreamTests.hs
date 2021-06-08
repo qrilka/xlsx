@@ -98,11 +98,8 @@ tests =
 
 readWrite :: Xlsx -> IO ()
 readWrite input = do
-  BS.writeFile "in/input.xlsx" (toBs input)
   readStr  <- C.runResourceT $ readXlsxC $ yield (toBs input)
   bs <- runConduitRes $ void (SW.writeXlsx readStr) .| C.foldC
-  putStrLn "going back to either"
-  BS.writeFile "out/out.xlsx" bs -- TODO remove, for debugging
   case toXlsxEither $ LB.fromStrict bs of
     Right result  ->
       simplified  @==?  result
