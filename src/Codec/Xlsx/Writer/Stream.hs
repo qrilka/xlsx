@@ -225,28 +225,26 @@ writeSst sstable = doc (n_ "sst") $
                   ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sstable
 
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
-writeEvents = renderBuilder (def {rsPretty=True})
+writeEvents = renderBuilder (def {rsPretty=False})
 
 writeWorkSheet :: Monad m => Map Text Int  -> ConduitT SheetItem Event m ()
 writeWorkSheet sstable = doc (n_ "worksheet") $ do
     el (n_ "sheetData") $ C.concatMap (mapItem sstable)
 
-
-
 mapItem :: Map Text Int -> SheetItem -> [Event]
 mapItem sstable sheetItem =
-  [EventBeginElement (n_ "row")  [((n_ "r"), [ContentText $ toAttrVal rowIx])]]
+  [EventBeginElement (n_ "row")  [("r", [ContentText $ toAttrVal rowIx])]]
    <>
   (ifoldMap (mapCell sstable rowIx) $ sheetItem ^. si_cell_row)
    <>
   [EventEndElement (n_ "row")]
-
   where
     rowIx = sheetItem ^. si_row_index
 
 mapCell :: Map Text Int -> RowIndex -> ColIndex -> Cell -> [Event]
 mapCell sstable rix cix cell =
-  [ EventBeginElement (n_ "c")  [((n_ "r"), [ContentText ref])]
+  [ EventBeginElement (n_ "c")
+    ([("r", [ContentText ref])] <> renderCellType sstable cell)
   , EventBeginElement (n_ "v")  []
   , EventContent $ ContentText $ renderCell sstable cell
   , EventEndElement (n_ "v")
@@ -256,6 +254,12 @@ mapCell sstable rix cix cell =
     ref :: Text
     ref = coerce $ singleCellRef (rix, cix)
 
+renderCellType :: Map Text Int -> Cell -> [(Name, [Content])]
+renderCellType sstable cell =
+  maybe []
+  (\x -> [("t", [ContentText $ renderType sstable x])])
+  $ cell ^? cellValue . _Just
+
 renderCell :: Map Text Int -> Cell -> Text
 renderCell sstable cell =  renderValue sstable val
   where
@@ -264,11 +268,20 @@ renderCell sstable cell =  renderValue sstable val
 
 renderValue :: Map Text Int -> CellValue -> Text
 renderValue sstable = \case
-  CellText x -> let
-    int :: Int
-    int = fromMaybe (error "could not find in sstable") $ sstable ^? ix x
-    in toAttrVal int
+  CellText x ->
+    -- if we can't find it in the sst, print the string
+    maybe x toAttrVal $ sstable ^? ix x
   CellDouble x -> toAttrVal x
   CellBool b -> toAttrVal b
   CellRich _ -> error "rich text is not supported yet"
   CellError err  -> toAttrVal err
+
+
+renderType :: Map Text Int -> CellValue -> Text
+renderType sstable = \case
+  CellText x ->
+    maybe "str" (const "s") $ sstable ^? ix x
+  CellDouble _ -> "n"
+  CellBool _ -> "b"
+  CellRich _ -> "r"
+  CellError _ -> "e"
