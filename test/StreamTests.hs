@@ -39,6 +39,7 @@ import           TestXlsx
 import           Text.RawString.QQ
 import           Text.XML
 import qualified Codec.Xlsx.Writer.Stream as SW
+import qualified Codec.Xlsx.Writer.Internal.Stream as SW
 import Control.Monad.State.Lazy
 import Test.Tasty.SmallCheck
 import qualified Data.Set as Set
@@ -93,8 +94,10 @@ tests =
       testGroup "Reader/Writer"
       [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbook
       -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
+      -- TODO forall SheetItem write that can be read
       ]
     ]
+
 
 readWrite :: Xlsx -> IO ()
 readWrite input = do

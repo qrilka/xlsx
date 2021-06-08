@@ -1,21 +1,12 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveAnyClass      #-}
-{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE DerivingVia         #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE MultiWayIf          #-}
-{-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE StrictData          #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TypeApplications    #-}
 
 -- | Writes excell files from a stream, which allows creation of
 --   large excell files while remaining in constant memory.
@@ -26,7 +17,7 @@
 --   To validate the result is correct xml:
 --
 --   @
---       docker run -v /home/jappie/projects/xlsx:/app/xlsx-validator/xlsx -it vindvaki/xlsx-validator xlsx-validator xlsx/out/out.xlsx
+--   docker run -v \/home\/jappie\/projects\/xlsx:\/app\/xlsx-validator\/xlsx -it vindvaki\/xlsx-validator xlsx-validator xlsx\/out\/out.xlsx
 --   @
 --
 --   This will put the xlsx project root in the current working
@@ -37,72 +28,42 @@
 module Codec.Xlsx.Writer.Stream
   ( writeXlsx
   , writeXlsxWithSharedStrings
+  -- *** Shared strings
   , sharedStrings
   , sharedStringsStream
-
-  -- automated testing -- TODO move to internal
-  , getSetNumber
-  , initialSharedString
-  , string_map
-
   ) where
 
 import           Codec.Archive.Zip.Conduit.UnZip
+import           Codec.Archive.Zip.Conduit.Zip
+import           Codec.Xlsx.Parser.Internal              (n_)
+import           Codec.Xlsx.Parser.Stream
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
-import           Conduit                         (PrimMonad, yield, (.|))
-import qualified Conduit                         as C
+import           Codec.Xlsx.Types.Internal.Relationships (odr, pr)
+import           Codec.Xlsx.Writer.Internal              (toAttrVal)
+import           Codec.Xlsx.Writer.Internal.Stream
+import           Conduit                                 (PrimMonad, yield,
+                                                          (.|))
+import qualified Conduit                                 as C
 import           Control.Lens
 import           Control.Monad.Catch
 import           Control.Monad.State.Strict
-import Data.ByteString(ByteString)
-import Data.ByteString.Builder(Builder)
-import qualified Data.ByteString.Lazy                 as LBS
-import           Data.Conduit                    (ConduitT)
-import qualified Data.Conduit.Combinators        as C
-import qualified Data.Conduit.List as CL
-import Codec.Archive.Zip.Conduit.Zip
-import           Data.Map.Strict                 (Map)
-import qualified Data.Map.Strict                 as Map
-import           Data.Text                       (Text)
+import           Data.ByteString                         (ByteString)
+import           Data.ByteString.Builder                 (Builder)
+import qualified Data.ByteString.Lazy                    as LBS
+import           Data.Coerce
+import           Data.Conduit                            (ConduitT)
+import qualified Data.Conduit.Combinators                as C
+import qualified Data.Conduit.List                       as CL
+import           Data.List
+import           Data.Map.Strict                         (Map)
+import qualified Data.Map.Strict                         as Map
+import           Data.Maybe
+import           Data.Text                               (Text)
+import           Data.Time
+import           Data.Word
 import           Data.XML.Types
 import           Text.XML.Stream.Render
-import           Codec.Xlsx.Parser.Stream
-import Data.Maybe
-import Data.List
-import Data.Word
-import Data.Coerce
-import Data.Time
-import Codec.Xlsx.Writer.Internal(toAttrVal)
-import Codec.Xlsx.Parser.Internal(n_)
-import Codec.Xlsx.Types.Internal.Relationships(odr, pr)
-
-newtype SharedStringState = MkSharedStringState
-  { _string_map :: Map Text Int
-  }
-makeLenses 'MkSharedStringState
-
-initialSharedString :: SharedStringState
-initialSharedString = MkSharedStringState mempty
-
--- properties:
--- for a list of [text], every unique text get's a unique number.
---
-getSetNumber :: MonadState SharedStringState m => Text -> m (Text,Int)
-getSetNumber current = do
-  strings  <- use string_map
-
-  let mIdx :: Maybe Int
-      mIdx = strings ^? ix current
-
-      idx :: Int
-      idx = fromMaybe (length strings) mIdx
-
-      newMap :: Map Text Int
-      newMap = at current ?~ idx $ strings
-
-  string_map .= newMap
-  pure (current, idx)
 
 mapFold :: MonadState SharedStringState m => SheetItem  -> m [(Text,Int)]
 mapFold  row =
@@ -128,7 +89,7 @@ sharedStringsStream :: Monad m  =>
 sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString $
   CL.mapFoldableM mapFold
 
--- | Transform a SheetItem stream into a stream that creates the xlsx file format
+-- | Transform a 'SheetItem' stream into a stream that creates the xlsx file format
 --   (to be consumed by sinkfile for example)
 --  This first runs 'sharedStrings' and then 'writeXlsxWithSharedStrings'.
 --  If you want xlsx files this is the most obvious function to use.
@@ -155,13 +116,15 @@ recomendedZipOptions = defaultZipOptions {
 -- | This write excell file with a shared strings lookup table.
 --   It appears that's optional. Failed lookups will result in valid xlsx.
 --   There are several conditions on shared strings,
---   1. Every text to int is unique on both text and int.
---   2. Every Int should have a gap no greater then 1. [("xx", 3), ("yy", 4)] is okay, whereas [("xx", 3), ("yy", 5)] is not.
---   3. It's expected this starts from 0.
 --
---   Use 'sharedStringsStream' to get a good one (or as a reference)
+--      1. Every text to int is unique on both text and int.
+--      2. Every Int should have a gap no greater then 1. [("xx", 3), ("yy", 4)] is okay, whereas [("xx", 3), ("yy", 5)] is not.
+--      3. It's expected this starts from 0.
+--
+--   Use 'sharedStringsStream' to get a good shared strings table.
 --   This is provided because the user may have a more efficient way of
---   constructing this table then the library can provide.
+--   constructing this table then the library can provide,
+--   for example trough database operations.
 writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m  =>
   Map Text Int ->
   ConduitT SheetItem ByteString m Word64
