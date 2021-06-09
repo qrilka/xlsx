@@ -1,8 +1,10 @@
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE GeneralisedNewtypeDeriving #-}
 {-# LANGUAGE DerivingVia         #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -145,9 +147,16 @@ module Codec.Xlsx.Parser.Stream
   , si_sheet
   , si_row_index
   , si_cell_row
+
+  -- ** API based on 'zip' library for selective sheet reading
+  , XlsxM
+  , runXlsxM
+  , getSheetSource
+  , getOrParseSharedStrings
   ) where
 
 import           Codec.Archive.Zip.Conduit.UnZip
+import qualified "zip" Codec.Archive.Zip as Zip
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
 import           Conduit                         (PrimMonad, await, yield, (.|))
@@ -155,12 +164,15 @@ import qualified Conduit                         as C
 import           Control.Lens
 import           Control.Monad.Catch
 import           Control.Monad.Except
+import           Control.Monad.Reader
 import           Control.Monad.State.Strict
 import           Data.Bifunctor
 import qualified Data.ByteString                 as BS
 import           Data.Conduit                    (ConduitT)
 import qualified Data.Conduit.Combinators        as C
+import qualified Data.Conduit.List               as CL
 import           Data.Foldable
+import           Data.IORef
 import           Data.Map.Strict                 (Map)
 import qualified Data.Map.Strict                 as Map
 import           Data.Text                       (Text)
@@ -170,7 +182,7 @@ import qualified Data.Text.Read                  as Read
 import           Data.XML.Types
 import           GHC.Generics
 import           NoThunks.Class
-import           Text.Read
+import           Text.Read                       hiding (lift)
 import           Text.XML.Stream.Parse
 import Codec.Xlsx.Parser.Internal
 
@@ -263,6 +275,20 @@ instance HasPSFiles SheetState where
   fileLens = ps_file
 instance HasPSFiles SharedStringState where
   fileLens = ss_file
+
+--
+-- Here begins the types for the part of this module that uses the "zip" library parser ---
+--
+-- TODO: decide whether to remove one or the other approaches, or unify them, or separate modules
+data XlsxMState = MkXlsxMState
+  { _xs_shared_strings :: IORef (Maybe (Map Int Text))
+--  , _xs_sheet_names :: IORef (Maybe (Map Int Text))
+  }
+makeLenses 'MkXlsxMState
+
+newtype XlsxM a = XlsxM { unXlsxM :: ReaderT XlsxMState Zip.ZipArchive a }
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadCatch, MonadMask, MonadThrow, MonadReader XlsxMState)
+--- Here ends the types for the zip library/XlsxM approach ---
 
 -- | Initial parsing state
 initialSheetState :: SheetState
@@ -386,6 +412,76 @@ readXlsxC input = do
     pure $
          input
       .| readXlsxWithSharedStringMapC ssState
+
+-- | Run a series of actions on an Xlsx file
+runXlsxM :: MonadIO m => FilePath -> XlsxM a -> m a
+runXlsxM xlsxFile (XlsxM act) = do
+  env0 <- liftIO $ MkXlsxMState <$> newIORef Nothing
+  Zip.withArchive xlsxFile $ runReaderT act env0
+
+liftZip :: Zip.ZipArchive a -> XlsxM a
+liftZip = XlsxM . ReaderT . const
+
+getOrParseSharedStrings :: XlsxM (Map Int Text)
+getOrParseSharedStrings = do
+  sharedStringsRef <- asks _xs_shared_strings
+  mSharedStrings <- liftIO $ readIORef sharedStringsRef
+  case mSharedStrings of
+    Just strs -> pure strs
+    Nothing -> do
+      sharedStrsSel <- liftZip $ Zip.mkEntrySelector "xl/sharedStrings.xml"
+      sharedStrings <- liftZip $ Zip.sourceEntry sharedStrsSel $
+        parseBytes def
+        .| C.evalStateC
+             (initialSharedString & ss_file .~ SharedStrings)
+             (C.concatMapM parseSharedString)
+        .| C.foldMap (uncurry Map.singleton)
+      liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
+      pure sharedStrings
+
+-- | If the given sheet number exists, returns Just a conduit source of all
+-- the rows in a particular sheet. Returns Nothing when the sheet doesn't exist
+getSheetSource ::
+  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
+  -- | The sheet number
+  Int ->
+  XlsxM (Maybe (ConduitT () SheetItem m ()))
+getSheetSource sheetNumber = do
+  -- TODO: consider re-wrapping zip library exceptions, or just re-export them?
+  sheetSel <- liftZip $ Zip.mkEntrySelector $ "xl/worksheets/sheet" <> show sheetNumber <> ".xml"
+  sheetExists <- liftZip $ Zip.doesEntryExist sheetSel
+  if not sheetExists
+    then pure Nothing
+    else do
+    sharedStrs <- getOrParseSharedStrings
+    sourceSheet <- liftZip $ Zip.getEntrySource sheetSel
+    let sheetState0 = initialSheetState
+          & ps_shared_strings .~ sharedStrs
+          & ps_file .~ Sheet sheetName
+          & ps_sheet_name .~ sheetName
+        xmlEventToSheetItem event = do
+          -- A version of readSheetC that doesn't include logic for
+          -- streaming multiple sheets.
+          -- XXX: unify the two approaches, or support both?
+          parseRes <- runExceptT $ matchEvent sheetName event
+          rix' <- use ps_cell_row_index
+          case parseRes of
+            Left err -> C.throwM err
+            Right (Just cellRow)
+              | not (Map.null cellRow) ->
+                pure $ Just $ MkSheetItem sheetName rix' cellRow
+            _ -> pure Nothing
+    pure $ Just $
+      sourceSheet
+      .| parseBytes def
+      .| C.evalStateC sheetState0 (CL.mapMaybeM xmlEventToSheetItem)
+ where
+   sheetName =
+     -- FIXME: hack to be compatible with the other parser,
+     -- which as of this writing sets the sheet name to be
+     -- "/sheetN.xml"
+     "/sheet"  <> (Text.pack $ show sheetNumber) <> ".xml"
+
 
 -- | Tag zip entries with `PsFileTags`
 --

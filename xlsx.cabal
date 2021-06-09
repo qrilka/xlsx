@@ -103,8 +103,9 @@ Library
                    , xml-conduit  >= 1.1.0
                    , zip-archive  >= 0.2
                    , zlib         >= 0.5.4.0
+                   , zip
                    , zip-stream   >= 0.2.0.1
-                   , xml-types   
+                   , xml-types
                    , exceptions
                    , nothunks
   if flag(microlens)
@@ -158,7 +159,7 @@ test-suite data-test
                , xlsx
                , xml-conduit >= 1.1.0
                , conduit
-               , filepath 
+               , filepath
                , deepseq
   if flag(microlens)
     Build-depends:     microlens    >= 0.4 && < 0.5
@@ -190,7 +191,7 @@ executable streaming
   --   -fprof-auto
   --   -fprof-cafs
   --   -eventlog
-  --   -prof 
+  --   -prof
   --   "-with-rtsopts=-N -l -p -s -hT -i0.1 -K100M"
   build-depends: base
                , bytestring
