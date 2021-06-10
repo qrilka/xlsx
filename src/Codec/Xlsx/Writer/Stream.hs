@@ -10,21 +10,6 @@
 
 -- | Writes excell files from a stream, which allows creation of
 --   large excell files while remaining in constant memory.
---
---   This module uses the Clark notation a lot for xml namespaces:
---   <https://hackage.haskell.org/package/xml-types-0.3.8/docs/Data-XML-Types.html#t:Name>
---
---   To validate the result is correct xml:
---
---   @
---   docker run -v \/home\/jappie\/projects\/xlsx:\/app\/xlsx-validator\/xlsx -it vindvaki\/xlsx-validator xlsx-validator xlsx\/out\/out.xlsx
---   @
---
---   This will put the xlsx project root in the current working
---   directory of xlsx validator,
---   allowing you to run that program on the output from
---   streaming (which in this example was written to out/out.xlsx).
---   This gives a much more descriptive error reporting than excel.
 module Codec.Xlsx.Writer.Stream
   ( writeXlsx
   , writeXlsxWithSharedStrings
@@ -89,6 +74,17 @@ sharedStringsStream :: Monad m  =>
 sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString $
   CL.mapFoldableM mapFold
 
+--   To validate the result is correct xml:
+--
+--   @
+--   docker run -v \/home\/jappie\/projects\/xlsx:\/app\/xlsx-validator\/xlsx -it vindvaki\/xlsx-validator xlsx-validator xlsx\/out\/out.xlsx
+--   @
+--
+--   This will put the xlsx project root in the current working
+--   directory of xlsx validator,
+--   allowing you to run that program on the output from
+--   streaming (which in this example was written to out/out.xlsx).
+--   This gives a much more descriptive error reporting than excel.
 -- | Transform a 'SheetItem' stream into a stream that creates the xlsx file format
 --   (to be consumed by sinkfile for example)
 --  This first runs 'sharedStrings' and then 'writeXlsxWithSharedStrings'.
@@ -154,6 +150,8 @@ combinedFiles sstable = do
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 el x = tag x mempty
 
+--   Clark notation a lot for xml namespaces:
+--   <https://hackage.haskell.org/package/xml-types-0.3.8/docs/Data-XML-Types.html#t:Name>
 override :: Monad m => Text -> Text -> forall i.  ConduitT i Event m ()
 override content' part =
     tag "{http://schemas.openxmlformats.org/package/2006/content-types}Override"
