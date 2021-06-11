@@ -147,6 +147,7 @@ module Codec.Xlsx.Parser.Stream
   , getSheetSource
   , getSheetXmlSource
   , getOrParseSharedStrings
+  , countRowsInSheet
 
   -- * Types shared by both parser approaches
   , CellRow
@@ -515,6 +516,20 @@ getSheetSource sheetNumber = do
             _ -> pure Nothing
       pure $ Just $ sourceSheetXml
         .| C.evalStateC sheetState0 (CL.mapMaybeM xmlEventToSheetItem)
+
+-- | Returns number of rows in the given sheet (identified by sheet
+-- number), or Nothing if the sheet does not exist. Does not perform a
+-- full parse of the XML, so it should be more efficient than counting
+-- via 'getSheetSource'.
+countRowsInSheet :: Int -> XlsxM (Maybe Int)
+countRowsInSheet sheetNumber = do
+  getSheetXmlSource sheetNumber >>= \case
+    Nothing -> pure Nothing
+    Just sourceSheetXml -> fmap Just $ do
+      liftIO $ C.runConduitRes $ sourceSheetXml .| C.lengthIf isStartOfRow
+ where
+   isStartOfRow (EventBeginElement Name{nameLocalName = "row"} _) = True
+   isStartOfRow _ = False
 
 -- | Tag zip entries with `PsFileTags`
 --
