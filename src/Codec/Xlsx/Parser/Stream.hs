@@ -135,12 +135,20 @@
 -- @
 {-# LANGUAGE TypeApplications    #-}
 module Codec.Xlsx.Parser.Stream
-  ( -- * Parsers
+  ( -- * Parser API based on "zip-stream" package
     readXlsxC
   , readXlsxWithSharedStringMapC
   , parseSharedStringsC
   , parseSharedStringsIntoMapC
-  -- * Structs
+
+  -- * Parser API based on "zip" package
+  , XlsxM
+  , runXlsxM
+  , getSheetSource
+  , getSheetXmlSource
+  , getOrParseSharedStrings
+
+  -- * Types shared by both parser approaches
   , CellRow
   , SheetItem(..)
   -- ** `SheetItem` lens
@@ -148,11 +156,13 @@ module Codec.Xlsx.Parser.Stream
   , si_row_index
   , si_cell_row
 
-  -- ** API based on 'zip' library for selective sheet reading
-  , XlsxM
-  , runXlsxM
-  , getSheetSource
-  , getOrParseSharedStrings
+  -- * Errors that either parser can throw
+  , SheetErrors(..)
+  {-- TODO: check if these errors could be exposed to users or not
+  , AddCellErrors(..)
+  , CoordinateErrors(..)
+  , TypeError(..)
+  --}
   ) where
 
 import           Codec.Archive.Zip.Conduit.UnZip
