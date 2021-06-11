@@ -439,23 +439,55 @@ getOrParseSharedStrings = do
       liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
       pure sharedStrings
 
--- | If the given sheet number exists, returns Just a conduit source of all
--- the rows in a particular sheet. Returns Nothing when the sheet doesn't exist
-getSheetSource ::
+-- | If the given sheet number exists, returns Just a conduit source
+-- of the stream of XML events (using the xml-conduit packgae) in a
+-- particular sheet. Returns Nothing when the sheet doesn't exist.
+--
+-- This is a lower level API for full control over the XML in a given
+-- sheet. For a higher level API, see 'getSheetSource'.
+getSheetXmlSource ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
   Int ->
-  XlsxM (Maybe (ConduitT () SheetItem m ()))
-getSheetSource sheetNumber = do
+  XlsxM (Maybe (ConduitT () Event m ()))
+getSheetXmlSource sheetNumber = do
   -- TODO: consider re-wrapping zip library exceptions, or just re-export them?
   sheetSel <- liftZip $ Zip.mkEntrySelector $ "xl/worksheets/sheet" <> show sheetNumber <> ".xml"
   sheetExists <- liftZip $ Zip.doesEntryExist sheetSel
   if not sheetExists
     then pure Nothing
     else do
-    sharedStrs <- getOrParseSharedStrings
-    sourceSheet <- liftZip $ Zip.getEntrySource sheetSel
-    let sheetState0 = initialSheetState
+      sourceSheet <- liftZip $ Zip.getEntrySource sheetSel
+      pure $ Just $ sourceSheet .| parseBytes def
+ where
+   sheetName = mkSheetName sheetNumber
+
+-- FIXME: hack to be compatible with the other parser,
+-- which as of this writing sets the sheet name to be
+-- "/sheetN.xml"
+mkSheetName :: Int -> Text
+mkSheetName sheetNumber =
+     "/sheet"  <> Text.pack (show sheetNumber) <> ".xml"
+
+-- | If the given sheet number exists, returns Just a conduit source
+-- of the stream of XML events (using the xml-conduit packgae) in a
+-- particular sheet. Returns Nothing when the sheet doesn't exist.
+--
+-- May throw SheetErrors if there is a parsing error occurs in the
+-- underlying XML parser.
+getSheetSource ::
+  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
+  -- | The sheet number
+  Int ->
+  XlsxM (Maybe (ConduitT () SheetItem m ()))
+getSheetSource sheetNumber = do
+  getSheetXmlSource sheetNumber >>= \case
+    Nothing -> pure Nothing
+    Just sourceSheetXml -> do
+      sharedStrs <- getOrParseSharedStrings
+      let
+        sheetName = mkSheetName sheetNumber
+        sheetState0 = initialSheetState
           & ps_shared_strings .~ sharedStrs
           & ps_file .~ Sheet sheetName
           & ps_sheet_name .~ sheetName
@@ -471,17 +503,8 @@ getSheetSource sheetNumber = do
               | not (Map.null cellRow) ->
                 pure $ Just $ MkSheetItem sheetName rix' cellRow
             _ -> pure Nothing
-    pure $ Just $
-      sourceSheet
-      .| parseBytes def
-      .| C.evalStateC sheetState0 (CL.mapMaybeM xmlEventToSheetItem)
- where
-   sheetName =
-     -- FIXME: hack to be compatible with the other parser,
-     -- which as of this writing sets the sheet name to be
-     -- "/sheetN.xml"
-     "/sheet"  <> (Text.pack $ show sheetNumber) <> ".xml"
-
+      pure $ Just $ sourceSheetXml
+        .| C.evalStateC sheetState0 (CL.mapMaybeM xmlEventToSheetItem)
 
 -- | Tag zip entries with `PsFileTags`
 --
