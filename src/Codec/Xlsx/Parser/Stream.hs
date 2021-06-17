@@ -145,7 +145,6 @@ module Codec.Xlsx.Parser.Stream
   , XlsxM
   , runXlsxM
   , getSheetSource
-  , getSheetXmlSource
   , getOrParseSharedStrings
   , countRowsInSheet
 
@@ -450,12 +449,9 @@ getOrParseSharedStrings = do
       liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
       pure sharedStrings
 
--- | If the given sheet number exists, returns Just a conduit source
+-- If the given sheet number exists, returns Just a conduit source
 -- of the stream of XML events (using the xml-conduit packgae) in a
 -- particular sheet. Returns Nothing when the sheet doesn't exist.
---
--- This is a lower level API for full control over the XML in a given
--- sheet. For a higher level API, see 'getSheetSource'.
 getSheetXmlSource ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
