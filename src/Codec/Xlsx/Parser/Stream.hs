@@ -190,6 +190,7 @@ import           Data.Text                       (Text)
 import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
 import qualified Data.Text.Read                  as Read
+import           Data.Time.Clock
 import           Data.XML.Types
 import           GHC.Generics
 import           NoThunks.Class
@@ -440,6 +441,7 @@ getOrParseSharedStrings = do
     Nothing -> do
       sharedStrsSel <- liftZip $ Zip.mkEntrySelector "xl/sharedStrings.xml"
       let state0 = initialSharedString & ss_file .~ SharedStrings
+      t0 <- liftIO getCurrentTime
       sharedStrings <- liftZip $ Zip.sourceEntry sharedStrsSel $
         parseBytes def
         .| C.evalStateC state0 (C.concatMapM parseSharedString)
@@ -449,6 +451,8 @@ getOrParseSharedStrings = do
         -- copies rather than extends, copying pointers rather than
         -- the underlying text values)
         .| C.sinkVector
+      t1 <- liftIO getCurrentTime
+      liftIO $ putStrLn $ "Took " <> show (t1 `diffUTCTime` t0) <> " to read shared strings"
       liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
       pure sharedStrings
 
