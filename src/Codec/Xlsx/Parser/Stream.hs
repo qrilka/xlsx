@@ -167,6 +167,7 @@ module Codec.Xlsx.Parser.Stream
 
 import           Codec.Archive.Zip.Conduit.UnZip
 import qualified "zip" Codec.Archive.Zip as Zip
+import qualified Data.Vector as V
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
 import           Conduit                         (PrimMonad, await, yield, (.|))
@@ -231,7 +232,7 @@ data PsFileTag =
 
 makePrisms ''PsFileTag
 
-type SharedStringMap = Map Int Text
+type SharedStringMap = V.Vector Text
 
 -- | Type of the excel value
 --
@@ -291,7 +292,7 @@ instance HasPSFiles SharedStringState where
 --
 -- TODO: decide whether to remove one or the other approaches, or unify them, or separate modules
 data XlsxMState = MkXlsxMState
-  { _xs_shared_strings :: IORef (Maybe (Map Int Text))
+  { _xs_shared_strings :: IORef (Maybe (V.Vector Text))
 --  , _xs_sheet_names :: IORef (Maybe (Map Int Text))
   }
 makeLenses 'MkXlsxMState
@@ -350,7 +351,7 @@ parseSharedStringsC
   :: ( MonadThrow m
      , PrimMonad m
      )
-  => ConduitT BS.ByteString (Int, Text) m ()
+  => ConduitT BS.ByteString Text m ()
 parseSharedStringsC = (() <$ unZipStream) .| C.evalStateLC initialSharedString go
   where
     go = (await >>= tagFilesC)
@@ -365,8 +366,8 @@ parseSharedStringsIntoMapC
   :: ( MonadThrow m
      , PrimMonad m
      )
-  => ConduitT BS.ByteString C.Void m (Map Int Text)
-parseSharedStringsIntoMapC = parseSharedStringsC .| C.foldMap (uncurry Map.singleton)
+  => ConduitT BS.ByteString C.Void m (V.Vector Text)
+parseSharedStringsIntoMapC = parseSharedStringsC .| C.sinkVector
 
 -- | Parse shared string entry from xml event and return it once
 -- we've reached the end of given element
@@ -374,14 +375,12 @@ parseSharedString
   :: ( MonadThrow m
      , HasSharedStringState m
      )
-  => Event -> m (Maybe (Int, Text))
+  => Event -> m (Maybe Text)
 parseSharedString = \case
   EventBeginElement Name {nameLocalName = "t"} _ -> Nothing <$ (ss_string .= "")
   EventEndElement Name {nameLocalName = "t"} -> do
-    !idx <- use ss_shared_ix
-    ss_shared_ix += 1
     !txt <- use ss_string
-    pure $ Just (idx, txt)
+    pure $ Just txt
   EventContent (ContentText txt) -> Nothing <$ (ss_string <>= txt)
   _ -> pure Nothing
 
@@ -418,7 +417,7 @@ readXlsxC input = do
     ssState <- C.runConduit $
          input
       .| parseSharedStringsC
-      .| C.foldMap (uncurry Map.singleton)
+      .| C.sinkVector
     pure $
          input
       .| readXlsxWithSharedStringMapC ssState
@@ -432,7 +431,7 @@ runXlsxM xlsxFile (XlsxM act) = do
 liftZip :: Zip.ZipArchive a -> XlsxM a
 liftZip = XlsxM . ReaderT . const
 
-getOrParseSharedStrings :: XlsxM (Map Int Text)
+getOrParseSharedStrings :: XlsxM (V.Vector Text)
 getOrParseSharedStrings = do
   sharedStringsRef <- asks _xs_shared_strings
   mSharedStrings <- liftIO $ readIORef sharedStringsRef
@@ -440,12 +439,16 @@ getOrParseSharedStrings = do
     Just strs -> pure strs
     Nothing -> do
       sharedStrsSel <- liftZip $ Zip.mkEntrySelector "xl/sharedStrings.xml"
+      let state0 = initialSharedString & ss_file .~ SharedStrings
       sharedStrings <- liftZip $ Zip.sourceEntry sharedStrsSel $
         parseBytes def
-        .| C.evalStateC
-             (initialSharedString & ss_file .~ SharedStrings)
-             (C.concatMapM parseSharedString)
-        .| C.foldMap (uncurry Map.singleton)
+        .| C.evalStateC state0 (C.concatMapM parseSharedString)
+        -- C.sinkVector uses a mutable vector internally and runs an
+        -- 'unsafeFreeze' at the end. The vector's size is doubled
+        -- whenever capacity is reached via Vector.Mutable.grow (which
+        -- copies rather than extends, copying pointers rather than
+        -- the underlying text values)
+        .| C.sinkVector
       liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
       pure sharedStrings
 
@@ -637,7 +640,7 @@ data AddCellErrors
       String  -- ^ Error message
   | SharedStringNotFound -- ^ Could not find string by index in shared string table
       Int                -- ^ Given index
-      (Map Int Text)     -- ^ Given map to lookup in
+      (V.Vector Text)      -- ^ Given shared strings to lookup in
   deriving Show
 
 -- | Parse the given value
