@@ -372,6 +372,7 @@ parseSharedStringsIntoMapC = parseSharedStringsC .| C.sinkVector
 
 -- | Parse shared string entry from xml event and return it once
 -- we've reached the end of given element
+{-# SCC parseSharedString #-}
 parseSharedString
   :: ( MonadThrow m
      , HasSharedStringState m
@@ -432,6 +433,7 @@ runXlsxM xlsxFile (XlsxM act) = do
 liftZip :: Zip.ZipArchive a -> XlsxM a
 liftZip = XlsxM . ReaderT . const
 
+{-# SCC getOrParseSharedStrings #-}
 getOrParseSharedStrings :: XlsxM (V.Vector Text)
 getOrParseSharedStrings = do
   sharedStringsRef <- asks _xs_shared_strings
@@ -442,8 +444,8 @@ getOrParseSharedStrings = do
       sharedStrsSel <- liftZip $ Zip.mkEntrySelector "xl/sharedStrings.xml"
       let state0 = initialSharedString & ss_file .~ SharedStrings
       t0 <- liftIO getCurrentTime
-      sharedStrings <- liftZip $ Zip.sourceEntry sharedStrsSel $
-        parseBytes def
+      sharedStrings <- {-# SCC "eval_sharedStrings" #-} liftZip $ Zip.sourceEntry sharedStrsSel $
+        ( {-# SCC "sharedStrings_parseBytes" #-} parseBytes def)
         .| C.evalStateC state0 (C.concatMapM parseSharedString)
         -- C.sinkVector uses a mutable vector internally and runs an
         -- 'unsafeFreeze' at the end. The vector's size is doubled
@@ -459,6 +461,7 @@ getOrParseSharedStrings = do
 -- If the given sheet number exists, returns Just a conduit source
 -- of the stream of XML events (using the xml-conduit packgae) in a
 -- particular sheet. Returns Nothing when the sheet doesn't exist.
+{-# SCC getSheetXmlSource #-}
 getSheetXmlSource ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
@@ -472,7 +475,7 @@ getSheetXmlSource sheetNumber = do
     then pure Nothing
     else do
       sourceSheet <- liftZip $ Zip.getEntrySource sheetSel
-      pure $ Just $ sourceSheet .| parseBytes def
+      pure $ Just $ sourceSheet .| {-# SCC "sheetXml_parseBytes_scc" #-} parseBytes def
  where
    sheetName = mkSheetName sheetNumber
 
@@ -489,6 +492,7 @@ mkSheetName sheetNumber =
 --
 -- May throw SheetErrors if there is a parsing error occurs in the
 -- underlying XML parser.
+{-# SCC getSheetSource  #-}
 getSheetSource ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
@@ -505,11 +509,12 @@ getSheetSource sheetNumber = do
           & ps_shared_strings .~ sharedStrs
           & ps_file .~ Sheet sheetName
           & ps_sheet_name .~ sheetName
+        {-# SCC xmlEventToSheetItem #-}
         xmlEventToSheetItem event = do
           -- A version of readSheetC that doesn't include logic for
           -- streaming multiple sheets.
           -- XXX: unify the two approaches, or support both?
-          parseRes <- runExceptT $ matchEvent sheetName event
+          parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchEvent sheetName event
           rix' <- use ps_cell_row_index
           case parseRes of
             Left err -> C.throwM err
@@ -518,7 +523,7 @@ getSheetSource sheetNumber = do
                 pure $ Just $ MkSheetItem sheetName rix' cellRow
             _ -> pure Nothing
       pure $ Just $ sourceSheetXml
-        .| C.evalStateC sheetState0 (CL.mapMaybeM xmlEventToSheetItem)
+        .| C.evalStateC sheetState0 (CL.mapMaybeM ({-# SCC "xmlEventToSheetItem_scc" #-} xmlEventToSheetItem))
 
 -- | Returns number of rows in the given sheet (identified by sheet
 -- number), or Nothing if the sheet does not exist. Does not perform a
@@ -632,6 +637,7 @@ yieldSheetItem name rix' row =
     yield (MkSheetItem name rix' row)
 
 -- | Return row from the state and empty it
+{-# SCC popRow #-}
 popRow :: HasSheetState m => m CellRow
 popRow = do
   row <- use ps_row
@@ -650,11 +656,12 @@ data AddCellErrors
 -- | Parse the given value
 --
 -- If it's a string, we try to get it our of a shared string table
+{-# SCC parseValue #-}
 parseValue :: SharedStringMap -> Text -> ExcelValueType -> Either AddCellErrors CellValue
 parseValue sstrings txt = \case
   TS -> do
     (idx, _) <- ReadError txt `first` Read.decimal @Int txt
-    string <- maybe (Left $ SharedStringNotFound idx sstrings) Right $ sstrings ^? ix idx
+    string <- maybe (Left $ SharedStringNotFound idx sstrings) Right $ {-# SCC "sstrings_lookup_scc" #-}  sstrings ^? ix idx
     Right $ CellText string
   TStr -> pure $ CellText txt
   TN -> bimap (ReadError txt) (CellDouble . fst) $ Read.double txt
@@ -670,6 +677,7 @@ parseUntypedValue :: Text -> CellValue
 parseUntypedValue = CellText
 
 -- | Adds a cell to row in state monad
+{-# SCC addCellToRow #-}
 addCellToRow
   :: ( MonadError SheetErrors m
      , HasSheetState m
@@ -721,6 +729,7 @@ contentTextPrims = prism' ContentText (\case ContentText x -> Just x
                                              _             -> Nothing)
 
 -- | Update state coordinates accordingly to @parseCoordinates@
+{-# SCC setCoord #-}
 setCoord
   :: ( MonadError SheetErrors m
      , HasSheetState m
@@ -746,6 +755,7 @@ findName :: Text -> SheetValues -> Maybe SheetValue
 findName name = find ((name ==) . nameLocalName . fst)
 
 -- | Parse value type
+{-# SCC parseType #-}
 parseType :: SheetValues -> Either TypeError ExcelValueType
 parseType list =
   case findName "t" list of
@@ -762,6 +772,7 @@ parseType list =
         other -> Left $ UnkownType other list
 
 -- | Parse coordinates from a list of xml elements if such were found on "r" key
+{-# SCC parseCoordinates #-}
 parseCoordinates :: SheetValues -> Either CoordinateErrors (Int, Int)
 parseCoordinates list = do
       nameValPair <- maybe (Left $ CoordinateNotFound list)        Right $ findName "r" list
@@ -772,6 +783,7 @@ parseCoordinates list = do
 -- | Update state accordingly the xml event given, basically parse a xml and return row
 -- if we've ended parsing.
 -- (I wish xml docs were more elaborate on their structures)
+{-# SCC matchEvent #-}
 matchEvent
   :: ( MonadError SheetErrors m
      , HasSheetState m
