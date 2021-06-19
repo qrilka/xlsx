@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 module PivotTableTests
@@ -6,7 +7,11 @@ module PivotTableTests
   , testPivotSrcCells
   ) where
 
+#ifdef USE_MICROLENS
+import Lens.Micro
+#else
 import Control.Lens
+#endif
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.Map as M
 import Data.Maybe (mapMaybe)
