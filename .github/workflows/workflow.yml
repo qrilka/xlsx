@@ -27,7 +27,9 @@ jobs:
         - os: ubuntu-latest
           stack-yaml: stack-lts-17.yaml
           extra-args: ""
-
+        - os: ubuntu-latest
+          stack-yaml: stack-nightly.yaml
+          extra-args: ""
     steps:
       - name: Clone project
         uses: actions/checkout@v2

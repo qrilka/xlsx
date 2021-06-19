@@ -26,7 +26,7 @@ Maintainer:          qrilka@gmail.com
 
 Category:            Codec
 Build-type:          Simple
-Tested-with:         GHC == 8.4.4, GHC == 8.6.5, GHC == 8.8.4, GHC == 8.10.4
+Tested-with:         GHC == 8.4.4, GHC == 8.6.5, GHC == 8.8.4, GHC == 8.10.4, GHC == 9.0.1
 Cabal-version:       >=1.10
 
 Flag microlens
