@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 module DrawingTests
@@ -6,7 +7,11 @@ module DrawingTests
   , testLineChartSpace
   ) where
 
+#ifdef USE_MICROLENS
+import Lens.Micro
+#else
 import Control.Lens
+#endif
 import Data.ByteString.Lazy (ByteString)
 import Test.Tasty (testGroup, TestTree)
 import Test.Tasty.HUnit (testCase)

@@ -137,7 +137,6 @@ test-suite data-test
                , containers
                , Diff >= 0.3.0
                , groom
-               , lens >= 3.8 && < 5.1
                , mtl
                , raw-strings-qq
                , smallcheck
@@ -149,6 +148,12 @@ test-suite data-test
                , vector
                , xlsx
                , xml-conduit >= 1.1.0
+  if flag(microlens)
+    Build-depends:     microlens    >= 0.4 && < 0.5
+                     , microlens-mtl
+    cpp-options: -DUSE_MICROLENS
+  else
+    Build-depends:     lens         >= 3.8 && < 5.1
   Default-Language:     Haskell2010
 
 source-repository head

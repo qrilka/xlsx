@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -6,7 +7,12 @@ module Main
   ( main
   ) where
 
+#ifdef USE_MICROLENS
+import Lens.Micro
+import Lens.Micro.Mtl
+#else
 import Control.Lens
+#endif
 import Control.Monad.State.Lazy
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
@@ -267,8 +273,8 @@ withDoubleUnderline = withUnderline FontUnderlineDouble
 
 withUnderline :: FontUnderline -> SharedStringTable -> SharedStringTable
 withUnderline u (SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just props) val]]) =
-    let newprops = props & runPropertiesUnderline .~ Just u  
-    in SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just newprops) val]] 
+    let newprops = props & runPropertiesUnderline .~ Just u
+    in SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just newprops) val]]
 
 testSharedStringTable :: SharedStringTable
 testSharedStringTable = SharedStringTable $ V.fromList items
@@ -311,34 +317,42 @@ testCommentTable = CommentTable $ M.fromList
              , _richTextRunText = "Why such high expense?"}]
 
 testStrings :: ByteString
-testStrings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
-  \<si><t>plain text</t></si>\
-  \<si><r><t>Just </t></r><r><rPr><b /><i />\
-  \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
-  \</sst>"
+testStrings = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
+  <si><t>plain text</t></si>
+  <si><r><t>Just </t></r><r><rPr><b /><i />
+  <sz val="10"/><rFont val="Arial"/><family val="2"/></rPr><t>example</t></r></si>
+  </sst>
+|]
 
 testStringsWithSingleUnderline :: ByteString
-testStringsWithSingleUnderline = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
-  \<si><t>plain text</t></si>\
-  \<si><r><t>Just </t></r><r><rPr><b /><i /><u />\
-  \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
-  \</sst>"
+testStringsWithSingleUnderline = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
+  <si><t>plain text</t></si>
+  <si><r><t>Just </t></r><r><rPr><b /><i /><u />
+  <sz val="10"/><rFont val="Arial"/><family val="2"/></rPr><t>example</t></r></si>
+  </sst>
+|]
 
 testStringsWithDoubleUnderline :: ByteString
-testStringsWithDoubleUnderline = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
-  \<si><t>plain text</t></si>\
-  \<si><r><t>Just </t></r><r><rPr><b /><i /><u val=\"double\"/>\
-  \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
-  \</sst>"
+testStringsWithDoubleUnderline = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
+  <si><t>plain text</t></si>
+  <si><r><t>Just </t></r><r><rPr><b /><i /><u val="double"/>
+  <sz val="10"/><rFont val="Arial"/><family val="2"/></rPr><t>example</t></r></si>
+  </sst>
+|]
 
 testStringsWithEmpty :: ByteString
-testStringsWithEmpty = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
-  \<si><t/></si>\
-  \</sst>"
+testStringsWithEmpty = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
+  <si><t/></si>
+  </sst>
+|]
 
 testComments :: ByteString
 testComments = [r|
@@ -495,13 +509,13 @@ testFormatWorkbookResult = def & xlSheets .~ sheets
     cellXf2 = def
         { _cellXfApplyNumberFormat = Just True
         , _cellXfNumFmtId          = Just 164 }
-  
+
 testFormatWorkbook :: Xlsx
 testFormatWorkbook = formatWorkbook sheets minimalStyleSheet
   where
     sheetNames = ["Sheet1", "Sheet2"]
     testFormattedCellMap1 = M.fromList [((1,1), (def & formattedCell . cellValue ?~ CellText "text at A1 Sheet1"))]
-      
+
     testFormattedCellMap2 = M.fromList [((2,3), (def & formattedCell . cellValue ?~ CellDouble 1.23456
                                                  & formattedFormat . formatNumberFormat ?~ (UserNumberFormat "DD.MM.YYYY")))]
     sheets = zip sheetNames [testFormattedCellMap1, testFormattedCellMap2]
