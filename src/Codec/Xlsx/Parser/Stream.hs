@@ -178,10 +178,14 @@ import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Control.Monad.State.Strict
 import           Data.Bifunctor
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString                 as BS
+import qualified Data.ByteString.Char8           as B8
+import           Data.Char                       (isSpace)
 import           Data.Conduit                    (ConduitT)
 import qualified Data.Conduit.Combinators        as C
 import qualified Data.Conduit.List               as CL
+import qualified Data.Conduit.Lift               as C
 import           Data.Foldable
 import           Data.IORef
 import           Data.Map.Strict                 (Map)
@@ -197,6 +201,7 @@ import           NoThunks.Class
 import           Text.Read                       hiding (lift)
 import           Text.XML.Stream.Parse
 import Codec.Xlsx.Parser.Internal
+import qualified Xeno.SAX as Xeno
 
 type CellRow = Map Int Cell
 
@@ -300,6 +305,16 @@ makeLenses 'MkXlsxMState
 
 newtype XlsxM a = XlsxM { unXlsxM :: ReaderT XlsxMState Zip.ZipArchive a }
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadCatch, MonadMask, MonadThrow, MonadReader XlsxMState)
+
+data XenoState = XenoState
+  { _xs_currentElem :: !(Maybe (Name, [(Name, [Content])]))
+  }
+
+data XenoParserError = XenoXmlMalformed deriving (Show, Exception)
+
+makeLenses 'XenoState
+
+type HasXenoState = MonadState XenoState
 --- Here ends the types for the zip library/XlsxM approach ---
 
 -- | Initial parsing state
@@ -458,16 +473,43 @@ getOrParseSharedStrings = do
       liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
       pure sharedStrings
 
--- If the given sheet number exists, returns Just a conduit source
--- of the stream of XML events (using the xml-conduit packgae) in a
--- particular sheet. Returns Nothing when the sheet doesn't exist.
+-- Events are parsed only as much as necessary for the current limited
+-- parser. In particular, element attributes are only collected for
+-- attribute lists which are used later on in matchEvent.
+xenoProcessor :: (MonadThrow m, HasXenoState m) => Xeno.Process (ConduitT ByteString Event m ())
+xenoProcessor = Xeno.Process
+  { Xeno.openF = \t -> do
+      nm <- asTxt t
+      xs_currentElem .= Just (asName nm, [])
+  , Xeno.attrF = \k v -> do
+      (nm, attrs) <- use xs_currentElem >>= maybe (throwM XenoXmlMalformed) pure
+      keyTxt <- asTxt k
+      valTxt <- asTxt v
+      let newAttr = (asName keyTxt, [ContentText valTxt])
+      xs_currentElem .= Just (nm, newAttr : attrs)
+  , Xeno.endOpenF = \t -> do
+      (nm, attrs) <- use xs_currentElem >>= maybe (throwM XenoXmlMalformed) pure
+      xs_currentElem .= Nothing
+      C.yield $ EventBeginElement nm attrs
+  , Xeno.textF = asTxt >=> C.yield . EventContent . ContentText
+  , Xeno.closeF = asTxt >=> C.yield . EventEndElement . asName
+  , Xeno.cdataF = const (pure ())
+  }
+  where
+    asTxt = either throwM pure . Text.decodeUtf8'
+    asName txt = Name txt Nothing Nothing
+
+-- If the given sheet number exists, returns Just a conduit source of the stream
+-- of XML events in a particular sheet. Returns Nothing when the sheet doesn't
+-- exist.
 {-# SCC getSheetXmlSource #-}
 getSheetXmlSource ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
   Int ->
+  Bool -> -- TODO: Remove me
   XlsxM (Maybe (ConduitT () Event m ()))
-getSheetXmlSource sheetNumber = do
+getSheetXmlSource sheetNumber useXeno = do
   -- TODO: consider re-wrapping zip library exceptions, or just re-export them?
   sheetSel <- liftZip $ Zip.mkEntrySelector $ "xl/worksheets/sheet" <> show sheetNumber <> ".xml"
   sheetExists <- liftZip $ Zip.doesEntryExist sheetSel
@@ -475,8 +517,29 @@ getSheetXmlSource sheetNumber = do
     then pure Nothing
     else do
       sourceSheet <- liftZip $ Zip.getEntrySource sheetSel
-      pure $ Just $ sourceSheet .| {-# SCC "sheetXml_parseBytes_scc" #-} parseBytes def
+      pure $ Just $ sourceSheet .| parseXmlEventsC
  where
+   parseXmlEventsC | useXeno =
+                       {-# SCC "sheetXml_evalStateC_xeno" #-}
+                       C.evalStateC (XenoState Nothing)
+                       (C.awaitForever $ \bs -> do
+                           let (chunk, rest) = B8.spanEnd (\c -> not (c == '>')) bs
+                           {-# SCC "xeno.process_call1" #-} Xeno.process xenoProcessor chunk
+                           when (not $ BS.null rest) $
+                             C.await >>= \case
+                             Nothing ->
+                               -- Nothing left. This may be a unparseable xml
+                               -- fragment, but we'll try to parse it anyway and
+                               -- at least get a Xeno-based error.
+                               {-# SCC "xeno.process_call2" #-} Xeno.process xenoProcessor chunk
+                             Just incoming ->
+                               -- Incoming is assumed to be some new valid
+                               -- chunk. Prepend 'rest' to this bytestring as
+                               -- leftover.
+                               C.leftover $ {-# SCC "append_leftover" #-} rest `BS.append` incoming
+                       )
+                   | otherwise =
+                       {-# SCC "sheetXml_parseBytes_scc" #-} parseBytes def
    sheetName = mkSheetName sheetNumber
 
 -- FIXME: hack to be compatible with the other parser,
@@ -497,9 +560,11 @@ getSheetSource ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
   Int ->
+  -- | Whether to use the xeno package instead of xml-conduit TODO: remove me.
+  Bool ->
   XlsxM (Maybe (ConduitT () SheetItem m ()))
-getSheetSource sheetNumber = do
-  getSheetXmlSource sheetNumber >>= \case
+getSheetSource sheetNumber useXeno = do
+  getSheetXmlSource sheetNumber useXeno >>= \case
     Nothing -> pure Nothing
     Just sourceSheetXml -> do
       sharedStrs <- getOrParseSharedStrings
@@ -529,9 +594,9 @@ getSheetSource sheetNumber = do
 -- number), or Nothing if the sheet does not exist. Does not perform a
 -- full parse of the XML, so it should be more efficient than counting
 -- via 'getSheetSource'.
-countRowsInSheet :: Int -> XlsxM (Maybe Int)
-countRowsInSheet sheetNumber = do
-  getSheetXmlSource sheetNumber >>= \case
+countRowsInSheet :: Int -> Bool -> XlsxM (Maybe Int)
+countRowsInSheet sheetNumber useXeno = do
+  getSheetXmlSource sheetNumber useXeno >>= \case
     Nothing -> pure Nothing
     Just sourceSheetXml -> fmap Just $ do
       liftIO $ C.runConduitRes $ sourceSheetXml .| C.lengthIf isStartOfRow
