@@ -96,7 +96,7 @@ writeXlsx :: MonadThrow m
     -> ConduitT () ByteString m Word64 -- ^ result conduit producing xlsx files
 writeXlsx sheetC = do
     sstrings  <- sheetC .| sharedStrings
-    sheetC .|  writeXlsxWithSharedStrings sstrings
+    writeXlsxWithSharedStrings sstrings sheetC
 
 
 recomendedZipOptions :: ZipOptions
@@ -125,27 +125,31 @@ recomendedZipOptions = defaultZipOptions {
 --   for example trough database operations.
 writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m
     => Map Text Int -- ^ shared strings table
-    -> ConduitT SheetItem ByteString m Word64
-writeXlsxWithSharedStrings sstable = do
-  res  <- combinedFiles sstable .| zipStream recomendedZipOptions
+    -> ConduitT () SheetItem m ()
+    -> ConduitT () ByteString m Word64
+writeXlsxWithSharedStrings sstable items = do
+  res  <- combinedFiles sstable items .| zipStream recomendedZipOptions
   -- yield (LBS.toStrict $ BS.toLazyByteString $ BS.word32LE 0x06054b50) -- insert magic number for fun.
   pure res
 
+-- massive amount of boilerplate needed for excel to function
+boilerplate :: forall m . PrimMonad m  => Map Text Int -> [(ZipEntry,  ZipData m)]
+boilerplate sstable =
+  [ (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sstable .| eventsToBS)
+  , (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
+  , (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook .| eventsToBS)
+  , (zipEntry "xl/_rels/workbook.xml.rels", ZipDataSource $ writeWorkbookRels .| eventsToBS)
+  , (zipEntry "_rels/.rels", ZipDataSource $ writeRootRels .| eventsToBS)
+  ]
+
 combinedFiles :: PrimMonad m  =>
   Map Text Int ->
-  ConduitT SheetItem (ZipEntry, ZipData m) m ()
-combinedFiles sstable = do
-   -- massive amount of boilerplate needed for excel to function
-  yield (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sstable .| eventsToBS)
-  yield (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
-  yield (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook .| eventsToBS)
-  yield (zipEntry "xl/_rels/workbook.xml.rels", ZipDataSource $ writeWorkbookRels .| eventsToBS)
-
-   -- this boilerplate isn't necessary for the test to succeed, but excel
-   -- itself insists it's necessary (although it refuses to tell us or the user why)
-  yield (zipEntry "_rels/.rels", ZipDataSource $ writeRootRels .| eventsToBS)
-   -- actual data
-  writeWorkSheet sstable .| eventsToBS .| C.map (\x -> (zipEntry "xl/worksheets/sheet1.xml", ZipDataByteString $ LBS.fromStrict x))
+  ConduitT () SheetItem m () ->
+  ConduitT () (ZipEntry, ZipData m) m ()
+combinedFiles sstable items =
+  C.yieldMany $
+    boilerplate sstable <>
+    [(zipEntry "xl/worksheets/sheet1.xml", ZipDataSource $ items .| writeWorkSheet sstable .| eventsToBS )]
 
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 el x = tag x mempty

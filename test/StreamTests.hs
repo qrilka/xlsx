@@ -93,6 +93,7 @@ tests =
 
       testGroup "Reader/Writer"
       [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbook
+      , testCase "Test a big workbook which caused issues with zipstream" $ readWrite bigWorkbook
       -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
       -- TODO forall SheetItem write that can be read
       ]
@@ -148,3 +149,9 @@ simpleWorkbook :: Xlsx
 simpleWorkbook = formatWorkbook sheets minimalStyleSheet
   where
     sheets = [("Sheet1" , M.fromList [((1,1), (def & formattedCell . cellValue ?~ CellText "text at A1 Sheet1"))])]
+
+bigWorkbook :: Xlsx
+bigWorkbook = formatWorkbook sheets minimalStyleSheet
+  where
+    sheets = [("Sheet1" , M.fromList $ [0..512] >>= \row ->
+                  [((row,1), (def & formattedCell . cellValue ?~ CellText "text at A1 Sheet1")), ((row,2), (def & formattedCell . cellValue ?~ CellText "text at B1 Sheet1"))])]

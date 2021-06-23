@@ -1,4 +1,3 @@
-with-compiler: ghc-8.8.4
 optimization: 2
 ignore-project: False
 library-profiling: False 
