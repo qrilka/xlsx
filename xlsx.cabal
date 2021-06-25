@@ -36,7 +36,8 @@ Flag microlens
 
 Library
   Hs-source-dirs:    src
-  ghc-options:       -Wall
+  profiling: False
+  ghc-options:       -Wall -O2
   Exposed-modules:   Codec.Xlsx
                    , Codec.Xlsx.Types
                    , Codec.Xlsx.Formatted
@@ -91,6 +92,8 @@ Library
                    , errors
                    , extra
                    , filepath
+                   , hexpat
+                   , List
                    , mtl          >= 2.1
                    , network-uri
                    , old-locale   >= 1.0.0.5

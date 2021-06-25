@@ -17,6 +17,13 @@
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE StrictData          #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# OPTIONS_GHC -fno-full-laziness #-}
+
+-- This module must be compiled with -fno-full-laziness, otherwise
+-- over-aggressive caching by GHC during -O2 builds mean that the
+-- first call to `getEntrySource <sheetNum>` will be cached, and all
+-- subsequent calls (_even_ those with a different sheet number) will
+-- return the original sheet source.
 
 -- |
 -- Module      : Codex.Xlsx.Parser.Stream
@@ -180,6 +187,7 @@ import           Control.Monad.State.Strict
 import           Data.Bifunctor
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString                 as BS
+import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.ByteString.Char8           as B8
 import           Data.Char                       (isSpace)
 import           Data.Conduit                    (ConduitT)
@@ -202,6 +210,11 @@ import           Text.Read                       hiding (lift)
 import           Text.XML.Stream.Parse
 import Codec.Xlsx.Parser.Internal
 import qualified Xeno.SAX as Xeno
+
+import Data.String
+import Text.XML.Expat.SAX as Hexpat
+import Control.Monad.ListT
+import Data.List.Class
 
 type CellRow = Map Int Cell
 
@@ -233,7 +246,7 @@ data PsFileTag =
              | Relationships
              | FormulaChain   -- ^ Contains all the formulas in the sheet
              | SheetRel Text  -- ^ Contains relations between internal ids and paths
-  deriving stock (Generic, Show)
+  deriving stock (Generic, Show, Eq)
   deriving anyclass NoThunks
 
 makePrisms ''PsFileTag
@@ -265,6 +278,7 @@ data SheetState = MkSheetState
   , _ps_is_in_val      :: Bool            -- ^ Flag for indexing wheter the parser is in value or not
   , _ps_shared_strings :: SharedStringMap -- ^ Shared string map
   , _ps_type           :: ExcelValueType  -- ^ The last detected value type
+  , _ps_text_buf :: Text -- ^ for hexpat only, which can break up char data into multiple events
   } deriving stock (Generic, Show)
 makeLenses 'MkSheetState
 
@@ -328,6 +342,7 @@ initialSheetState = MkSheetState
   , _ps_is_in_val       = False
   , _ps_shared_strings  = mempty
   , _ps_type            = Untyped
+  , _ps_text_buf = ""
   }
 
 -- | Initial parsing state
@@ -499,48 +514,85 @@ xenoProcessor = Xeno.Process
     asTxt = either throwM pure . Text.decodeUtf8'
     asName txt = Name txt Nothing Nothing
 
+type HexpatEvent = SAXEvent ByteString Text
+
+hexpatToEvent :: HexpatEvent -> Maybe Event
+hexpatToEvent = \case
+--  XMLDeclaration text (Maybe text) (Maybe Bool)
+  StartElement !tag !attrs -> Just $ EventBeginElement (asName tag)
+    $ map (\(!tag, !txt) -> (asName tag, [ContentText txt])) attrs
+  EndElement !tag -> Just $ EventEndElement $ asName tag
+  CharacterData !text -> Just $ EventContent $ ContentText text
+  _ -> Nothing
+--   FailDocument XMLParseError
+  where
+    asName txt = Name (Text.decodeUtf8 txt) Nothing Nothing
+
 -- If the given sheet number exists, returns Just a conduit source of the stream
 -- of XML events in a particular sheet. Returns Nothing when the sheet doesn't
 -- exist.
-{-# SCC getSheetXmlSource #-}
-getSheetXmlSource ::
+{-# SCC getSheetXmlSource_xmlConduit #-}
+getSheetXmlSource_xmlConduit ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
   Int ->
-  Bool -> -- TODO: Remove me
   XlsxM (Maybe (ConduitT () Event m ()))
-getSheetXmlSource sheetNumber useXeno = do
-  -- TODO: consider re-wrapping zip library exceptions, or just re-export them?
+getSheetXmlSource_xmlConduit sheetNumber = do
+  -- XXX: The Zip library may throw exceptions that aren't exposed from this
+  -- module, so downstream library users would need to add the 'zip' package to
+  -- handle them. Consider re-wrapping zip library exceptions, or just
+  -- re-export them?
   sheetSel <- liftZip $ Zip.mkEntrySelector $ "xl/worksheets/sheet" <> show sheetNumber <> ".xml"
   sheetExists <- liftZip $ Zip.doesEntryExist sheetSel
   if not sheetExists
     then pure Nothing
     else do
       sourceSheet <- liftZip $ Zip.getEntrySource sheetSel
-      pure $ Just $ sourceSheet .| parseXmlEventsC
+      pure $ Just $ sourceSheet .| parseBytes def
  where
-   parseXmlEventsC | useXeno =
-                       {-# SCC "sheetXml_evalStateC_xeno" #-}
-                       C.evalStateC (XenoState Nothing)
-                       (C.awaitForever $ \bs -> do
-                           let (chunk, rest) = B8.spanEnd (\c -> not (c == '>')) bs
-                           {-# SCC "xeno.process_call1" #-} Xeno.process xenoProcessor chunk
-                           when (not $ BS.null rest) $
-                             C.await >>= \case
-                             Nothing ->
-                               -- Nothing left. This may be a unparseable xml
-                               -- fragment, but we'll try to parse it anyway and
-                               -- at least get a Xeno-based error.
-                               {-# SCC "xeno.process_call2" #-} Xeno.process xenoProcessor chunk
-                             Just incoming ->
-                               -- Incoming is assumed to be some new valid
-                               -- chunk. Prepend 'rest' to this bytestring as
-                               -- leftover.
-                               C.leftover $ {-# SCC "append_leftover" #-} rest `BS.append` incoming
-                       )
-                   | otherwise =
-                       {-# SCC "sheetXml_parseBytes_scc" #-} parseBytes def
    sheetName = mkSheetName sheetNumber
+
+{-# SCC getSheetXmlSource_hexpat #-}
+getSheetXmlSource_hexpat ::
+  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
+  -- | The sheet number
+  Int ->
+  XlsxM (Maybe (ConduitT () HexpatEvent m ()))
+getSheetXmlSource_hexpat sheetNumber = do
+  -- XXX: The Zip library may throw exceptions that aren't exposed from this
+  -- module, so downstream library users would need to add the 'zip' package to
+  -- handle them. Consider re-wrapping zip library exceptions, or just
+  -- re-export them?
+  sheetSel <- liftZip $ Zip.mkEntrySelector $ "xl/worksheets/sheet" <> show sheetNumber <> ".xml"
+  sheetExists <- liftZip $ Zip.doesEntryExist sheetSel
+  if not sheetExists
+    then pure Nothing
+    else do
+      sourceSheet <- liftZip $ Zip.getEntrySource sheetSel
+      pure $ Just $ sourceSheet .|
+        -- XXX: can Supercede get away with no entity decoder? Can the
+        -- library? Would it hurt performance too much to always use one?
+        let opts = ParseOptions Nothing Nothing
+        in {-# SCC "sheetXml_hexpat_scc" #-}
+          listToConduit (Hexpat.parseG opts conduitToList)
+ where
+   sheetName = mkSheetName sheetNumber
+
+conduitToList ::
+  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
+  ListT (ConduitT i o m) i
+conduitToList = ListT $ await >>= \case
+  Nothing -> pure Nil
+  Just elem ->
+    pure $ Cons elem conduitToList
+
+{-# INLINE listToConduit #-}
+listToConduit ::
+  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
+  ListT (ConduitT i HexpatEvent m) HexpatEvent ->
+  ConduitT i HexpatEvent m ()
+listToConduit = foldrL (\event next -> C.yield event >> next) (pure ())
+  -- execute . mapL C.yield
 
 -- FIXME: hack to be compatible with the other parser,
 -- which as of this writing sets the sheet name to be
@@ -560,47 +612,79 @@ getSheetSource ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
   Int ->
-  -- | Whether to use the xeno package instead of xml-conduit TODO: remove me.
+  -- | Whether to use the hexpat package instead of xml-conduit TODO: remove me.
   Bool ->
   XlsxM (Maybe (ConduitT () SheetItem m ()))
-getSheetSource sheetNumber useXeno = do
-  getSheetXmlSource sheetNumber useXeno >>= \case
-    Nothing -> pure Nothing
-    Just sourceSheetXml -> do
-      sharedStrs <- getOrParseSharedStrings
-      let
-        sheetName = mkSheetName sheetNumber
-        sheetState0 = initialSheetState
-          & ps_shared_strings .~ sharedStrs
-          & ps_file .~ Sheet sheetName
-          & ps_sheet_name .~ sheetName
-        {-# SCC xmlEventToSheetItem #-}
-        xmlEventToSheetItem event = do
-          -- A version of readSheetC that doesn't include logic for
-          -- streaming multiple sheets.
-          -- XXX: unify the two approaches, or support both?
-          parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchEvent sheetName event
-          rix' <- use ps_cell_row_index
-          case parseRes of
-            Left err -> C.throwM err
-            Right (Just cellRow)
-              | not (Map.null cellRow) ->
-                pure $ Just $ MkSheetItem sheetName rix' cellRow
-            _ -> pure Nothing
-      pure $ Just $ sourceSheetXml
-        .| C.evalStateC sheetState0 (CL.mapMaybeM ({-# SCC "xmlEventToSheetItem_scc" #-} xmlEventToSheetItem))
+getSheetSource sheetNumber useHexpat = do
+  if useHexpat
+    then
+      getSheetXmlSource_hexpat sheetNumber >>= \case
+        Nothing -> pure Nothing
+        Just sourceSheetXml -> do
+          sharedStrs <- getOrParseSharedStrings
+          let sheetState0 = initialSheetState
+                & ps_shared_strings .~ sharedStrs
+                & ps_file .~ Sheet sheetName
+                & ps_sheet_name .~ sheetName
+          pure $ Just $ sourceSheetXml
+            .| C.evalStateC sheetState0 (CL.mapMaybeM ({-# SCC "xmlEventToSheetItemHexpat_scc" #-} xmlEventToSheetItem'))
+    else
+      getSheetXmlSource_xmlConduit sheetNumber >>= \case
+        Nothing -> pure Nothing
+        Just sourceSheetXml -> do
+          sharedStrs <- getOrParseSharedStrings
+          let sheetState0 = initialSheetState
+                & ps_shared_strings .~ sharedStrs
+                & ps_file .~ Sheet sheetName
+                & ps_sheet_name .~ sheetName
+          pure $ Just $ sourceSheetXml
+            .| C.evalStateC sheetState0 (CL.mapMaybeM ({-# SCC "xmlEventToSheetItemXmlConduit_scc" #-} xmlEventToSheetItem))
+  where
+    sheetName = mkSheetName sheetNumber
+    {-# SCC xmlEventToSheetItem #-}
+    xmlEventToSheetItem event = do
+      -- A version of readSheetC that doesn't include logic for
+      -- streaming multiple sheets.
+      -- XXX: unify the two approaches, or support both?
+      parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchEvent sheetName event
+      rix' <- use ps_cell_row_index
+      case parseRes of
+        Left err -> C.throwM err
+        Right (Just cellRow)
+          | not (Map.null cellRow) ->
+            pure $ Just $ MkSheetItem sheetName rix' cellRow
+        _ -> pure Nothing
+    {-# SCC xmlEventToSheetItem' #-}
+    xmlEventToSheetItem' event = do
+      -- A version of readSheetC that doesn't include logic for
+      -- streaming multiple sheets.
+      -- XXX: unify the two approaches, or support both?
+      parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchHexpatEvent sheetName event
+      rix' <- use ps_cell_row_index
+      case parseRes of
+        Left err -> C.throwM err
+        Right (Just cellRow)
+          | not (Map.null cellRow) ->
+            pure $ Just $ MkSheetItem sheetName rix' cellRow
+        _ -> pure Nothing
 
 -- | Returns number of rows in the given sheet (identified by sheet
 -- number), or Nothing if the sheet does not exist. Does not perform a
 -- full parse of the XML, so it should be more efficient than counting
 -- via 'getSheetSource'.
 countRowsInSheet :: Int -> Bool -> XlsxM (Maybe Int)
-countRowsInSheet sheetNumber useXeno = do
-  getSheetXmlSource sheetNumber useXeno >>= \case
+countRowsInSheet sheetNumber = \case
+  False -> getSheetXmlSource_xmlConduit sheetNumber >>= \case
     Nothing -> pure Nothing
     Just sourceSheetXml -> fmap Just $ do
       liftIO $ C.runConduitRes $ sourceSheetXml .| C.lengthIf isStartOfRow
+  True -> getSheetXmlSource_hexpat sheetNumber >>= \case
+    Nothing -> pure Nothing
+    Just sourceSheetXml -> fmap Just $ do
+      liftIO $ C.runConduitRes $ sourceSheetXml .| C.lengthIf isStartOfRow'
  where
+   isStartOfRow' (StartElement "row" _) = True
+   isStartOfRow' _ = False
    isStartOfRow (EventBeginElement Name{nameLocalName = "row"} _) = True
    isStartOfRow _ = False
 
@@ -767,6 +851,7 @@ data SheetErrors
   = ParseCoordinateError CoordinateErrors -- ^ Error while parsing coordinates
   | ParseTypeError TypeError              -- ^ Error while parsing types
   | ParseCellError AddCellErrors          -- ^ Error while parsing cells
+  | HexpatParseError Hexpat.XMLParseError
   deriving stock Show
   deriving anyclass Exception
 
@@ -866,3 +951,103 @@ matchEvent _currentSheet = \case
   EventEndElement Name{nameLocalName = "row"}       -> Just <$> popRow
   -- Skip everything else, e.g. the formula elements <f>
   _                                                 -> pure Nothing
+
+
+{-
+======== hexpat
+-}
+
+{-# SCC matchHexpatEvent #-}
+matchHexpatEvent ::
+  ( MonadError SheetErrors m,
+    HasSheetState m
+  ) =>
+  Text ->
+  HexpatEvent ->
+  m (Maybe CellRow)
+matchHexpatEvent _currentSheet ev = case ev of
+  CharacterData txt -> do
+    inVal <- use ps_is_in_val
+    when inVal $  do
+      res <- use ps_text_buf
+      ps_text_buf .= (res <> txt)
+    pure Nothing
+  StartElement "c" attrs -> Nothing <$ (setCoord' attrs >> setType' attrs)
+  StartElement "v" _ -> Nothing <$ (ps_is_in_val .= True)
+  EndElement "v" -> do
+    txt <- use ps_text_buf
+    addCellToRow txt
+    ps_is_in_val .= False
+    ps_text_buf .= ""
+    pure Nothing
+  -- If beginning of row, empty the state and return nothing [why exactly?]
+  StartElement "row" _ -> Nothing <$ popRow
+  -- If at the end of the row, we have collected the whole row into
+  -- the current state. Empty the state and return the row.
+  EndElement "row" -> Just <$> popRow
+  EndElement "worksheet" -> ps_file .= InitialNoFile >> pure Nothing
+  -- Skip everything else, e.g. the formula elements <f>
+  FailDocument err -> do
+    -- this event is emitted at the end the xml stream (possibly
+    -- because the xml files in xlsx archives don't end in a
+    -- newline, but that's a guess), so we use state to determine if
+    -- it's expected.
+    f <- use ps_file -- TODO: use new var, not ps_file.
+    when (f /= InitialNoFile) $
+      throwError $ HexpatParseError err
+    pure Nothing
+  ev -> pure Nothing
+
+type SheetValue' = (ByteString, Text)
+type SheetValues' = [SheetValue']
+
+-- | Update state coordinates accordingly to @parseCoordinates@
+{-# SCC setCoord' #-}
+setCoord'
+  :: ( MonadError SheetErrors m
+     , HasSheetState m
+     )
+  => SheetValues' -> m ()
+setCoord' list = do
+  coordinates <- liftEither $ first ParseCoordinateError $ parseCoordinates' list
+  ps_cell_col_index .= (coordinates ^. _2)
+  ps_cell_row_index .= (coordinates ^. _1)
+
+-- | Parse type from values and update state accordingly
+setType'
+  :: ( MonadError SheetErrors m
+     , HasSheetState m
+     )
+  => SheetValues' -> m ()
+setType' list = do
+  type' <- liftEither $ first ParseTypeError $ parseType' list
+  ps_type .= type'
+
+-- | Find sheet value by its name
+findName' :: ByteString -> SheetValues' -> Maybe SheetValue'
+findName' name = find ((name ==) . fst)
+{-# INLINE findName' #-}
+
+-- | Parse value type
+{-# SCC parseType' #-}
+parseType' :: SheetValues' -> Either TypeError ExcelValueType
+parseType' list =
+  case findName' "t" list of
+    Nothing -> pure Untyped
+    Just (nm, valText)->
+      case valText of
+        "n"   -> Right TN
+        "s"   -> Right TS
+        "str" -> Right TStr
+        "b"   -> Right TB
+        "e"   -> Right TE
+        other -> Left $ UnkownType other $ asSheetValues list
+
+asSheetValues = map (\(s, t) -> (Name (Text.decodeUtf8 s) Nothing Nothing, [ContentText $ Text.decodeUtf8 s]))
+
+-- | Parse coordinates from a list of xml elements if such were found on "r" key
+{-# SCC parseCoordinates' #-}
+parseCoordinates' :: SheetValues' -> Either CoordinateErrors (Int, Int)
+parseCoordinates' list = do
+  (nm, valText) <- maybe (Left $ CoordinateNotFound $ asSheetValues list) Right $ findName' "r" list
+  maybe (Left $ DecodeFailure valText $ asSheetValues list) Right $ fromSingleCellRef $ CellRef valText
