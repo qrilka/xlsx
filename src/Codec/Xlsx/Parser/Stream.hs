@@ -170,6 +170,9 @@ module Codec.Xlsx.Parser.Stream
   , CoordinateErrors(..)
   , TypeError(..)
   --}
+
+  -- * Temporary:
+  , XmlLib(..)
   ) where
 
 import           Codec.Archive.Zip.Conduit.UnZip
@@ -212,7 +215,9 @@ import Codec.Xlsx.Parser.Internal
 import qualified Xeno.SAX as Xeno
 
 import Data.String
+import Data.Traversable (for)
 import Text.XML.Expat.SAX as Hexpat
+import qualified Text.XML.LibXML.SAX as LX
 import Control.Monad.ListT
 import Data.List.Class
 
@@ -531,13 +536,13 @@ hexpatToEvent = \case
 -- If the given sheet number exists, returns Just a conduit source of the stream
 -- of XML events in a particular sheet. Returns Nothing when the sheet doesn't
 -- exist.
-{-# SCC getSheetXmlSource_xmlConduit #-}
-getSheetXmlSource_xmlConduit ::
+{-# SCC getSheetXmlSource #-}
+getSheetXmlSource ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
   Int ->
-  XlsxM (Maybe (ConduitT () Event m ()))
-getSheetXmlSource_xmlConduit sheetNumber = do
+  XlsxM (Maybe (ConduitT () ByteString m ()))
+getSheetXmlSource sheetNumber = do
   -- XXX: The Zip library may throw exceptions that aren't exposed from this
   -- module, so downstream library users would need to add the 'zip' package to
   -- handle them. Consider re-wrapping zip library exceptions, or just
@@ -548,35 +553,42 @@ getSheetXmlSource_xmlConduit sheetNumber = do
     then pure Nothing
     else do
       sourceSheet <- liftZip $ Zip.getEntrySource sheetSel
-      pure $ Just $ sourceSheet .| parseBytes def
+      pure $ Just sourceSheet
  where
    sheetName = mkSheetName sheetNumber
 
-{-# SCC getSheetXmlSource_hexpat #-}
-getSheetXmlSource_hexpat ::
+libxmlC ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
-  -- | The sheet number
-  Int ->
-  XlsxM (Maybe (ConduitT () HexpatEvent m ()))
-getSheetXmlSource_hexpat sheetNumber = do
-  -- XXX: The Zip library may throw exceptions that aren't exposed from this
-  -- module, so downstream library users would need to add the 'zip' package to
-  -- handle them. Consider re-wrapping zip library exceptions, or just
-  -- re-export them?
-  sheetSel <- liftZip $ Zip.mkEntrySelector $ "xl/worksheets/sheet" <> show sheetNumber <> ".xml"
-  sheetExists <- liftZip $ Zip.doesEntryExist sheetSel
-  if not sheetExists
-    then pure Nothing
-    else do
-      sourceSheet <- liftZip $ Zip.getEntrySource sheetSel
-      pure $ Just $ sourceSheet .|
-        -- XXX: can Supercede get away with no entity decoder? Can the
-        -- library? Would it hurt performance too much to always use one?
-        let opts = ParseOptions Nothing Nothing
-        in {-# SCC "sheetXml_hexpat_scc" #-}
-          listToConduit (Hexpat.parseG opts conduitToList)
- where
-   sheetName = mkSheetName sheetNumber
+  SheetState ->
+  ConduitT ByteString SheetItem m ()
+libxmlC initialState = do
+  -- Set up state
+  ref <- newIORef initialState
+  -- Set up parser and callbacks
+  p <- LX.newParserIO Nothing
+  LX.setCallback p LX.parsedBeginElement onBegin
+  LX.setCallback p LX.parsedEndElement onEnd
+  LX.setCallback p LX.parsedCharacters onChars
+  -- Set up conduit
+  C.runReaderC ref $ C.awaitForever (LX.parseBytes p)
+  LX.parseComplete p
+  where
+    {-# SCC onEvent #-}
+    onEvent ev = do
+      stateRef <- ask
+      state0 <- liftIO $ readIORef stateRef
+      (parseRes, state1) <-
+        {-# SCC "libxmlC_runStateT_call" #-} (`runStateT` state0) $ runExceptT $ matchEvent ev
+      writeIORef stateRef state1
+      case parseRes of
+        Left err -> C.throwM err
+        Right (Just cellRow)
+          | not (Map.null cellRow) ->
+            C.yield $ MkSheetItem (_ps_sheet_name state1) (_ps_cell_row_index state1) cellRow
+      pure True
+    onBegin el attrs = onEvent $ EventBeginElement el attrs
+    onEnd = onEvent . EventEndElement
+    onChars txt = onEvent $ EventContent $ ContentText txt
 
 conduitToList ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
@@ -601,6 +613,8 @@ mkSheetName :: Int -> Text
 mkSheetName sheetNumber =
      "/sheet"  <> Text.pack (show sheetNumber) <> ".xml"
 
+data XmlLib = UseXmlConduit | UseHexpat | UseLibxml deriving (Show, Eq, Read)
+
 -- | If the given sheet number exists, returns Just a conduit source
 -- of the stream of XML events (using the xml-conduit packgae) in a
 -- particular sheet. Returns Nothing when the sheet doesn't exist.
@@ -612,33 +626,30 @@ getSheetSource ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
   Int ->
-  -- | Whether to use the hexpat package instead of xml-conduit TODO: remove me.
-  Bool ->
+  -- TODO: remove me.
+  XmlLib ->
   XlsxM (Maybe (ConduitT () SheetItem m ()))
-getSheetSource sheetNumber useHexpat = do
-  if useHexpat
-    then
-      getSheetXmlSource_hexpat sheetNumber >>= \case
-        Nothing -> pure Nothing
-        Just sourceSheetXml -> do
-          sharedStrs <- getOrParseSharedStrings
-          let sheetState0 = initialSheetState
-                & ps_shared_strings .~ sharedStrs
-                & ps_file .~ Sheet sheetName
-                & ps_sheet_name .~ sheetName
-          pure $ Just $ sourceSheetXml
-            .| C.evalStateC sheetState0 (CL.mapMaybeM ({-# SCC "xmlEventToSheetItemHexpat_scc" #-} xmlEventToSheetItem'))
-    else
-      getSheetXmlSource_xmlConduit sheetNumber >>= \case
-        Nothing -> pure Nothing
-        Just sourceSheetXml -> do
-          sharedStrs <- getOrParseSharedStrings
-          let sheetState0 = initialSheetState
-                & ps_shared_strings .~ sharedStrs
-                & ps_file .~ Sheet sheetName
-                & ps_sheet_name .~ sheetName
-          pure $ Just $ sourceSheetXml
-            .| C.evalStateC sheetState0 (CL.mapMaybeM ({-# SCC "xmlEventToSheetItemXmlConduit_scc" #-} xmlEventToSheetItem))
+getSheetSource sheetNumber whichXmlLib = do
+  mSrc <- getSheetXmlSource sheetNumber
+  for mSrc $ \sourceSheetXml -> do
+    sharedStrs <- getOrParseSharedStrings
+    let sheetState0 = initialSheetState
+          & ps_shared_strings .~ sharedStrs
+          & ps_file .~ Sheet sheetName
+          & ps_sheet_name .~ sheetName
+    pure $ sourceSheetXml
+      .| case whichXmlLib of
+           UseHexpat ->
+             -- XXX: can Supercede get away with no entity decoder? Can the
+             -- library? Would it hurt performance too much to always use one?
+             let opts = ParseOptions Nothing Nothing
+             in
+               listToConduit (Hexpat.parseG opts conduitToList)
+               .| C.evalStateC sheetState0 (CL.mapMaybeM ({-# SCC "xmlEventToSheetItemHexpat_scc" #-} xmlEventToSheetItem'))
+           UseLibxml -> libxmlC sheetState0
+           UseXmlConduit ->
+             parseBytes def
+             .| C.evalStateC sheetState0 (CL.mapMaybeM ({-# SCC "xmlEventToSheetItemXmlConduit_scc" #-} xmlEventToSheetItem))
   where
     sheetName = mkSheetName sheetNumber
     {-# SCC xmlEventToSheetItem #-}
@@ -646,7 +657,7 @@ getSheetSource sheetNumber useHexpat = do
       -- A version of readSheetC that doesn't include logic for
       -- streaming multiple sheets.
       -- XXX: unify the two approaches, or support both?
-      parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchEvent sheetName event
+      parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchEvent event
       rix' <- use ps_cell_row_index
       case parseRes of
         Left err -> C.throwM err
@@ -672,16 +683,22 @@ getSheetSource sheetNumber useHexpat = do
 -- number), or Nothing if the sheet does not exist. Does not perform a
 -- full parse of the XML, so it should be more efficient than counting
 -- via 'getSheetSource'.
-countRowsInSheet :: Int -> Bool -> XlsxM (Maybe Int)
-countRowsInSheet sheetNumber = \case
-  False -> getSheetXmlSource_xmlConduit sheetNumber >>= \case
-    Nothing -> pure Nothing
-    Just sourceSheetXml -> fmap Just $ do
-      liftIO $ C.runConduitRes $ sourceSheetXml .| C.lengthIf isStartOfRow
-  True -> getSheetXmlSource_hexpat sheetNumber >>= \case
-    Nothing -> pure Nothing
-    Just sourceSheetXml -> fmap Just $ do
-      liftIO $ C.runConduitRes $ sourceSheetXml .| C.lengthIf isStartOfRow'
+countRowsInSheet :: Int -> XmlLib -> XlsxM (Maybe Int)
+countRowsInSheet sheetNumber lib = do
+  mSrc <- getSheetXmlSource sheetNumber
+  for mSrc $ \sourceSheetXml -> case lib of
+    UseHexpat -> do
+      liftIO $ C.runConduitRes $
+        sourceSheetXml
+        .| (let opts = ParseOptions Nothing Nothing
+            in listToConduit (Hexpat.parseG opts conduitToList))
+        .| C.lengthIf isStartOfRow'
+    UseLibxml -> error "todo: libxml"
+    UseXmlConduit -> do
+      liftIO $ C.runConduitRes $
+        sourceSheetXml
+        .| parseBytes def
+        .| C.lengthIf isStartOfRow
  where
    isStartOfRow' (StartElement "row" _) = True
    isStartOfRow' _ = False
@@ -765,7 +782,7 @@ parseSheetC event name = do
 
   -- Now continue, either on the current mid-way row or from the beginning after yielding the above.
   -- match the event
-  parseRes <- runExceptT $ matchEvent name event
+  parseRes <- runExceptT $ matchEvent event
   rix' <- use ps_cell_row_index
   case parseRes of
     Left err -> C.throwM err
@@ -938,8 +955,8 @@ matchEvent
   :: ( MonadError SheetErrors m
      , HasSheetState m
      )
-  => Text -> Event -> m (Maybe CellRow)
-matchEvent _currentSheet = \case
+  =>  Event -> m (Maybe CellRow)
+matchEvent = \case
   EventContent (ContentText txt)                    -> Nothing <$ addCellToRow txt
   EventBeginElement Name{nameLocalName = "c"} vals  -> Nothing <$ (setCoord vals >> setType vals)
   EventBeginElement Name {nameLocalName = "v"} _    -> Nothing <$ (ps_is_in_val .= True)
