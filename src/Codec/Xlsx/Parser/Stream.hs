@@ -497,7 +497,7 @@ getOrParseSharedStrings = do
         -- the underlying text values)
         .| C.sinkVector
       t1 <- liftIO getCurrentTime
-      liftIO $ putStrLn $ "Took " <> show (t1 `diffUTCTime` t0) <> " to read shared strings"
+      liftIO $ putStrLn $ "Took " <> show (t1 `diffUTCTime` t0) <> " to read shared strings via xml-conduit"
       liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
       pure sharedStrings
 
@@ -592,50 +592,41 @@ getInitialSheetState sheetNum = do
     & ps_file .~ Sheet sheetName
     & ps_sheet_name .~ sheetName
 
-{-# SCC libxmlC #-}
-libxmlC ::
+{-# SCC runLibxml #-}
+runLibxml ::
 --  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   SheetState ->
   ConduitT () ByteString (C.ResourceT IO) () ->
-  (ConduitT () Event XlsxM () -> XlsxM a) ->
-  XlsxM a
-libxmlC initialState byteSource inner = do
-  -- Set up state and queue
-  -- ref <- liftIO $ newIORef initialState
-  tq <- liftIO $ atomically newTQueue
+  (SheetItem -> IO ()) ->
+  XlsxM ()
+runLibxml initialState byteSource inner = liftIO $ do
+  -- Set up state
+  ref <- newIORef initialState
   -- Set up parser and callbacks
-  p <- liftIO $ LX.newParserIO Nothing
-  liftIO $ do
-    LX.setCallback p LX.parsedBeginElement (onBegin tq)
-    LX.setCallback p LX.parsedEndElement (onEnd tq)
-    LX.setCallback p LX.parsedCharacters (onChars tq)
+  p <- LX.newParserIO Nothing
+  LX.setCallback p LX.parsedBeginElement (\el -> onEvent ref . EventBeginElement el)
+  LX.setCallback p LX.parsedEndElement (onEvent ref . EventEndElement)
+  LX.setCallback p LX.parsedCharacters (onEvent ref . EventContent . ContentText)
   -- Set up conduit
-  LiftedUnsafe.runConcurrently $
-    LiftedUnsafe.Concurrently
-    (( {-# SCC "call_runConduitByteSourceParseLibxml" #-} liftIO $ C.runConduitRes $ byteSource .| C.mapM_ (\b -> {-# SCC "call_libxml_parseBytes" #-} liftIO $ LX.parseBytes p b))
-     `finally` (liftIO $ LX.parseComplete p)) *>
-    LiftedUnsafe.Concurrently ( {-# SCC "call_inner" #-} inner $ consumer tq)
-  -- restoreM
---}
+  C.runConduitRes $
+    byteSource .|
+    C.runReaderC ref (C.awaitForever $ liftIO . LX.parseBytes p)
+  LX.parseComplete p
   where
---    consumer :: TQueue Event -> ConduitT () SheetItem  m ()
-    {-# SCC consumer #-}
-    consumer tq = loop
-      where loop = do
-              -- TODO: compare readTQueue with flushTQueue performance
-              mEvent <- liftIO $ timeout 10000 $ atomically $ readTQueue tq
---              C.yield mEvent >> loop
-              case mEvent of
-                Nothing -> pure ()
-                Just event -> C.yield event >> loop
-    {-# INLINE onBegin #-}
-    onBegin tq el attrs = do
-      atomically $ writeTQueue tq $ EventBeginElement el attrs
+    {-# SCC onEvent #-}
+    {-# INLINE onEvent #-}
+    onEvent stateRef ev = do
+      state0 <- liftIO $ readIORef stateRef
+      (parseRes, state1) <-
+        {-# SCC "libxmlC_runStateT_call" #-} (`runStateT` state0) $ runExceptT $ matchEvent ev
+      writeIORef stateRef state1
+      case parseRes of
+        Left err -> C.throwM err
+        Right (Just cellRow)
+          | not (Map.null cellRow) ->
+            inner $ MkSheetItem (_ps_sheet_name state1) (_ps_cell_row_index state1) cellRow
+        _ -> pure ()
       pure True
-    {-# INLINE onEnd #-}
-    onEnd tq el = atomically (writeTQueue tq $ EventEndElement el) >> pure True
-    {-# INLINE onChars #-}
-    onChars tq txt = atomically (writeTQueue tq $ EventContent $ ContentText txt) >> pure True
 
 conduitToList ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
@@ -662,50 +653,27 @@ mkSheetName sheetNumber =
 
 data XmlLib = UseXmlConduit | UseHexpat | UseLibxml deriving (Show, Eq, Read)
 
-{-# SCC sourceXmlSheet #-}
-sourceXmlSheet ::
-  -- | Sheet number
-  Int ->
-  -- | Function to consume xml events
-  (ConduitT () Event XlsxM () -> XlsxM a) ->
-  -- | Returns Just result of supplied fn if sheet exists, or Nothing otherwise
-  XlsxM (Maybe a)
-sourceXmlSheet sheetNumber inner = do
-  mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
-    getSheetXmlSource sheetNumber
-  case mSrc of
-    Nothing -> pure Nothing
-    Just sourceSheetXml -> do
-      sharedStrs <- getOrParseSharedStrings
-      let sheetState0 = initialSheetState
-            & ps_shared_strings .~ sharedStrs
-            & ps_file .~ Sheet sheetName
-            & ps_sheet_name .~ sheetName
-      Just <$> libxmlC sheetState0 sourceSheetXml inner
-  where
-    sheetName = mkSheetName sheetNumber
-
 {-# SCC sourceSheet #-}
 sourceSheet ::
   -- | Sheet number
   Int ->
   -- | Function to consume the sheet's rows
-  (ConduitT () SheetItem XlsxM () -> XlsxM (Maybe a)) ->
+  (SheetItem -> IO ()) ->
   -- | Returns False if sheet doesn't exist, or True otherwise
-  XlsxM (Maybe a)
+  XlsxM Bool
 sourceSheet sheetNumber inner = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
     getSheetXmlSource sheetNumber
   case mSrc of
-    Nothing -> pure Nothing
+    Nothing -> pure False
     Just sourceSheetXml -> do
       sharedStrs <- getOrParseSharedStrings
       let sheetState0 = initialSheetState
             & ps_shared_strings .~ sharedStrs
             & ps_file .~ Sheet sheetName
             & ps_sheet_name .~ sheetName
-      libxmlC sheetState0 sourceSheetXml $ \eventSrc ->
-        inner $ eventSrc .| sheetItemC sheetNumber
+      runLibxml sheetState0 sourceSheetXml inner
+      pure True
   where
     sheetName = mkSheetName sheetNumber
 
@@ -780,24 +748,19 @@ getSheetSource sheetNumber whichXmlLib = do
 -- via 'getSheetSource'.
 countRowsInSheet :: Int -> XmlLib -> XlsxM (Maybe Int)
 countRowsInSheet sheetNumber lib = do
-  mSrc <- getSheetXmlSource sheetNumber
-  case mSrc of
-    Nothing -> pure Nothing
-    Just sourceSheetXml -> case lib of
-      UseHexpat -> do
-        fmap Just $ liftIO $ C.runConduitRes $
-          sourceSheetXml
-          .| (let opts = ParseOptions Nothing Nothing
-              in listToConduit (Hexpat.parseG opts conduitToList))
-          .| C.lengthIf isStartOfRow'
-      UseLibxml ->
-        sourceXmlSheet sheetNumber $ \xmlSrc ->
-          C.runConduit $ xmlSrc .| C.lengthIf isStartOfRow
-      UseXmlConduit -> do
-        fmap Just $ liftIO $ C.runConduitRes $
-          sourceSheetXml
-          .| parseBytes def
-          .| C.lengthIf isStartOfRow
+  case lib of
+    UseHexpat -> do
+      mSrc <- getSheetSource sheetNumber lib
+      for mSrc $ \src -> liftIO $ C.runConduitRes $
+        src .| C.length
+    UseLibxml -> do
+      ref <- liftIO $ newIORef 0
+      exists <- sourceSheet sheetNumber $ const $ modifyIORef' ref (+1)
+      if exists then liftIO $ Just <$> readIORef ref else pure Nothing
+    UseXmlConduit -> do
+      mSrc <- getSheetSource sheetNumber lib
+      for mSrc $ \src -> liftIO $ C.runConduitRes $
+        src .| C.length
  where
    isStartOfRow' (StartElement "row" _) = True
    isStartOfRow' _ = False
