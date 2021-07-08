@@ -153,6 +153,7 @@ module Codec.Xlsx.Parser.Stream
   , XlsxM
   , runXlsxM
   , getSheetSource
+  , sourceSheet
   , getOrParseSharedStrings
   , countRowsInSheet
 
@@ -217,6 +218,7 @@ import Codec.Xlsx.Parser.Internal
 import Data.String
 import Data.Traversable (for)
 import Text.XML.Expat.SAX as Hexpat
+import Text.XML.Expat.Internal.IO as Hexpat
 import qualified Text.XML.LibXML.SAX as LX
 import Control.Monad.ListT
 import Data.List.Class
@@ -227,6 +229,7 @@ import Control.Concurrent.Async
 import qualified Control.Concurrent.Async.Lifted as LiftedUnsafe
 import Control.Monad.Base
 import Control.Monad.Trans.Control
+import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
 
 type CellRow = Map Int Cell
 
@@ -591,6 +594,49 @@ runLibxml initialState byteSource inner = liftIO $ do
         _ -> pure ()
       pure True
 
+{-# SCC runExpat #-}
+runExpat ::
+  SheetState ->
+  ConduitT () ByteString (C.ResourceT IO) () ->
+  (SheetItem -> IO ()) ->
+  XlsxM ()
+runExpat initialState byteSource inner = liftIO $ do
+  -- Set up state
+  ref <- newIORef initialState
+  -- Set up parser and callbacks
+  (parseChunk, _getLoc) <- Hexpat.hexpatNewParser Nothing Nothing False
+  let noExtra _ offset = pure ((), offset)
+      {-# SCC processChunk #-}
+      {-# INLINE processChunk #-}
+      processChunk isFinalChunk chunk = do
+        (buf, len, mError) <- parseChunk chunk isFinalChunk
+        saxen <- HexpatInternal.parseBuf buf len noExtra
+        case mError of
+          Just err -> error $ "expat error: " <> show err
+          Nothing -> onEvents ref $ map fst saxen
+  C.runConduitRes $
+    byteSource .|
+    C.awaitForever (liftIO . processChunk False)
+  processChunk True BS.empty
+  where
+    sheetName = _ps_sheet_name initialState
+    {-# SCC onEvents #-}
+    {-# INLINE onEvents #-}
+    onEvents stateRef evs = do
+      state0 <- liftIO $ readIORef stateRef
+      state1 <-
+        {-# SCC "runExpat_runStateT_call" #-} (`execStateT` state0) $ do
+          forM_ evs $ \ev -> do
+            parseRes <- runExceptT $ matchHexpatEvent ev
+            case parseRes of
+              Left err -> error $ "error after matchHexpatEvent: " <> show err
+              Right (Just cellRow)
+                | not (Map.null cellRow) -> do
+                    rowNum <- use ps_cell_row_index
+                    liftIO $ inner $ MkSheetItem sheetName rowNum cellRow
+              _ -> pure ()
+      writeIORef stateRef state1
+
 conduitToList ::
   (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
   ListT (ConduitT i o m) i
@@ -618,13 +664,15 @@ data XmlLib = UseXmlConduit | UseHexpat | UseLibxml deriving (Show, Eq, Read)
 
 {-# SCC sourceSheet #-}
 sourceSheet ::
+  -- | Which XML library to use
+  XmlLib ->
   -- | Sheet number
   Int ->
   -- | Function to consume the sheet's rows
   (SheetItem -> IO ()) ->
   -- | Returns False if sheet doesn't exist, or True otherwise
   XlsxM Bool
-sourceSheet sheetNumber inner = do
+sourceSheet xmlLib sheetNumber inner = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
     getSheetXmlSource sheetNumber
   case mSrc of
@@ -635,7 +683,10 @@ sourceSheet sheetNumber inner = do
             & ps_shared_strings .~ sharedStrs
             & ps_file .~ Sheet sheetName
             & ps_sheet_name .~ sheetName
-      runLibxml sheetState0 sourceSheetXml inner
+      case xmlLib of
+        UseXmlConduit -> error "use getSheetSource"
+        UseLibxml -> runLibxml sheetState0 sourceSheetXml inner
+        UseHexpat -> runExpat sheetState0 sourceSheetXml inner
       pure True
   where
     sheetName = mkSheetName sheetNumber
@@ -696,7 +747,7 @@ getSheetSource sheetNumber whichXmlLib = do
       -- A version of readSheetC that doesn't include logic for
       -- streaming multiple sheets.
       -- XXX: unify the two approaches, or support both?
-      parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchHexpatEvent sheetName event
+      parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchHexpatEvent event
       rix' <- use ps_cell_row_index
       case parseRes of
         Left err -> C.throwM err
@@ -713,12 +764,12 @@ countRowsInSheet :: Int -> XmlLib -> XlsxM (Maybe Int)
 countRowsInSheet sheetNumber lib = do
   case lib of
     UseHexpat -> do
-      mSrc <- getSheetSource sheetNumber lib
-      for mSrc $ \src -> liftIO $ C.runConduitRes $
-        src .| C.length
+      ref <- liftIO $ newIORef 0
+      exists <- sourceSheet UseHexpat sheetNumber $ const $ modifyIORef' ref (+1)
+      if exists then liftIO $ Just <$> readIORef ref else pure Nothing
     UseLibxml -> do
       ref <- liftIO $ newIORef 0
-      exists <- sourceSheet sheetNumber $ const $ modifyIORef' ref (+1)
+      exists <- sourceSheet UseLibxml sheetNumber $ const $ modifyIORef' ref (+1)
       if exists then liftIO $ Just <$> readIORef ref else pure Nothing
     UseXmlConduit -> do
       mSrc <- getSheetSource sheetNumber lib
@@ -1004,10 +1055,9 @@ matchHexpatEvent ::
   ( MonadError SheetErrors m,
     HasSheetState m
   ) =>
-  Text ->
   HexpatEvent ->
   m (Maybe CellRow)
-matchHexpatEvent _currentSheet ev = case ev of
+matchHexpatEvent ev = case ev of
   CharacterData txt -> do
     inVal <- use ps_is_in_val
     when inVal $  do
