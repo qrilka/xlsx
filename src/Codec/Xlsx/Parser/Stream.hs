@@ -213,7 +213,6 @@ import           NoThunks.Class
 import           Text.Read                       hiding (lift)
 import           Text.XML.Stream.Parse
 import Codec.Xlsx.Parser.Internal
-import qualified Xeno.SAX as Xeno
 
 import Data.String
 import Data.Traversable (for)
@@ -332,16 +331,6 @@ makeLenses 'MkXlsxMState
 
 newtype XlsxM a = XlsxM { unXlsxM :: ReaderT XlsxMState Zip.ZipArchive a }
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadCatch, MonadMask, MonadThrow, MonadReader XlsxMState, MonadBase IO, MonadBaseControl IO)
-
-data XenoState = XenoState
-  { _xs_currentElem :: !(Maybe (Name, [(Name, [Content])]))
-  }
-
-data XenoParserError = XenoXmlMalformed deriving (Show, Exception)
-
-makeLenses 'XenoState
-
-type HasXenoState = MonadState XenoState
 --- Here ends the types for the zip library/XlsxM approach ---
 
 -- | Initial parsing state
@@ -500,32 +489,6 @@ getOrParseSharedStrings = do
       liftIO $ putStrLn $ "Took " <> show (t1 `diffUTCTime` t0) <> " to read shared strings via xml-conduit"
       liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
       pure sharedStrings
-
--- Events are parsed only as much as necessary for the current limited
--- parser. In particular, element attributes are only collected for
--- attribute lists which are used later on in matchEvent.
-xenoProcessor :: (MonadThrow m, HasXenoState m) => Xeno.Process (ConduitT ByteString Event m ())
-xenoProcessor = Xeno.Process
-  { Xeno.openF = \t -> do
-      nm <- asTxt t
-      xs_currentElem .= Just (asName nm, [])
-  , Xeno.attrF = \k v -> do
-      (nm, attrs) <- use xs_currentElem >>= maybe (throwM XenoXmlMalformed) pure
-      keyTxt <- asTxt k
-      valTxt <- asTxt v
-      let newAttr = (asName keyTxt, [ContentText valTxt])
-      xs_currentElem .= Just (nm, newAttr : attrs)
-  , Xeno.endOpenF = \t -> do
-      (nm, attrs) <- use xs_currentElem >>= maybe (throwM XenoXmlMalformed) pure
-      xs_currentElem .= Nothing
-      C.yield $ EventBeginElement nm attrs
-  , Xeno.textF = asTxt >=> C.yield . EventContent . ContentText
-  , Xeno.closeF = asTxt >=> C.yield . EventEndElement . asName
-  , Xeno.cdataF = const (pure ())
-  }
-  where
-    asTxt = either throwM pure . Text.decodeUtf8'
-    asName txt = Name txt Nothing Nothing
 
 type HexpatEvent = SAXEvent ByteString Text
 
