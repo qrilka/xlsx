@@ -45,7 +45,7 @@ module Codec.Xlsx.Parser.Stream
   ( XlsxM
   , runXlsxM
   , getSheetSource
-  , sourceSheet
+  , readSheet
   , getOrParseSharedStrings
   , countRowsInSheet
   , CellRow
@@ -373,8 +373,7 @@ mkSheetName sheetNumber =
 
 data XmlLib = UseXmlConduit | UseHexpat | UseLibxml deriving (Show, Eq, Read)
 
-{-# SCC sourceSheet #-}
-sourceSheet ::
+readSheet ::
   -- | Which XML library to use (a temporary export while xml librares
   -- are evaluated. Will be removed)
   XmlLib ->
@@ -384,7 +383,7 @@ sourceSheet ::
   (SheetItem -> IO ()) ->
   -- | Returns False if sheet doesn't exist, or True otherwise
   XlsxM Bool
-sourceSheet xmlLib sheetNumber inner = do
+readSheet xmlLib sheetNumber inner = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
     getSheetXmlSource sheetNumber
   case mSrc of
@@ -453,11 +452,11 @@ countRowsInSheet sheetNumber lib = do
   case lib of
     UseHexpat -> do
       ref <- liftIO $ newIORef 0
-      exists <- sourceSheet UseHexpat sheetNumber $ const $ modifyIORef' ref (+1)
+      exists <- readSheet UseHexpat sheetNumber $ const $ modifyIORef' ref (+1)
       if exists then liftIO $ Just <$> readIORef ref else pure Nothing
     UseLibxml -> do
       ref <- liftIO $ newIORef 0
-      exists <- sourceSheet UseLibxml sheetNumber $ const $ modifyIORef' ref (+1)
+      exists <- readSheet UseLibxml sheetNumber $ const $ modifyIORef' ref (+1)
       if exists then liftIO $ Just <$> readIORef ref else pure Nothing
     UseXmlConduit -> do
       mSrc <- getSheetSource sheetNumber
