@@ -23,144 +23,46 @@
 -- Description : Stream parser for xlsx files
 -- Copyright   :
 --   (c) Jappie Klooster, 2021
---   Adam, 2021
+--   (c) Adam, 2021
+--   (c) Supercede, 2021
 -- License     : MIT
 -- Stability   : experimental
 -- Portability : POSIX
 --
--- Parse @.xlsx@ using conduit streaming capabilities.
+-- Parse @.xlsx@ sheets in constant memory.
 --
--- == Goal
--- The prime goal of this module was to be able to use stream processing
--- capabilities of `conduit` library to be able to parse @.xlsx@ files in
--- constant memory. Below I explain why this is problematic.
+-- All actions on an xlsx file run inside the 'XlsxM' monad, and must
+-- be run with 'runXlsxM'. XlsxM is not a monad transformer, a design
+-- inherited from the "zip" package's ZipArchive monad.
 --
--- == Implementation
--- A @.xlsx@ file is essentially an archive with a bunch of @.xml@'s underneath.
+-- Inside the XlsxM monad, you can stream 'SheetItem's (a row) from a
+-- particular sheet, using one of two approaches:
+-- 1) 'getSheetSource' for a conduit-based API
+-- 2) 'sheetSource' for a slightly faster (~x0.65) event callback API.
 --
--- Here's a sample of how data looks internally:
---
--- @
--- .
--- ├── [Content_Types].xml
--- ├── _rels
--- ├── docProps
--- │   ├── app.xml
--- │   └── core.xml
--- └── xl
---     ├── _rels
---     │   └── workbook.xml.rels
---     ├── calcChain.xml
---     ├── sharedStrings.xml
---     ├── styles.xml
---     ├── theme
---     │   └── theme1.xml
---     ├── workbook.xml
---     └── worksheets
---         ├── sheet1.xml
---         └── sheet2.xml
--- @
---
--- Here we mostly pay attention to @sharedStrings.xml@ and @workesheets/@ subdirectory.
---
--- The @sharedStrings.xml@ file stores all the unique strings in all of the worksheets
--- @.xlsx@ file and all (actually not all, some of the numbers are not stored in shared
--- strings table for reason I could find explanation for) strings are referenced from this
--- shared strings table. This is used mostly to safe space and causes a problem for us to
--- use conduits in first place, since to be able to parse sheets we have to store this table
--- in memory which does not agree with our only requirement.
---
--- The parsing is then separated to two stages:
---
---   1. We parse shared string table in @parseSharedStringsC@ conduit and collect entries
---      using strict state monad. This is done that way because @xml-types@ library uses
---      eventful approach on separating xml structures.
---   2. We parse the sheets using shared string table that is loaded onto memory in
---      @readXlsxWithSharedStringMapC@.
---
--- Well, actually we do not parse things in this module, just construct conduit for it,
--- for the example usage of this parser you can refer to @benchmarks/Stream.hs@ file or read
--- the subsection explaining its @parseFileStream@ below.
---
--- == How to use this parser
---
--- The starting point of parsing @.xlsx@ via conduits is `readXlsxC` parser.
--- Basically what it does is that it constructs a conduit parser for some
--- existing conduit (or sink if you prefer in this case) that produces `BS.ByteString`
--- which is then passed to our parser conduits and wrapped into some @PrimMonad m@ monad.
---
--- Consider the type of conduits
---
--- @
--- ConduitT a b m r
---          ^------- The value conduit consumes
---            ^------ The intermediate result that is passed to other conduits in the pipeline
---              ^----- The base monad that tells what kind of effects we can perform with the value
---                ^---- The result of the entire pipeline
--- @
---
--- If you're doing it in @IO@ it could be simply invoked from @sourceFile@ that constructs
--- the needed conduit from the source filepath it was given and later the conduit can be
--- evaluated by calling @runResourceT@ that takes the given @ResourceT@
--- (produced by `readXlsxC` function) and returns the value in base monad it was specified.
---
--- In types
---
--- @
--- parseFileC :: FilePath -> IO ByteString
--- parseFileC filePath = do
---   (inputC :: ConduitT () SheetItem (ResourceT IO) ()) <-
---       (sourceFile filepath :: ConduitT () ByteString (ResourceT IO) ())
---        -- ^ Construct a conduit that returns @ByteString@ with @IO@ based effects
---     & \s -> (readXlsxC s :: ResourceT IO (ConduitT () SheetItem (ResourceT IO) ()))
---        -- ^ Construct a conduit that parses the given chunk of @ByteString@ value
---        -- and parses it to @SheetItem@
---     & \s -> (runResourceT s :: IO (ConduitT () SheetItem (ResourceT IO) ()))
---        -- ^ This is needed because we want to allocate the needed resources and be able
---        -- to safely clean up after
---   res <-
---         (parseConduit inputC :: ConduitT () Void (ResourceT IO) [SheetItem])
---         -- ^ Construct a conduit that only returns resulting value out of the
---         -- given @inputC@ conduit so that we can collect all the values it parses
---       & \s -> (runConduit s :: ResourceT IO [SheetItem])
---       & \s -> (runResourceT s :: IO [SheetItem])
---   pure res
---   where
---     -- Fold all the intermediate results of the given conduit and
---     -- return the conduit that only returns resulting value.
---     parseConduit
---       :: Monad m
---       => ConduitM a SheetItem m () -> ConduitM () Void m [SheetItem]
---
--- @
 {-# LANGUAGE TypeApplications    #-}
 module Codec.Xlsx.Parser.Stream
-  ( -- * Parser API based on "zip-stream" package
-  -- * Parser API based on "zip" package
-  XlsxM
+  ( XlsxM
   , runXlsxM
   , getSheetSource
   , sourceSheet
   , getOrParseSharedStrings
   , countRowsInSheet
-
-  -- * Types shared by both parser approaches
   , CellRow
   , SheetItem(..)
-  -- ** `SheetItem` lens
+  -- ** `SheetItem` lenses
   , si_sheet
   , si_row_index
   , si_cell_row
-
-  -- * Errors that either parser can throw
+  -- * Errors
   , SheetErrors(..)
-  {-- TODO: check if these errors could be exposed to users or not
+  {-- TODO: check if these errors could be thrown exposed to API users or not
   , AddCellErrors(..)
   , CoordinateErrors(..)
   , TypeError(..)
   --}
 
-  -- * Temporary:
+  -- * Temporary export while comparing xml libraries:
   , XmlLib(..)
   ) where
 
@@ -210,7 +112,7 @@ type CellRow = Map Int Cell
 --
 -- The current sheet at a time, every sheet is constructed of these items.
 data SheetItem = MkSheetItem
-  { _si_sheet     :: Text      -- ^ Name of the sheet
+  { _si_sheet     :: Text      -- ^ The sheet number
   , _si_row_index :: Int       -- ^ Row number
   , _si_cell_row  :: ~CellRow  -- ^ Row itself
   } deriving stock (Generic, Show)
@@ -473,7 +375,8 @@ data XmlLib = UseXmlConduit | UseHexpat | UseLibxml deriving (Show, Eq, Read)
 
 {-# SCC sourceSheet #-}
 sourceSheet ::
-  -- | Which XML library to use
+  -- | Which XML library to use (a temporary export while xml librares
+  -- are evaluated. Will be removed)
   XmlLib ->
   -- | Sheet number
   Int ->
@@ -508,7 +411,7 @@ sourceSheet xmlLib sheetNumber inner = do
 --
 -- The xml-conduit package is used to parse the underlying XML. In the
 -- authors' tests, consuming large excel sheets into 'SheetItem's is
--- 1.6x slower than the 'sourceSheet' IO-based callback API which uses
+-- 1.6x slower than the 'readSheet' IO-based callback API which uses
 -- expat for xml parsing. Your mileage may vary.
 {-# SCC getSheetSource  #-}
 getSheetSource ::
@@ -706,10 +609,9 @@ parseCoordinates list = do
       valText     <- maybe (Left $ NoTextContent valContent list)  Right $ valContent ^? contentTextPrims
       maybe (Left $ DecodeFailure valText list) Right $ fromSingleCellRef $ CellRef valText
 
--- | Update state accordingly the xml event given, basically parse a xml and return row
--- if we've ended parsing.
--- (I wish xml docs were more elaborate on their structures)
 {-# SCC matchEvent #-}
+-- | Update state accordingly the xml 'Event' given. If this event
+-- marks the end of a row, Just a 'CellRow' is returned
 matchEvent
   :: ( MonadError SheetErrors m
      , HasSheetState m
