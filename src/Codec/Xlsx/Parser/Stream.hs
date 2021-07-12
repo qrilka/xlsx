@@ -144,13 +144,8 @@
 {-# LANGUAGE TypeApplications    #-}
 module Codec.Xlsx.Parser.Stream
   ( -- * Parser API based on "zip-stream" package
-    readXlsxC
-  , readXlsxWithSharedStringMapC
-  , parseSharedStringsC
-  , parseSharedStringsIntoMapC
-
   -- * Parser API based on "zip" package
-  , XlsxM
+  XlsxM
   , runXlsxM
   , getSheetSource
   , sourceSheet
@@ -177,12 +172,11 @@ module Codec.Xlsx.Parser.Stream
   , XmlLib(..)
   ) where
 
-import           Codec.Archive.Zip.Conduit.UnZip
 import qualified "zip" Codec.Archive.Zip as Zip
 import qualified Data.Vector as V
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
-import           Conduit                         (PrimMonad, await, yield, (.|))
+import           Conduit                         (PrimMonad, (.|))
 import qualified Conduit                         as C
 import           Control.Lens
 import           Control.Monad.Catch
@@ -192,13 +186,9 @@ import           Control.Monad.State.Strict
 import           Data.Bifunctor
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString                 as BS
-import qualified Data.ByteString.Lazy            as LBS
-import qualified Data.ByteString.Char8           as B8
-import           Data.Char                       (isSpace)
 import           Data.Conduit                    (ConduitT)
 import qualified Data.Conduit.Combinators        as C
 import qualified Data.Conduit.List               as CL
-import qualified Data.Conduit.Lift               as C
 import           Data.Foldable
 import           Data.IORef
 import           Data.Map.Strict                 (Map)
@@ -208,25 +198,16 @@ import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
 import qualified Data.Text.Read                  as Read
 import           Data.Time.Clock
+import           Data.Traversable                (for)
 import           Data.XML.Types
 import           GHC.Generics
 import           NoThunks.Class
-import           Text.Read                       hiding (lift)
 import           Text.XML.Stream.Parse
 import Codec.Xlsx.Parser.Internal
 
-import Data.String
-import Data.Traversable (for)
 import Text.XML.Expat.SAX as Hexpat
 import Text.XML.Expat.Internal.IO as Hexpat
 import qualified Text.XML.LibXML.SAX as LX
-import Control.Monad.ListT
-import Data.List.Class
-import Control.Concurrent.STM.TQueue
-import Control.Monad.STM
-import System.Timeout
-import Control.Concurrent.Async
-import qualified Control.Concurrent.Async.Lifted as LiftedUnsafe
 import Control.Monad.Base
 import Control.Monad.Trans.Control
 import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
@@ -248,24 +229,6 @@ deriving via AllowThunksIn
    ] SheetItem
   instance NoThunks SheetItem
 
--- | File tags that we match with zip entries to be able to separate them and use needed
--- http://officeopenxml.com/anatomyofOOXML-xlsx.php
-data PsFileTag =
-              Ignored Text    -- ^ Files that appear in workbook, but get ignored
-             | Sheet Text     -- ^ Sheet itself
-             | InitialNoFile  -- ^ Initial state, not related to excel files and hence should be moved to some other data
-             | SharedStrings  -- ^ Shared strings file
-             | Styles
-             | Workbook       -- ^ Contains names of the tabs and shared string ids
-             | ContentTypes
-             | Relationships
-             | FormulaChain   -- ^ Contains all the formulas in the sheet
-             | SheetRel Text  -- ^ Contains relations between internal ids and paths
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NoThunks
-
-makePrisms ''PsFileTag
-
 type SharedStringMap = V.Vector Text
 
 -- | Type of the excel value
@@ -285,15 +248,19 @@ data ExcelValueType
 
 -- | State for parsing sheets
 data SheetState = MkSheetState
-  { _ps_file           :: PsFileTag       -- ^ File tag that we associate from `tagFilesC`
-  , _ps_row            :: ~CellRow        -- ^ Current row
+  { _ps_row            :: ~CellRow        -- ^ Current row
   , _ps_sheet_name     :: Text            -- ^ Current sheet name
   , _ps_cell_row_index :: Int             -- ^ Current row number
   , _ps_cell_col_index :: Int             -- ^ Current column number
   , _ps_is_in_val      :: Bool            -- ^ Flag for indexing wheter the parser is in value or not
   , _ps_shared_strings :: SharedStringMap -- ^ Shared string map
   , _ps_type           :: ExcelValueType  -- ^ The last detected value type
-  , _ps_text_buf :: Text -- ^ for hexpat only, which can break up char data into multiple events
+
+  , _ps_text_buf :: Text
+  -- ^ for hexpat only, which can break up char data into multiple events
+  , _ps_worksheet_ended :: Bool
+  -- ^ For hexpat only, which can throw errors right at the end of the sheet
+  -- rather than ending gracefully.
   } deriving stock (Generic, Show)
 makeLenses 'MkSheetState
 
@@ -304,9 +271,7 @@ deriving via AllowThunksIn
 
 -- | State for parsing shared strings
 data SharedStringState = MkSharedStringState
-  { _ss_file      :: PsFileTag -- ^ File tag of the current file we are in
-  , _ss_shared_ix :: Int       -- ^ Id of a shared string, int is okay, because bigger int blows up memory anyway
-  , _ss_string    :: Text      -- ^ String we are parsing
+  { _ss_string    :: Text      -- ^ String we are parsing
   } deriving stock (Generic, Show)
     deriving anyclass NoThunks
 makeLenses 'MkSharedStringState
@@ -314,33 +279,30 @@ makeLenses 'MkSharedStringState
 type HasSheetState = MonadState SheetState
 type HasSharedStringState = MonadState SharedStringState
 
-class HasPSFiles a where
-  fileLens :: Lens' a PsFileTag
-
-instance HasPSFiles SheetState where
-  fileLens = ps_file
-instance HasPSFiles SharedStringState where
-  fileLens = ss_file
-
---
--- Here begins the types for the part of this module that uses the "zip" library parser ---
---
--- TODO: decide whether to remove one or the other approaches, or unify them, or separate modules
 data XlsxMState = MkXlsxMState
   { _xs_shared_strings :: IORef (Maybe (V.Vector Text))
 --  , _xs_sheet_names :: IORef (Maybe (Map Int Text))
   }
 makeLenses 'MkXlsxMState
 
-newtype XlsxM a = XlsxM { unXlsxM :: ReaderT XlsxMState Zip.ZipArchive a }
-  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadCatch, MonadMask, MonadThrow, MonadReader XlsxMState, MonadBase IO, MonadBaseControl IO)
---- Here ends the types for the zip library/XlsxM approach ---
+newtype XlsxM a = XlsxM {_unXlsxM :: ReaderT XlsxMState Zip.ZipArchive a}
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO,
+      MonadCatch,
+      MonadMask,
+      MonadThrow,
+      MonadReader XlsxMState,
+      MonadBase IO,
+      MonadBaseControl IO
+    )
 
 -- | Initial parsing state
 initialSheetState :: SheetState
 initialSheetState = MkSheetState
-  { _ps_file            = InitialNoFile
-  , _ps_row             = mempty
+  { _ps_row             = mempty
   , _ps_sheet_name      = mempty
   , _ps_cell_row_index  = 0
   , _ps_cell_col_index  = 0
@@ -348,62 +310,14 @@ initialSheetState = MkSheetState
   , _ps_shared_strings  = mempty
   , _ps_type            = Untyped
   , _ps_text_buf = ""
+  , _ps_worksheet_ended = False
   }
 
 -- | Initial parsing state
 initialSharedString :: SharedStringState
 initialSharedString = MkSharedStringState
-  { _ss_file            = InitialNoFile
-  , _ss_shared_ix       = 0
-  , _ss_string          = mempty
+  { _ss_string = mempty
   }
-
--- | Classify zip entries
-getFileTag :: Text -> PsFileTag
-getFileTag = \case
-  "xl/sharedStrings.xml" -> SharedStrings
-  "xl/styles.xml"        -> Styles
-  "xl/workbook.xml"      -> Workbook
-  "xl/calcChain.xml"     -> FormulaChain
-  "[Content_Types].xml"  -> ContentTypes
-  "_rels/.rels"          -> Relationships
-  unknown
-    | ws `Text.isPrefixOf` unknown ->
-      let unknown' = Text.drop (Text.length ws) unknown
-      in if
-      | rel `Text.isPrefixOf` unknown' ->
-        SheetRel $ Text.drop (Text.length rel) unknown'
-      | otherwise -> Sheet unknown'
-    | otherwise -> Ignored unknown
-  where
-    ws = "xl/worksheets"
-    rel = "_rels/"
-
--- | Conduit for parsing shared strings
---
--- This is essentially parsing a zip stream with each entry stored as bytestring
--- that we tag before proceeding with parsing the elements.
-parseSharedStringsC
-  :: ( MonadThrow m
-     , PrimMonad m
-     )
-  => ConduitT BS.ByteString Text m ()
-parseSharedStringsC = (() <$ unZipStream) .| C.evalStateLC initialSharedString go
-  where
-    go = (await >>= tagFilesC)
-         .| C.filterM (const $ has _SharedStrings <$> use fileLens)
-         .| parseBytes def
-         .| C.concatMapM parseSharedString
-
--- | Conduit that returns shared strings map
---
--- This is used mostly for testing.
-parseSharedStringsIntoMapC
-  :: ( MonadThrow m
-     , PrimMonad m
-     )
-  => ConduitT BS.ByteString C.Void m (V.Vector Text)
-parseSharedStringsIntoMapC = parseSharedStringsC .| C.sinkVector
 
 -- | Parse shared string entry from xml event and return it once
 -- we've reached the end of given element
@@ -420,44 +334,6 @@ parseSharedString = \case
     pure $ Just txt
   EventContent (ContentText txt) -> Nothing <$ (ss_string <>= txt)
   _ -> pure Nothing
-
--- | Parse sheet with shared strings map provided
---
--- This is essentially parsing of a zip stream in which we ignore all unrecognised
--- files, literally just parsing @worksheets/*.xml@ here.
-readXlsxWithSharedStringMapC
-  :: ( MonadThrow m
-     , PrimMonad m
-     )
-  => SharedStringMap
-  -> ConduitT BS.ByteString SheetItem m ()
-readXlsxWithSharedStringMapC sstate = (() <$ unZipStream) .| C.evalStateLC initial parseFileCState
-    where
-      parseFileCState = (await >>= tagFilesC)
-        .| C.filterM (const $ not . has _Ignored <$> use fileLens)
-        .| parseBytes def
-        .| parseFileC
-      initial = set ps_shared_strings sstate initialSheetState
-
--- | Parse xlsx file from a bytestring
---
--- This first reads the shared string table, then it provides another conduit
--- for parsing the rest of the data. Reading happens twice. All shared strings
--- are stored into memory wrapped in state monad.
-readXlsxC
-  :: ( MonadThrow m
-     , PrimMonad m
-     )
-  => ConduitT () BS.ByteString m ()
-  -> m (ConduitT () SheetItem m ())
-readXlsxC input = do
-    ssState <- C.runConduit $
-         input
-      .| parseSharedStringsC
-      .| C.sinkVector
-    pure $
-         input
-      .| readXlsxWithSharedStringMapC ssState
 
 -- | Run a series of actions on an Xlsx file
 runXlsxM :: MonadIO m => FilePath -> XlsxM a -> m a
@@ -477,7 +353,7 @@ getOrParseSharedStrings = do
     Just strs -> pure strs
     Nothing -> do
       sharedStrsSel <- liftZip $ Zip.mkEntrySelector "xl/sharedStrings.xml"
-      let state0 = initialSharedString & ss_file .~ SharedStrings
+      let state0 = initialSharedString
       t0 <- liftIO getCurrentTime
       sharedStrings <- {-# SCC "eval_sharedStrings" #-} liftZip $ Zip.sourceEntry sharedStrsSel $
         ( {-# SCC "sharedStrings_parseBytes" #-} parseBytes def)
@@ -495,24 +371,12 @@ getOrParseSharedStrings = do
 
 type HexpatEvent = SAXEvent ByteString Text
 
-hexpatToEvent :: HexpatEvent -> Maybe Event
-hexpatToEvent = \case
---  XMLDeclaration text (Maybe text) (Maybe Bool)
-  StartElement !tag !attrs -> Just $ EventBeginElement (asName tag)
-    $ map (\(!tag, !txt) -> (asName tag, [ContentText txt])) attrs
-  EndElement !tag -> Just $ EventEndElement $ asName tag
-  CharacterData !text -> Just $ EventContent $ ContentText text
-  _ -> Nothing
---   FailDocument XMLParseError
-  where
-    asName txt = Name (Text.decodeUtf8 txt) Nothing Nothing
-
 -- If the given sheet number exists, returns Just a conduit source of the stream
 -- of XML events in a particular sheet. Returns Nothing when the sheet doesn't
 -- exist.
 {-# SCC getSheetXmlSource #-}
 getSheetXmlSource ::
-  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
+  (PrimMonad m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
   Int ->
   XlsxM (Maybe (ConduitT () ByteString m ()))
@@ -525,38 +389,7 @@ getSheetXmlSource sheetNumber = do
   sheetExists <- liftZip $ Zip.doesEntryExist sheetSel
   if not sheetExists
     then pure Nothing
-    else do
-      sourceSheet <- liftZip $ Zip.getEntrySource sheetSel
-      pure $ Just sourceSheet
- where
-   sheetName = mkSheetName sheetNumber
-
-{-# SCC sheetItemC #-}
-sheetItemC :: Int -> ConduitT Event SheetItem XlsxM ()
-sheetItemC sheetNum = do
-  initState <- lift $ getInitialSheetState sheetNum
-  let sheetName = _ps_sheet_name initState
-  C.evalStateC initState $ C.awaitForever $ \ev -> do
-    -- stateRef <- ask
-    -- state0 <- liftIO $ readIORef stateRef
-    parseRes <-
-      {-# SCC "sheetItemC_runExceptT_call" #-} runExceptT $ matchEvent ev
-    case parseRes of
-      Left err -> C.throwM err
-      Right (Just cellRow)
-        | not (Map.null cellRow) -> do
-            rowNum <- use ps_cell_row_index
-            C.yield $ MkSheetItem sheetName rowNum cellRow
-        | otherwise -> pure ()
-
-getInitialSheetState :: Int -> XlsxM SheetState
-getInitialSheetState sheetNum = do
-  sharedStrs <- getOrParseSharedStrings
-  let sheetName = mkSheetName sheetNum
-  pure $ initialSheetState
-    & ps_shared_strings .~ sharedStrs
-    & ps_file .~ Sheet sheetName
-    & ps_sheet_name .~ sheetName
+    else Just <$> liftZip (Zip.getEntrySource sheetSel)
 
 {-# SCC runLibxml #-}
 runLibxml ::
@@ -637,24 +470,8 @@ runExpat initialState byteSource inner = liftIO $ do
               _ -> pure ()
       writeIORef stateRef state1
 
-conduitToList ::
-  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
-  ListT (ConduitT i o m) i
-conduitToList = ListT $ await >>= \case
-  Nothing -> pure Nil
-  Just elem ->
-    pure $ Cons elem conduitToList
-
-{-# INLINE listToConduit #-}
-listToConduit ::
-  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
-  ListT (ConduitT i HexpatEvent m) HexpatEvent ->
-  ConduitT i HexpatEvent m ()
-listToConduit = foldrL (\event next -> C.yield event >> next) (pure ())
-  -- execute . mapL C.yield
-
--- FIXME: hack to be compatible with the other parser,
--- which as of this writing sets the sheet name to be
+-- FIXME: hack to be compatible with the zip-stream parser (no longer
+-- present), which as of this writing sets the sheet name to be
 -- "/sheetN.xml"
 mkSheetName :: Int -> Text
 mkSheetName sheetNumber =
@@ -681,7 +498,6 @@ sourceSheet xmlLib sheetNumber inner = do
       sharedStrs <- getOrParseSharedStrings
       let sheetState0 = initialSheetState
             & ps_shared_strings .~ sharedStrs
-            & ps_file .~ Sheet sheetName
             & ps_sheet_name .~ sheetName
       case xmlLib of
         UseXmlConduit -> error "use getSheetSource"
@@ -692,62 +508,39 @@ sourceSheet xmlLib sheetNumber inner = do
     sheetName = mkSheetName sheetNumber
 
 -- | If the given sheet number exists, returns Just a conduit source
--- of the stream of XML events (using the xml-conduit packgae) in a
--- particular sheet. Returns Nothing when the sheet doesn't exist.
+-- of the stream of 'SheetItem's in a particular sheet. Returns
+-- Nothing when the sheet doesn't exist.
 --
 -- May throw SheetErrors if a parsing error occurs in the
 -- underlying XML parser.
+--
+-- The xml-conduit package is used to parse the underlying XML. In the
+-- authors' tests, consuming large excel sheets into 'SheetItem's is
+-- 1.6x slower than the 'sourceSheet' IO-based callback API which uses
+-- expat for xml parsing. Your mileage may vary.
 {-# SCC getSheetSource  #-}
 getSheetSource ::
-  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
+  (PrimMonad m, MonadThrow m, C.MonadResource m) =>
   -- | The sheet number
   Int ->
-  -- TODO: remove me.
-  XmlLib ->
   XlsxM (Maybe (ConduitT () SheetItem m ()))
-getSheetSource sheetNumber whichXmlLib = do
+getSheetSource sheetNumber = do
   mSrc <- getSheetXmlSource sheetNumber
   for mSrc $ \sourceSheetXml -> do
     sharedStrs <- getOrParseSharedStrings
     let sheetState0 = initialSheetState
           & ps_shared_strings .~ sharedStrs
-          & ps_file .~ Sheet sheetName
           & ps_sheet_name .~ sheetName
     pure $ sourceSheetXml
-      .| case whichXmlLib of
-           UseHexpat ->
-             -- XXX: can Supercede get away with no entity decoder? Can the
-             -- library? Would it hurt performance too much to always use one?
-             let opts = ParseOptions Nothing Nothing
-             in
-               listToConduit (Hexpat.parseG opts conduitToList)
-               .| C.evalStateC sheetState0 (CL.mapMaybeM ({-# SCC "xmlEventToSheetItemHexpat_scc" #-} xmlEventToSheetItem'))
-           UseLibxml -> error "use sourceSheet"
-           UseXmlConduit ->
-             parseBytes def
-             .| C.evalStateC sheetState0 (CL.mapMaybeM ({-# SCC "xmlEventToSheetItemXmlConduit_scc" #-} xmlEventToSheetItem))
+      .| parseBytes def
+      .| C.evalStateC sheetState0
+         (CL.mapMaybeM ({-# SCC "xmlEventToSheetItemXmlConduit_scc" #-} xmlEventToSheetItem))
   where
     sheetName = mkSheetName sheetNumber
     {-# SCC xmlEventToSheetItem #-}
     xmlEventToSheetItem event = do
-      -- A version of readSheetC that doesn't include logic for
-      -- streaming multiple sheets.
       -- XXX: unify the two approaches, or support both?
       parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchEvent event
-      rix' <- use ps_cell_row_index
-      case parseRes of
-        Left err -> C.throwM err
-        Right (Just cellRow)
-          | not (Map.null cellRow) ->
-            pure $ Just $ MkSheetItem sheetName rix' cellRow
-        _ -> pure Nothing
-
-    {-# SCC xmlEventToSheetItem' #-}
-    xmlEventToSheetItem' event = do
-      -- A version of readSheetC that doesn't include logic for
-      -- streaming multiple sheets.
-      -- XXX: unify the two approaches, or support both?
-      parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchHexpatEvent event
       rix' <- use ps_cell_row_index
       case parseRes of
         Left err -> C.throwM err
@@ -772,111 +565,9 @@ countRowsInSheet sheetNumber lib = do
       exists <- sourceSheet UseLibxml sheetNumber $ const $ modifyIORef' ref (+1)
       if exists then liftIO $ Just <$> readIORef ref else pure Nothing
     UseXmlConduit -> do
-      mSrc <- getSheetSource sheetNumber lib
+      mSrc <- getSheetSource sheetNumber
       for mSrc $ \src -> liftIO $ C.runConduitRes $
         src .| C.length
- where
-   isStartOfRow' (StartElement "row" _) = True
-   isStartOfRow' _ = False
-   isStartOfRow (EventBeginElement Name{nameLocalName = "row"} _) = True
-   isStartOfRow _ = False
-
--- | Tag zip entries with `PsFileTags`
---
--- Essentiall @.xlsx@ file is a zip archive with bunch of @.xml@s stored
--- inside. This conduit ensures that we recognise all the needed files to
--- work with later. All of the tags are pushed in a state monad.
-tagFilesC
-  :: ( HasPSFiles env
-     , MonadState env m
-     , MonadThrow m
-     )
-  => Maybe (Either ZipEntry BS.ByteString)
-  -> ConduitT (Either ZipEntry BS.ByteString) BS.ByteString m ()
-tagFilesC = \case
-  Just (Left zipEntry) -> do
-   let !filePath = either id Text.decodeUtf8 (zipEntryName zipEntry)
-   fileLens .= getFileTag filePath
-   await >>= tagFilesC
-  Just (Right fdata) -> do
-    -- strange behaviour indeed, why it does not await already yielded data?
-    yield fdata
-    await >>= tagFilesC
-  Nothing -> pure ()
-
--- | Parse a xml event
-parseFileC
-  :: ( MonadThrow m
-     , HasSheetState m
-     )
-  => ConduitT Event SheetItem m ()
-parseFileC = await >>= parseEventLoop
-  where
-    parseEventLoop
-      :: ( MonadThrow m
-         , HasSheetState m
-         )
-      => Maybe Event
-      -> ConduitT Event SheetItem m ()
-    parseEventLoop = \case
-      Nothing -> pure ()
-      Just evt -> use fileLens >>= \case
-        Sheet name -> do
-          prevSheetName <- use ps_sheet_name
-          rix <- use ps_cell_row_index
-          when (prevSheetName /= name) $
-            -- TODO: this is the last part of the file name containing
-            -- a particular sheet, not the actual sheet name as it
-            -- appears in the Excel UI.
-            ps_sheet_name .= name
-          parseSheetC evt name
-        _          -> await >>= parseEventLoop
-
--- | Parse sheet
---
--- We extract previous sheet name from the state and as well
--- as a current row index. If we're still in the same sheet
--- then we're returning currently stored row.
--- If we're on a different sheet, then parse the event and
--- return newly generated sheet item.
-parseSheetC
-  :: ( MonadThrow m
-     , HasSheetState m
-     )
-  => Event
-  -> Text
-  -> ConduitT Event SheetItem m ()
-parseSheetC event name = do
-  prevSheetName <- use ps_sheet_name
-  rix <- use ps_cell_row_index
-  -- only consider yielding the sheet item if this is a _new_ sheet name.
-  -- The idea is to here yield the entire excel row in one chunk. i.e. we've started a previous
-  unless (prevSheetName == name) $ do
-    -- Take the ps_row from state, set the ps_row to null, yield if not empty.
-    -- The point is to 'get rid' of the final sheet item in the previous worksheet.
-    popRow >>= yieldSheetItem name rix
-
-  -- Now continue, either on the current mid-way row or from the beginning after yielding the above.
-  -- match the event
-  parseRes <- runExceptT $ matchEvent event
-  rix' <- use ps_cell_row_index
-  case parseRes of
-    Left err -> C.throwM err
-    Right mResult -> do
-      -- Yield the result if Just
-      traverse_ (yieldSheetItem name rix') mResult
-      parseFileC
-
--- | @SheetItem@ constructor
-yieldSheetItem
-  :: MonadThrow m
-  => Text
-  -> Int
-  -> CellRow
-  -> ConduitT Event SheetItem m ()
-yieldSheetItem name rix' row =
-  unless (row == mempty) $
-    yield (MkSheetItem name rix' row)
 
 -- | Return row from the state and empty it
 {-# SCC popRow #-}
@@ -1077,18 +768,19 @@ matchHexpatEvent ev = case ev of
   -- If at the end of the row, we have collected the whole row into
   -- the current state. Empty the state and return the row.
   EndElement "row" -> Just <$> popRow
-  EndElement "worksheet" -> ps_file .= InitialNoFile >> pure Nothing
+  StartElement "worksheet" _ -> ps_worksheet_ended .= False >> pure Nothing
+  EndElement "worksheet" -> ps_worksheet_ended .= True >> pure Nothing
   -- Skip everything else, e.g. the formula elements <f>
   FailDocument err -> do
     -- this event is emitted at the end the xml stream (possibly
     -- because the xml files in xlsx archives don't end in a
     -- newline, but that's a guess), so we use state to determine if
     -- it's expected.
-    f <- use ps_file -- TODO: use new var, not ps_file.
-    when (f /= InitialNoFile) $
+    finished <- use ps_worksheet_ended
+    unless finished $
       throwError $ HexpatParseError err
     pure Nothing
-  ev -> pure Nothing
+  _ -> pure Nothing
 
 type SheetValue' = (ByteString, Text)
 type SheetValues' = [SheetValue']
@@ -1126,7 +818,7 @@ parseType' :: SheetValues' -> Either TypeError ExcelValueType
 parseType' list =
   case findName' "t" list of
     Nothing -> pure Untyped
-    Just (nm, valText)->
+    Just (_nm, valText)->
       case valText of
         "n"   -> Right TN
         "s"   -> Right TS
@@ -1135,11 +827,15 @@ parseType' list =
         "e"   -> Right TE
         other -> Left $ UnkownType other $ asSheetValues list
 
-asSheetValues = map (\(s, t) -> (Name (Text.decodeUtf8 s) Nothing Nothing, [ContentText $ Text.decodeUtf8 s]))
+asSheetValues :: [(ByteString, b)] -> [(Name, [Content])]
+asSheetValues = map f
+  where f (s, _) =
+          (Name (Text.decodeUtf8 s)
+           Nothing Nothing, [ContentText $ Text.decodeUtf8 s])
 
 -- | Parse coordinates from a list of xml elements if such were found on "r" key
 {-# SCC parseCoordinates' #-}
 parseCoordinates' :: SheetValues' -> Either CoordinateErrors (Int, Int)
 parseCoordinates' list = do
-  (nm, valText) <- maybe (Left $ CoordinateNotFound $ asSheetValues list) Right $ findName' "r" list
+  (_nm, valText) <- maybe (Left $ CoordinateNotFound $ asSheetValues list) Right $ findName' "r" list
   maybe (Left $ DecodeFailure valText $ asSheetValues list) Right $ fromSingleCellRef $ CellRef valText
