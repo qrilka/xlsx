@@ -18,14 +18,6 @@
 {-# LANGUAGE StrictData          #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -fno-full-laziness #-}
-
--- This module must be compiled with -fno-full-laziness, otherwise
--- over-aggressive caching by GHC during -O2 builds mean that the
--- first call to `getEntrySource <sheetNum>` will be cached, and all
--- subsequent calls (_even_ those with a different sheet number) will
--- return the original sheet source.
-
 -- |
 -- Module      : Codex.Xlsx.Parser.Stream
 -- Description : Stream parser for xlsx files
