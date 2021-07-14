@@ -38,7 +38,7 @@
 -- Inside the XlsxM monad, you can stream 'SheetItem's (a row) from a
 -- particular sheet, using one of two approaches:
 -- 1) 'getSheetSource' for a conduit-based API
--- 2) 'sheetSource' for a slightly faster (~x0.65) event callback API.
+-- 2) 'readSheet' for a slightly faster (~x0.65) event callback API.
 --
 {-# LANGUAGE TypeApplications    #-}
 module Codec.Xlsx.Parser.Stream
