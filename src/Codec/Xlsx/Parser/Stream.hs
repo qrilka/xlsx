@@ -36,15 +36,12 @@
 -- inherited from the "zip" package's ZipArchive monad.
 --
 -- Inside the XlsxM monad, you can stream 'SheetItem's (a row) from a
--- particular sheet, using one of two approaches:
--- 1) 'getSheetSource' for a conduit-based API
--- 2) 'readSheet' for a slightly faster (~x0.65) event callback API.
+-- particular sheet, using 'readSheet', which is callback-based and tied to IO.
 --
 {-# LANGUAGE TypeApplications    #-}
 module Codec.Xlsx.Parser.Stream
   ( XlsxM
   , runXlsxM
-  , getSheetSource
   , readSheet
   , getOrParseSharedStrings
   , countRowsInSheet
@@ -81,8 +78,6 @@ import           Data.Bifunctor
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString                 as BS
 import           Data.Conduit                    (ConduitT)
-import qualified Data.Conduit.Combinators        as C
-import qualified Data.Conduit.List               as CL
 import qualified Data.DList as DL
 import           Data.Foldable
 import           Data.IORef
@@ -94,11 +89,9 @@ import qualified Data.Text.Encoding              as Text
 import qualified Data.Text.Read                  as Read
 import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.Text.Lazy as LT
-import           Data.Traversable                (for)
 import           Data.XML.Types
 import           GHC.Generics
 import           NoThunks.Class
-import           Text.XML.Stream.Parse
 import Codec.Xlsx.Parser.Internal
 
 import Text.XML.Expat.SAX as Hexpat
@@ -374,7 +367,7 @@ mkSheetName :: Int -> Text
 mkSheetName sheetNumber =
      "/sheet"  <> Text.pack (show sheetNumber) <> ".xml"
 
-data XmlLib = UseXmlConduit | UseHexpat | UseLibxml deriving (Show, Eq, Read)
+data XmlLib = UseHexpat | UseLibxml deriving (Show, Eq, Read)
 
 readSheet ::
   -- | Which XML library to use (a temporary export while xml librares
@@ -397,54 +390,11 @@ readSheet xmlLib sheetNumber inner = do
             & ps_shared_strings .~ sharedStrs
             & ps_sheet_name .~ sheetName
       case xmlLib of
-        UseXmlConduit -> error "use getSheetSource"
         UseLibxml -> runLibxml sheetState0 sourceSheetXml inner
         UseHexpat -> runExpatForSheet sheetState0 sourceSheetXml inner
       pure True
   where
     sheetName = mkSheetName sheetNumber
-
--- | If the given sheet number exists, returns Just a conduit source
--- of the stream of 'SheetItem's in a particular sheet. Returns
--- Nothing when the sheet doesn't exist.
---
--- May throw SheetErrors if a parsing error occurs in the
--- underlying XML parser.
---
--- The xml-conduit package is used to parse the underlying XML. In the
--- authors' tests, consuming large excel sheets into 'SheetItem's is
--- 1.6x slower than the 'readSheet' IO-based callback API which uses
--- expat for xml parsing. Your mileage may vary.
-{-# SCC getSheetSource  #-}
-getSheetSource ::
-  (PrimMonad m, MonadThrow m, C.MonadResource m) =>
-  -- | The sheet number
-  Int ->
-  XlsxM (Maybe (ConduitT () SheetItem m ()))
-getSheetSource sheetNumber = do
-  mSrc <- getSheetXmlSource sheetNumber
-  for mSrc $ \sourceSheetXml -> do
-    sharedStrs <- getOrParseSharedStrings
-    let sheetState0 = initialSheetState
-          & ps_shared_strings .~ sharedStrs
-          & ps_sheet_name .~ sheetName
-    pure $ sourceSheetXml
-      .| parseBytes def
-      .| C.evalStateC sheetState0
-         (CL.mapMaybeM ({-# SCC "xmlEventToSheetItemXmlConduit_scc" #-} xmlEventToSheetItem))
-  where
-    sheetName = mkSheetName sheetNumber
-    {-# SCC xmlEventToSheetItem #-}
-    xmlEventToSheetItem event = do
-      -- XXX: unify the two approaches, or support both?
-      parseRes <- {-# SCC "runExceptT_scc" #-} runExceptT $ matchEvent event
-      rix' <- use ps_cell_row_index
-      case parseRes of
-        Left err -> C.throwM err
-        Right (Just cellRow)
-          | not (IntMap.null cellRow) ->
-            pure $ Just $ MkSheetItem sheetName rix' cellRow
-        _ -> pure Nothing
 
 -- | Returns number of rows in the given sheet (identified by sheet
 -- number), or Nothing if the sheet does not exist. Does not perform a
@@ -461,10 +411,6 @@ countRowsInSheet sheetNumber lib = do
       ref <- liftIO $ newIORef 0
       exists <- readSheet UseLibxml sheetNumber $ const $ modifyIORef' ref (+1)
       if exists then liftIO $ Just <$> readIORef ref else pure Nothing
-    UseXmlConduit -> do
-      mSrc <- getSheetSource sheetNumber
-      for mSrc $ \src -> liftIO $ C.runConduitRes $
-        src .| C.length
 
 -- | Return row from the state and empty it
 {-# SCC popRow #-}
