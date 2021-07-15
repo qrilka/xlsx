@@ -223,6 +223,7 @@ executable streaming
   build-depends: base
                , bytestring
                , criterion
+               , dlist
                , xlsx
                , conduit
                , containers

@@ -5,33 +5,25 @@
 module Main (main) where
 
 import Codec.Xlsx.Writer.Stream
-import           Codec.Xlsx
 import           Codec.Xlsx.Parser.Stream
 import           Conduit
 import qualified Conduit                  as C
-import           Criterion.Main
-import qualified Data.ByteString          as BS
-import qualified Data.ByteString.Builder          as BS
-import qualified Data.ByteString.Lazy     as LB
-import qualified Data.Conduit.Combinators as C
 import qualified Data.Map                 as Map
-import           Data.Text                (Text)
-import qualified Data.Text                as Text
-import qualified Data.Text.IO             as Text
-import           Debug.Trace
 import           Prelude                  hiding (foldl)
-import qualified Data.ByteString.Lazy as BS
-import Data.Text.Encoding as Text
-import Codec.Xlsx.Parser.Stream
-import Control.Monad
-import Data.Void
+import           Control.Monad
+import           Data.DList as DL
+import           Data.IORef
 
 main :: IO ()
 main = do
-  readStr  <- runResourceT $ readXlsxC (C.sourceFile "data/simple.xlsx")
-  runConduitRes $ void (writeXlsx readStr) .| C.sinkFile "out/out.zip"
+  -- xxx: figure out a better api here..
+  ref <- liftIO $ newIORef mempty
+  runXlsxM "data/simple.xlsx" $ do
+    WorkbookInfo sheets <- getWorkbookInfo
+    forM_ (Map.keys sheets) $ \sheetNum -> do
+      readSheet UseHexpat sheetNum $ \x -> modifyIORef' ref (`DL.snoc` x)
+  let nonStreamingSource = do
+        gathered <- liftIO $ readIORef ref
+        yieldMany $ DL.toList gathered
+  liftIO $ runConduitRes $ void (writeXlsx nonStreamingSource) .| C.sinkFile "out/out.zip"
   pure ()
-
-
-extremlyUnsafe :: Void
-extremlyUnsafe = error "evaluated extremly unsafe"
