@@ -42,10 +42,13 @@
 module Codec.Xlsx.Parser.Stream
   ( XlsxM
   , runXlsxM
-  , readSheet
-  , countRowsInSheet
+  , WorkbookInfo(..)
+  , wiSheets
+  , getWorkbookInfo
   , CellRow
   , SheetItem(..)
+  , readSheet
+  , countRowsInSheet
   -- ** `SheetItem` lenses
   , si_sheet
   , si_row_index
@@ -82,6 +85,8 @@ import           Data.Foldable
 import           Data.IORef
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 import           Data.Text                       (Text)
 import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
@@ -167,11 +172,18 @@ makeLenses 'MkSharedStringState
 type HasSheetState = MonadState SheetState
 type HasSharedStringState = MonadState SharedStringState
 
+-- | Information about the workbook contained in xl/workbook.xml
+-- (currently a subset)
+data WorkbookInfo = WorkbookInfo
+  { _wiSheets :: Map Int Text
+  -- ^ Map from the sheet number (AKA sheetId) to the sheet name
+  } deriving Show
+makeLenses 'WorkbookInfo
+
 data XlsxMState = MkXlsxMState
   { _xs_shared_strings :: IORef (Maybe (V.Vector Text))
---  , _xs_sheet_names :: IORef (Maybe (Map Int Text))
+  , _xs_workbook_info :: IORef (Maybe WorkbookInfo)
   }
-makeLenses 'MkXlsxMState
 
 newtype XlsxM a = XlsxM {_unXlsxM :: ReaderT XlsxMState Zip.ZipArchive a}
   deriving newtype
@@ -225,7 +237,7 @@ parseSharedString = \case
 -- | Run a series of actions on an Xlsx file
 runXlsxM :: MonadIO m => FilePath -> XlsxM a -> m a
 runXlsxM xlsxFile (XlsxM act) = do
-  env0 <- liftIO $ MkXlsxMState <$> newIORef Nothing
+  env0 <- liftIO $ MkXlsxMState <$> newIORef Nothing <*> newIORef Nothing
   Zip.withArchive xlsxFile $ runReaderT act env0
 
 liftZip :: Zip.ZipArchive a -> XlsxM a
@@ -249,6 +261,29 @@ getOrParseSharedStrings = do
       let sharedStrings = V.fromList $ DL.toList $ _ss_list st
       liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
       pure sharedStrings
+
+-- | Returns information about the workbook, found in
+-- xl/workbook.xml. The result is cached so the XML will only be
+-- decompressed and parsed once inside a larger XlsxM action.
+getWorkbookInfo :: XlsxM WorkbookInfo
+getWorkbookInfo = do
+  ref <- asks _xs_workbook_info
+  mInfo <- liftIO $ readIORef ref
+  case mInfo of
+    Just info -> pure info
+    Nothing -> do
+      sel <- liftZip $ Zip.mkEntrySelector "xl/workbook.xml"
+      src <- liftZip $ Zip.getEntrySource sel
+      sheets <- runExpat mempty src $ \evs -> forM_ evs $ \case
+        StartElement ("sheet" :: ByteString) attrs -> do
+          nm <- maybe (throwM MalformedWorkbook) pure $ lookup ("name" :: ByteString) attrs
+          sheetId <- maybe (throwM MalformedWorkbook) pure $ lookup "sheetId" attrs
+          sheetNum <- either (const $ throwM MalformedWorkbook) pure $ eitherDecimal sheetId
+          modify' (M.insert sheetNum nm)
+        _ -> pure ()
+      let info = WorkbookInfo sheets
+      liftIO $ writeIORef ref $ Just info
+      pure info
 
 type HexpatEvent = SAXEvent ByteString Text
 
@@ -493,6 +528,10 @@ data TypeError
   | TypeNoListElement SheetValue SheetValues
   | UnkownType Text SheetValues
   | TypeNoTextContent Content SheetValues
+  deriving Show
+  deriving anyclass Exception
+
+data WorkbookError = MalformedWorkbook
   deriving Show
   deriving anyclass Exception
 
