@@ -43,7 +43,6 @@ module Codec.Xlsx.Parser.Stream
   ( XlsxM
   , runXlsxM
   , readSheet
-  , getOrParseSharedStrings
   , countRowsInSheet
   , CellRow
   , SheetItem(..)
