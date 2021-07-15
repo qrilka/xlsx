@@ -83,6 +83,7 @@ import qualified Data.ByteString                 as BS
 import           Data.Conduit                    (ConduitT)
 import qualified Data.Conduit.Combinators        as C
 import qualified Data.Conduit.List               as CL
+import qualified Data.DList as DL
 import           Data.Foldable
 import           Data.IORef
 import Data.IntMap.Strict (IntMap)
@@ -91,7 +92,8 @@ import           Data.Text                       (Text)
 import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
 import qualified Data.Text.Read                  as Read
-import           Data.Time.Clock
+import qualified Data.Text.Lazy.Builder as TB
+import qualified Data.Text.Lazy as LT
 import           Data.Traversable                (for)
 import           Data.XML.Types
 import           GHC.Generics
@@ -165,9 +167,9 @@ deriving via AllowThunksIn
 
 -- | State for parsing shared strings
 data SharedStringState = MkSharedStringState
-  { _ss_string    :: Text      -- ^ String we are parsing
+  { _ss_string    :: TB.Builder -- ^ String we are parsing
+  , _ss_list :: DL.DList Text -- ^ list of shared strings
   } deriving stock (Generic, Show)
-    deriving anyclass NoThunks
 makeLenses 'MkSharedStringState
 
 type HasSheetState = MonadState SheetState
@@ -211,6 +213,7 @@ initialSheetState = MkSheetState
 initialSharedString :: SharedStringState
 initialSharedString = MkSharedStringState
   { _ss_string = mempty
+  , _ss_list = mempty
   }
 
 -- | Parse shared string entry from xml event and return it once
@@ -220,13 +223,11 @@ parseSharedString
   :: ( MonadThrow m
      , HasSharedStringState m
      )
-  => Event -> m (Maybe Text)
+  => HexpatEvent -> m (Maybe Text)
 parseSharedString = \case
-  EventBeginElement Name {nameLocalName = "t"} _ -> Nothing <$ (ss_string .= "")
-  EventEndElement Name {nameLocalName = "t"} -> do
-    !txt <- use ss_string
-    pure $ Just txt
-  EventContent (ContentText txt) -> Nothing <$ (ss_string <>= txt)
+  StartElement "t" _ -> Nothing <$ (ss_string .= mempty)
+  EndElement "t" -> Just . LT.toStrict . TB.toLazyText <$> gets _ss_string
+  CharacterData txt -> Nothing <$ (ss_string <>= TB.fromText txt)
   _ -> pure Nothing
 
 -- | Run a series of actions on an Xlsx file
@@ -248,18 +249,12 @@ getOrParseSharedStrings = do
     Nothing -> do
       sharedStrsSel <- liftZip $ Zip.mkEntrySelector "xl/sharedStrings.xml"
       let state0 = initialSharedString
-      t0 <- liftIO getCurrentTime
-      sharedStrings <- {-# SCC "eval_sharedStrings" #-} liftZip $ Zip.sourceEntry sharedStrsSel $
-        ( {-# SCC "sharedStrings_parseBytes" #-} parseBytes def)
-        .| C.evalStateC state0 (C.concatMapM parseSharedString)
-        -- C.sinkVector uses a mutable vector internally and runs an
-        -- 'unsafeFreeze' at the end. The vector's size is doubled
-        -- whenever capacity is reached via Vector.Mutable.grow (which
-        -- copies rather than extends, copying pointers rather than
-        -- the underlying text values)
-        .| C.sinkVector
-      t1 <- liftIO getCurrentTime
-      liftIO $ putStrLn $ "Took " <> show (t1 `diffUTCTime` t0) <> " to read shared strings via xml-conduit"
+      byteSrc <- liftZip $ Zip.getEntrySource sharedStrsSel
+      st <- runExpat state0 byteSrc $ \evs -> forM_ evs $ \ev -> do
+        mTxt <- parseSharedString ev
+        for_ mTxt $ \txt ->
+          ss_list %= (`DL.snoc` txt)
+      let sharedStrings = V.fromList $ DL.toList $ _ss_list st
       liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
       pure sharedStrings
 
@@ -322,12 +317,13 @@ runLibxml initialState byteSource inner = liftIO $ do
       pure True
 
 {-# SCC runExpat #-}
-runExpat ::
-  SheetState ->
+runExpat :: forall state tag text.
+  (GenericXMLString tag, GenericXMLString text) =>
+  state ->
   ConduitT () ByteString (C.ResourceT IO) () ->
-  (SheetItem -> IO ()) ->
-  XlsxM ()
-runExpat initialState byteSource inner = liftIO $ do
+  ([SAXEvent tag text] -> StateT state IO ()) ->
+  XlsxM state
+runExpat initialState byteSource handler = liftIO $ do
   -- Set up state
   ref <- newIORef initialState
   -- Set up parser and callbacks
@@ -340,29 +336,36 @@ runExpat initialState byteSource inner = liftIO $ do
         saxen <- HexpatInternal.parseBuf buf len noExtra
         case mError of
           Just err -> error $ "expat error: " <> show err
-          Nothing -> onEvents ref $ map fst saxen
+          Nothing -> do
+            state0 <- liftIO $ readIORef ref
+            state1 <-
+              {-# SCC "runExpat_runStateT_call" #-}
+              execStateT (handler $ map fst saxen) state0
+            writeIORef ref state1
   C.runConduitRes $
     byteSource .|
     C.awaitForever (liftIO . processChunk False)
   processChunk True BS.empty
+  readIORef ref
+
+runExpatForSheet ::
+  SheetState ->
+  ConduitT () ByteString (C.ResourceT IO) () ->
+  (SheetItem -> IO ()) ->
+  XlsxM ()
+runExpatForSheet initState byteSource inner =
+  void $ runExpat initState byteSource handler
   where
-    sheetName = _ps_sheet_name initialState
-    {-# SCC onEvents #-}
-    {-# INLINE onEvents #-}
-    onEvents stateRef evs = do
-      state0 <- liftIO $ readIORef stateRef
-      state1 <-
-        {-# SCC "runExpat_runStateT_call" #-} (`execStateT` state0) $ do
-          forM_ evs $ \ev -> do
-            parseRes <- runExceptT $ matchHexpatEvent ev
-            case parseRes of
-              Left err -> error $ "error after matchHexpatEvent: " <> show err
-              Right (Just cellRow)
-                | not (IntMap.null cellRow) -> do
-                    rowNum <- use ps_cell_row_index
-                    liftIO $ inner $ MkSheetItem sheetName rowNum cellRow
-              _ -> pure ()
-      writeIORef stateRef state1
+    sheetName = _ps_sheet_name initState
+    handler evs = forM_ evs $ \ev -> do
+      parseRes <- runExceptT $ matchHexpatEvent ev
+      case parseRes of
+        Left err -> error $ "error after matchHexpatEvent: " <> show err
+        Right (Just cellRow)
+          | not (IntMap.null cellRow) -> do
+              rowNum <- use ps_cell_row_index
+              liftIO $ inner $ MkSheetItem sheetName rowNum cellRow
+        _ -> pure ()
 
 -- FIXME: hack to be compatible with the zip-stream parser (no longer
 -- present), which as of this writing sets the sheet name to be
@@ -396,7 +399,7 @@ readSheet xmlLib sheetNumber inner = do
       case xmlLib of
         UseXmlConduit -> error "use getSheetSource"
         UseLibxml -> runLibxml sheetState0 sourceSheetXml inner
-        UseHexpat -> runExpat sheetState0 sourceSheetXml inner
+        UseHexpat -> runExpatForSheet sheetState0 sourceSheetXml inner
       pure True
   where
     sheetName = mkSheetName sheetNumber

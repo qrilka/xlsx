@@ -93,6 +93,7 @@ Library
                    , containers   >= 0.5.0.0
                    , data-default
                    , deepseq      >= 1.4
+                   , dlist
                    , errors
                    , extra
                    , filepath
