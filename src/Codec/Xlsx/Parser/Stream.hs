@@ -85,8 +85,8 @@ import qualified Data.Conduit.Combinators        as C
 import qualified Data.Conduit.List               as CL
 import           Data.Foldable
 import           Data.IORef
-import           Data.Map.Strict                 (Map)
-import qualified Data.Map.Strict                 as Map
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IntMap
 import           Data.Text                       (Text)
 import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
@@ -106,7 +106,7 @@ import Control.Monad.Base
 import Control.Monad.Trans.Control
 import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
 
-type CellRow = Map Int Cell
+type CellRow = IntMap Cell
 
 -- | Sheet item
 --
@@ -203,7 +203,7 @@ initialSheetState = MkSheetState
   , _ps_is_in_val       = False
   , _ps_shared_strings  = mempty
   , _ps_type            = Untyped
-  , _ps_text_buf = ""
+  , _ps_text_buf = mempty
   , _ps_worksheet_ended = False
   }
 
@@ -316,7 +316,7 @@ runLibxml initialState byteSource inner = liftIO $ do
       case parseRes of
         Left err -> C.throwM err
         Right (Just cellRow)
-          | not (Map.null cellRow) ->
+          | not (IntMap.null cellRow) ->
             inner $ MkSheetItem (_ps_sheet_name state1) (_ps_cell_row_index state1) cellRow
         _ -> pure ()
       pure True
@@ -358,7 +358,7 @@ runExpat initialState byteSource inner = liftIO $ do
             case parseRes of
               Left err -> error $ "error after matchHexpatEvent: " <> show err
               Right (Just cellRow)
-                | not (Map.null cellRow) -> do
+                | not (IntMap.null cellRow) -> do
                     rowNum <- use ps_cell_row_index
                     liftIO $ inner $ MkSheetItem sheetName rowNum cellRow
               _ -> pure ()
@@ -439,7 +439,7 @@ getSheetSource sheetNumber = do
       case parseRes of
         Left err -> C.throwM err
         Right (Just cellRow)
-          | not (Map.null cellRow) ->
+          | not (IntMap.null cellRow) ->
             pure $ Just $ MkSheetItem sheetName rix' cellRow
         _ -> pure Nothing
 
@@ -511,19 +511,15 @@ addCellToRow
      )
   => Text -> m ()
 addCellToRow txt = do
-  inVal <- use ps_is_in_val
-  when inVal $ do
-    type' <- use ps_type
-    sstrings <- use ps_shared_strings
-    val <- liftEither $ first ParseCellError $ parseValue sstrings txt type'
-
-    col <- use ps_cell_col_index
-    ps_row <>= (Map.singleton col $ Cell
-      { _cellStyle   = Nothing
-      , _cellValue   = Just val
-      , _cellComment = Nothing
-      , _cellFormula = Nothing
-      })
+  st <- get
+  when (_ps_is_in_val st) $ do
+    val <- liftEither $ first ParseCellError $ parseValue (_ps_shared_strings st) txt (_ps_type st)
+    put $ st { _ps_row = IntMap.insert (_ps_cell_col_index st)
+                         (Cell { _cellStyle   = Nothing
+                               , _cellValue   = Just val
+                               , _cellComment = Nothing
+                               , _cellFormula = Nothing
+                               }) $ _ps_row st}
 
 data SheetErrors
   = ParseCoordinateError CoordinateErrors -- ^ Error while parsing coordinates
@@ -642,19 +638,20 @@ matchHexpatEvent ::
   HexpatEvent ->
   m (Maybe CellRow)
 matchHexpatEvent ev = case ev of
-  CharacterData txt -> do
+  CharacterData txt -> {-# SCC "handle_CharData" #-} do
     inVal <- use ps_is_in_val
-    when inVal $  do
-      res <- use ps_text_buf
-      ps_text_buf .= (res <> txt)
+    when inVal $
+      {-# SCC "append_text_buf" #-} ps_text_buf <>= txt
     pure Nothing
   StartElement "c" attrs -> Nothing <$ (setCoord' attrs >> setType' attrs)
   StartElement "v" _ -> Nothing <$ (ps_is_in_val .= True)
-  EndElement "v" -> do
-    txt <- use ps_text_buf
-    addCellToRow txt
-    ps_is_in_val .= False
-    ps_text_buf .= ""
+  EndElement "v" -> {-# SCC "handle_EndElementV" #-} do
+    txt <- gets _ps_text_buf
+    {-# SCC "call_addCellToRow" #-} addCellToRow txt
+    {-# SCC "call_modify_endelemV" #-} modify' $ \st ->
+      st { _ps_is_in_val = False
+         , _ps_text_buf = mempty
+         }
     pure Nothing
   -- If beginning of row, empty the state and return nothing [why exactly?]
   StartElement "row" _ -> Nothing <$ popRow
