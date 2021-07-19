@@ -21,7 +21,7 @@ main = do
   runXlsxM "data/simple.xlsx" $ do
     WorkbookInfo sheets <- getWorkbookInfo
     forM_ (Map.keys sheets) $ \sheetNum -> do
-      readSheet UseHexpat sheetNum $ \x -> modifyIORef' ref (`DL.snoc` x)
+      readSheet sheetNum $ \x -> modifyIORef' ref (`DL.snoc` x)
   let nonStreamingSource = do
         gathered <- liftIO $ readIORef ref
         yieldMany $ DL.toList gathered

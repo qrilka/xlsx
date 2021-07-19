@@ -60,9 +60,6 @@ module Codec.Xlsx.Parser.Stream
   , CoordinateErrors(..)
   , TypeError(..)
   --}
-
-  -- * Temporary export while comparing xml libraries:
-  , XmlLib(..)
   ) where
 
 import qualified "zip" Codec.Archive.Zip as Zip
@@ -89,7 +86,6 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text                       (Text)
 import qualified Data.Text                       as Text
-import qualified Data.Text.Encoding              as Text
 import qualified Data.Text.Read                  as Read
 import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.Text.Lazy as LT
@@ -100,7 +96,6 @@ import Codec.Xlsx.Parser.Internal
 
 import Text.XML.Expat.SAX as Hexpat
 import Text.XML.Expat.Internal.IO as Hexpat
-import qualified Text.XML.LibXML.SAX as LX
 import Control.Monad.Base
 import Control.Monad.Trans.Control
 import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
@@ -307,42 +302,6 @@ getSheetXmlSource sheetNumber = do
     then pure Nothing
     else Just <$> liftZip (Zip.getEntrySource sheetSel)
 
-{-# SCC runLibxml #-}
-runLibxml ::
---  (PrimMonad m, MonadIO m, MonadThrow m, C.MonadResource m) =>
-  SheetState ->
-  ConduitT () ByteString (C.ResourceT IO) () ->
-  (SheetItem -> IO ()) ->
-  XlsxM ()
-runLibxml initialState byteSource inner = liftIO $ do
-  -- Set up state
-  ref <- newIORef initialState
-  -- Set up parser and callbacks
-  p <- LX.newParserIO Nothing
-  LX.setCallback p LX.parsedBeginElement (\el -> onEvent ref . EventBeginElement el)
-  LX.setCallback p LX.parsedEndElement (onEvent ref . EventEndElement)
-  LX.setCallback p LX.parsedCharacters (onEvent ref . EventContent . ContentText)
-  -- Set up conduit
-  C.runConduitRes $
-    byteSource .|
-    C.runReaderC ref (C.awaitForever $ liftIO . LX.parseBytes p)
-  LX.parseComplete p
-  where
-    {-# SCC onEvent #-}
-    {-# INLINE onEvent #-}
-    onEvent stateRef ev = do
-      state0 <- liftIO $ readIORef stateRef
-      (parseRes, state1) <-
-        {-# SCC "libxmlC_runStateT_call" #-} (`runStateT` state0) $ runExceptT $ matchEvent ev
-      writeIORef stateRef state1
-      case parseRes of
-        Left err -> C.throwM err
-        Right (Just cellRow)
-          | not (IntMap.null cellRow) ->
-            inner $ MkSheetItem (_ps_sheet_name state1) (_ps_cell_row_index state1) cellRow
-        _ -> pure ()
-      pure True
-
 {-# SCC runExpat #-}
 runExpat :: forall state tag text.
   (GenericXMLString tag, GenericXMLString text) =>
@@ -401,19 +360,14 @@ mkSheetName :: Int -> Text
 mkSheetName sheetNumber =
      "/sheet"  <> Text.pack (show sheetNumber) <> ".xml"
 
-data XmlLib = UseHexpat | UseLibxml deriving (Show, Eq, Read)
-
 readSheet ::
-  -- | Which XML library to use (a temporary export while xml librares
-  -- are evaluated. Will be removed)
-  XmlLib ->
   -- | Sheet number
   Int ->
   -- | Function to consume the sheet's rows
   (SheetItem -> IO ()) ->
   -- | Returns False if sheet doesn't exist, or True otherwise
   XlsxM Bool
-readSheet xmlLib sheetNumber inner = do
+readSheet sheetNumber inner = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
     getSheetXmlSource sheetNumber
   case mSrc of
@@ -423,9 +377,7 @@ readSheet xmlLib sheetNumber inner = do
       let sheetState0 = initialSheetState
             & ps_shared_strings .~ sharedStrs
             & ps_sheet_name .~ sheetName
-      case xmlLib of
-        UseLibxml -> runLibxml sheetState0 sourceSheetXml inner
-        UseHexpat -> runExpatForSheet sheetState0 sourceSheetXml inner
+      runExpatForSheet sheetState0 sourceSheetXml inner
       pure True
   where
     sheetName = mkSheetName sheetNumber
@@ -434,20 +386,13 @@ readSheet xmlLib sheetNumber inner = do
 -- number), or Nothing if the sheet does not exist. Does not perform a
 -- full parse of the XML, so it should be more efficient than counting
 -- via 'getSheetSource'.
-countRowsInSheet :: Int -> XmlLib -> XlsxM (Maybe Int)
-countRowsInSheet sheetNumber lib = do
-  case lib of
-    UseHexpat -> do
-      ref <- liftIO $ newIORef 0
-      exists <- readSheet UseHexpat sheetNumber $ const $ modifyIORef' ref (+1)
-      if exists then liftIO $ Just <$> readIORef ref else pure Nothing
-    UseLibxml -> do
-      ref <- liftIO $ newIORef 0
-      exists <- readSheet UseLibxml sheetNumber $ const $ modifyIORef' ref (+1)
-      if exists then liftIO $ Just <$> readIORef ref else pure Nothing
+countRowsInSheet :: Int -> XlsxM (Maybe Int)
+countRowsInSheet sheetNumber = do
+  ref <- liftIO $ newIORef 0
+  exists <- readSheet sheetNumber $ const $ modifyIORef' ref (+1)
+  if exists then liftIO $ Just <$> readIORef ref else pure Nothing
 
 -- | Return row from the state and empty it
-{-# SCC popRow #-}
 popRow :: HasSheetState m => m CellRow
 popRow = do
   row <- use ps_row
@@ -512,7 +457,7 @@ data SheetErrors
   deriving stock Show
   deriving anyclass Exception
 
-type SheetValue = (Name, [Content])
+type SheetValue = (ByteString, Text)
 type SheetValues = [SheetValue]
 
 data CoordinateErrors
@@ -535,88 +480,6 @@ data WorkbookError = MalformedWorkbook
   deriving Show
   deriving anyclass Exception
 
-contentTextPrims :: Prism' Content Text
-contentTextPrims = prism' ContentText (\case ContentText x -> Just x
-                                             _             -> Nothing)
-
--- | Update state coordinates accordingly to @parseCoordinates@
-{-# SCC setCoord #-}
-setCoord
-  :: ( MonadError SheetErrors m
-     , HasSheetState m
-     )
-  => SheetValues -> m ()
-setCoord list = do
-  coordinates <- liftEither $ first ParseCoordinateError $ parseCoordinates list
-  ps_cell_col_index .= (coordinates ^. _2)
-  ps_cell_row_index .= (coordinates ^. _1)
-
--- | Parse type from values and update state accordingly
-setType
-  :: ( MonadError SheetErrors m
-     , HasSheetState m
-     )
-  => SheetValues -> m ()
-setType list = do
-  type' <- liftEither $ first ParseTypeError $ parseType list
-  ps_type .= type'
-
--- | Find sheet value by its name
-findName :: Text -> SheetValues -> Maybe SheetValue
-findName name = find ((name ==) . nameLocalName . fst)
-
--- | Parse value type
-{-# SCC parseType #-}
-parseType :: SheetValues -> Either TypeError ExcelValueType
-parseType list =
-  case findName "t" list of
-    Nothing -> pure Untyped
-    Just nameValPair -> do
-      valContent <- maybe (Left $ TypeNoListElement nameValPair list) Right $  nameValPair ^? _2 . ix 0
-      valText    <- maybe (Left $ TypeNoTextContent valContent list)  Right $ valContent ^? contentTextPrims
-      case valText of
-        "n"   -> Right TN
-        "s"   -> Right TS
-        "str" -> Right TStr
-        "b"   -> Right TB
-        "e"   -> Right TE
-        other -> Left $ UnkownType other list
-
--- | Parse coordinates from a list of xml elements if such were found on "r" key
-{-# SCC parseCoordinates #-}
-parseCoordinates :: SheetValues -> Either CoordinateErrors (Int, Int)
-parseCoordinates list = do
-      nameValPair <- maybe (Left $ CoordinateNotFound list)        Right $ findName "r" list
-      valContent  <- maybe (Left $ NoListElement nameValPair list) Right $ nameValPair ^? _2 . ix 0
-      valText     <- maybe (Left $ NoTextContent valContent list)  Right $ valContent ^? contentTextPrims
-      maybe (Left $ DecodeFailure valText list) Right $ fromSingleCellRef $ CellRef valText
-
-{-# SCC matchEvent #-}
--- | Update state accordingly the xml 'Event' given. If this event
--- marks the end of a row, Just a 'CellRow' is returned
-matchEvent
-  :: ( MonadError SheetErrors m
-     , HasSheetState m
-     )
-  =>  Event -> m (Maybe CellRow)
-matchEvent = \case
-  EventContent (ContentText txt)                    -> Nothing <$ addCellToRow txt
-  EventBeginElement Name{nameLocalName = "c"} vals  -> Nothing <$ (setCoord vals >> setType vals)
-  EventBeginElement Name {nameLocalName = "v"} _    -> Nothing <$ (ps_is_in_val .= True)
-  EventEndElement Name {nameLocalName = "v"}        -> Nothing <$ (ps_is_in_val .= False)
-  -- If beginning of row, empty the state and return nothing [why exactly?]
-  EventBeginElement Name {nameLocalName = "row"} _  -> Nothing <$ popRow
-  -- If at the end of the row, we have collected the whole row into
-  -- the current state. Empty the state and return the row.
-  EventEndElement Name{nameLocalName = "row"}       -> Just <$> popRow
-  -- Skip everything else, e.g. the formula elements <f>
-  _                                                 -> pure Nothing
-
-
-{-
-======== hexpat
--}
-
 {-# SCC matchHexpatEvent #-}
 matchHexpatEvent ::
   ( MonadError SheetErrors m,
@@ -630,7 +493,7 @@ matchHexpatEvent ev = case ev of
     when inVal $
       {-# SCC "append_text_buf" #-} ps_text_buf <>= txt
     pure Nothing
-  StartElement "c" attrs -> Nothing <$ (setCoord' attrs >> setType' attrs)
+  StartElement "c" attrs -> Nothing <$ (setCoord attrs >> setType attrs)
   StartElement "v" _ -> Nothing <$ (ps_is_in_val .= True)
   EndElement "v" -> {-# SCC "handle_EndElementV" #-} do
     txt <- gets _ps_text_buf
@@ -659,41 +522,38 @@ matchHexpatEvent ev = case ev of
     pure Nothing
   _ -> pure Nothing
 
-type SheetValue' = (ByteString, Text)
-type SheetValues' = [SheetValue']
-
 -- | Update state coordinates accordingly to @parseCoordinates@
-{-# SCC setCoord' #-}
-setCoord'
+{-# SCC setCoord #-}
+setCoord
   :: ( MonadError SheetErrors m
      , HasSheetState m
      )
-  => SheetValues' -> m ()
-setCoord' list = do
-  coordinates <- liftEither $ first ParseCoordinateError $ parseCoordinates' list
+  => SheetValues -> m ()
+setCoord list = do
+  coordinates <- liftEither $ first ParseCoordinateError $ parseCoordinates list
   ps_cell_col_index .= (coordinates ^. _2)
   ps_cell_row_index .= (coordinates ^. _1)
 
 -- | Parse type from values and update state accordingly
-setType'
+setType
   :: ( MonadError SheetErrors m
      , HasSheetState m
-     )
-  => SheetValues' -> m ()
-setType' list = do
-  type' <- liftEither $ first ParseTypeError $ parseType' list
+ )
+  => SheetValues -> m ()
+setType list = do
+  type' <- liftEither $ first ParseTypeError $ parseType list
   ps_type .= type'
 
 -- | Find sheet value by its name
-findName' :: ByteString -> SheetValues' -> Maybe SheetValue'
-findName' name = find ((name ==) . fst)
-{-# INLINE findName' #-}
+findName :: ByteString -> SheetValues -> Maybe SheetValue
+findName name = find ((name ==) . fst)
+{-# INLINE findName #-}
 
 -- | Parse value type
-{-# SCC parseType' #-}
-parseType' :: SheetValues' -> Either TypeError ExcelValueType
-parseType' list =
-  case findName' "t" list of
+{-# SCC parseType #-}
+parseType :: SheetValues -> Either TypeError ExcelValueType
+parseType list =
+  case findName "t" list of
     Nothing -> pure Untyped
     Just (_nm, valText)->
       case valText of
@@ -702,17 +562,11 @@ parseType' list =
         "str" -> Right TStr
         "b"   -> Right TB
         "e"   -> Right TE
-        other -> Left $ UnkownType other $ asSheetValues list
-
-asSheetValues :: [(ByteString, b)] -> [(Name, [Content])]
-asSheetValues = map f
-  where f (s, _) =
-          (Name (Text.decodeUtf8 s)
-           Nothing Nothing, [ContentText $ Text.decodeUtf8 s])
+        other -> Left $ UnkownType other list
 
 -- | Parse coordinates from a list of xml elements if such were found on "r" key
-{-# SCC parseCoordinates' #-}
-parseCoordinates' :: SheetValues' -> Either CoordinateErrors (Int, Int)
-parseCoordinates' list = do
-  (_nm, valText) <- maybe (Left $ CoordinateNotFound $ asSheetValues list) Right $ findName' "r" list
-  maybe (Left $ DecodeFailure valText $ asSheetValues list) Right $ fromSingleCellRef $ CellRef valText
+{-# SCC parseCoordinates #-}
+parseCoordinates :: SheetValues -> Either CoordinateErrors (Int, Int)
+parseCoordinates list = do
+  (_nm, valText) <- maybe (Left $ CoordinateNotFound list) Right $ findName "r" list
+  maybe (Left $ DecodeFailure valText list) Right $ fromSingleCellRef $ CellRef valText

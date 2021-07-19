@@ -109,7 +109,6 @@ Library
                    , vector       >= 0.10
                    , xeno         >= 0.3.2
                    , xml-conduit  >= 1.1.0
-                   , libxml-sax
                    , zip-archive  >= 0.2
                    , zlib         >= 0.5.4.0
                    , zip
@@ -171,7 +170,6 @@ test-suite data-test
                , vector
                , xlsx
                , xml-conduit >= 1.1.0
-               , libxml-sax
                , conduit
                , filepath
                , deepseq
