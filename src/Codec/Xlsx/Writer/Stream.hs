@@ -7,12 +7,17 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StrictData          #-}
+{-# LANGUAGE TemplateHaskell     #-}
 
 -- | Writes excell files from a stream, which allows creation of
 --   large excell files while remaining in constant memory.
 module Codec.Xlsx.Writer.Stream
   ( writeXlsx
   , writeXlsxWithSharedStrings
+  , WriteSettings(..)
+  , defaultSettings
+  , wsSheetView
+  , wsZip
   -- *** Shared strings
   , sharedStrings
   , sharedStringsStream
@@ -25,7 +30,8 @@ import           Codec.Xlsx.Parser.Stream
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
 import           Codec.Xlsx.Types.Internal.Relationships (odr, pr)
-import           Codec.Xlsx.Writer.Internal              (toAttrVal)
+import           Codec.Xlsx.Types.SheetViews
+import           Codec.Xlsx.Writer.Internal              (toAttrVal, toElement)
 import           Codec.Xlsx.Writer.Internal.Stream
 import           Conduit                                 (PrimMonad, yield,
                                                           (.|))
@@ -35,11 +41,11 @@ import           Control.Monad.Catch
 import           Control.Monad.State.Strict
 import           Data.ByteString                         (ByteString)
 import           Data.ByteString.Builder                 (Builder)
-import qualified Data.ByteString.Lazy                    as LBS
 import           Data.Coerce
 import           Data.Conduit                            (ConduitT)
 import qualified Data.Conduit.Combinators                as C
 import qualified Data.Conduit.List                       as CL
+import           Data.Foldable                           (fold)
 import           Data.List
 import           Data.Map.Strict                         (Map)
 import qualified Data.Map.Strict                         as Map
@@ -48,7 +54,10 @@ import           Data.Text                               (Text)
 import           Data.Time
 import           Data.Word
 import           Data.XML.Types
+import           Text.Printf
+import           Text.XML                                (toXMLElement)
 import           Text.XML.Stream.Render
+import           Text.XML.Unresolved                     (elementToEvents)
 
 mapFold :: MonadState SharedStringState m => SheetItem  -> m [(Text,Int)]
 mapFold  row =
@@ -74,6 +83,28 @@ sharedStringsStream :: Monad m  =>
 sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString $
   CL.mapFoldableM mapFold
 
+data WriteSettings = MkWriteSettings
+  { _wsSheetView :: [SheetView]
+  , _wsZip       :: ZipOptions
+  }
+instance Show  WriteSettings where
+  -- ZipOptions lacks a show instance-}
+  show (MkWriteSettings s _) = printf "MkWriteSettings{ _wsSheetView=%s, _wsZip=defaultZipOptions }" (show s)
+makeLenses ''WriteSettings
+
+defaultSettings :: WriteSettings
+defaultSettings = MkWriteSettings {
+  _wsSheetView = []
+  , _wsZip = defaultZipOptions {
+  zipOpt64 = False -- TODO renable
+  -- There is a magick number in the zip archive package,
+  -- https://hackage.haskell.org/package/zip-archive-0.4.1/docs/src/Codec.Archive.Zip.html#local-6989586621679055672
+  -- if we enable 64bit the number doesn't align causing the test to fail.
+  -- I'll make the test pass, and after that I'll make the
+  }
+  }
+
+
 --   To validate the result is correct xml:
 --
 --   @
@@ -90,23 +121,18 @@ sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString 
 --  This first runs 'sharedStrings' and then 'writeXlsxWithSharedStrings'.
 --  If you want xlsx files this is the most obvious function to use.
 --  the others are exposed in case you can cache the shared strings for example.
+--
+--  Note that the current concatination concatinates everything into a single sheet.
+--  In other words there is no tab support yet.
 writeXlsx :: MonadThrow m
     => PrimMonad m
-    => ConduitT () SheetItem m () -- ^ the conduit producing sheetitems
+    => WriteSettings -- ^ use 'defaultSettings'
+    -> ConduitT () SheetItem m () -- ^ the conduit producing sheetitems
     -> ConduitT () ByteString m Word64 -- ^ result conduit producing xlsx files
-writeXlsx sheetC = do
+writeXlsx settings sheetC = do
     sstrings  <- sheetC .| sharedStrings
-    writeXlsxWithSharedStrings sstrings sheetC
+    writeXlsxWithSharedStrings settings sstrings sheetC
 
-
-recomendedZipOptions :: ZipOptions
-recomendedZipOptions = defaultZipOptions {
-  zipOpt64 = False -- TODO renable
-  -- There is a magick number in the zip archive package,
-  -- https://hackage.haskell.org/package/zip-archive-0.4.1/docs/src/Codec.Archive.Zip.html#local-6989586621679055672
-  -- if we enable 64bit the number doesn't align causing the test to fail.
-  -- I'll make the test pass, and after that I'll make the
-  }
 
 -- TODO maybe should use bimap instead: https://hackage.haskell.org/package/bimap-0.4.0/docs/Data-Bimap.html
 -- it guarantees uniqueness of both text and int
@@ -124,11 +150,12 @@ recomendedZipOptions = defaultZipOptions {
 --   constructing this table then the library can provide,
 --   for example trough database operations.
 writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m
-    => Map Text Int -- ^ shared strings table
+    => WriteSettings
+    -> Map Text Int -- ^ shared strings table
     -> ConduitT () SheetItem m ()
     -> ConduitT () ByteString m Word64
-writeXlsxWithSharedStrings sstable items = do
-  res  <- combinedFiles sstable items .| zipStream recomendedZipOptions
+writeXlsxWithSharedStrings settings sstable items = do
+  res  <- combinedFiles settings sstable items .| zipStream (settings ^. wsZip)
   -- yield (LBS.toStrict $ BS.toLazyByteString $ BS.word32LE 0x06054b50) -- insert magic number for fun.
   pure res
 
@@ -142,14 +169,15 @@ boilerplate sstable =
   , (zipEntry "_rels/.rels", ZipDataSource $ writeRootRels .| eventsToBS)
   ]
 
-combinedFiles :: PrimMonad m  =>
-  Map Text Int ->
-  ConduitT () SheetItem m () ->
-  ConduitT () (ZipEntry, ZipData m) m ()
-combinedFiles sstable items =
+combinedFiles :: PrimMonad m
+  => WriteSettings
+  -> Map Text Int
+  -> ConduitT () SheetItem m ()
+  -> ConduitT () (ZipEntry, ZipData m) m ()
+combinedFiles settings sstable items =
   C.yieldMany $
     boilerplate sstable <>
-    [(zipEntry "xl/worksheets/sheet1.xml", ZipDataSource $ items .| writeWorkSheet sstable .| eventsToBS )]
+    [(zipEntry "xl/worksheets/sheet1.xml", ZipDataSource $ items .| writeWorkSheet settings sstable .| eventsToBS )]
 
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 el x = tag x mempty
@@ -227,9 +255,34 @@ writeSst sstable = doc (n_ "sst") $
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
 writeEvents = renderBuilder (def {rsPretty=False})
 
-writeWorkSheet :: Monad m => Map Text Int  -> ConduitT SheetItem Event m ()
-writeWorkSheet sstable = doc (n_ "worksheet") $ do
+sheetViews :: forall m . Monad m => WriteSettings -> forall i . ConduitT i Event m ()
+sheetViews settings = el (n_ "sheetViews") $ do
+  -- tag (n_ "sheetView") (attr "topLeftCell" "D10" <> attr "tabSelected" "1") $ pure ()
+  C.yieldMany $ elementToEvents =<< view'
+  where
+    view' :: [Element]
+    view' = setNameSpaceRec spreadSheetNS . toXMLElement .  toElement (n_ "sheetView") <$> sheetView
+
+    sheetView :: [SheetView]
+    sheetView = settings ^. wsSheetView
+
+spreadSheetNS :: Text
+spreadSheetNS = fold $ nameNamespace $ n_ ""
+
+setNameSpaceRec :: Text -> Element -> Element
+setNameSpaceRec space xelm =
+    xelm {elementName = ((elementName xelm ){nameNamespace =
+                                    Just space })
+      , elementNodes = elementNodes xelm <&> \case
+                                    NodeElement x -> NodeElement (setNameSpaceRec space x)
+                                    y -> y
+    }
+
+writeWorkSheet :: Monad m => WriteSettings -> Map Text Int  -> ConduitT SheetItem Event m ()
+writeWorkSheet sheetView sstable = doc (n_ "worksheet") $ do
+    sheetViews sheetView
     el (n_ "sheetData") $ C.concatMap (mapItem sstable)
+
 
 mapItem :: Map Text Int -> SheetItem -> [Event]
 mapItem sstable sheetItem =

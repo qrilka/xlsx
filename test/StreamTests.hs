@@ -77,8 +77,7 @@ readWrite :: Xlsx -> IO ()
 readWrite input = do
   BS.writeFile "testinput.xlsx" (toBs input)
   items <- runXlsxM "testinput.xlsx" $ collectItems 1
-  -- readStr  <- C.runResourceT $ readXlsxC $ yield (toBs input)
-  bs <- runConduitRes $ void (SW.writeXlsx $ C.yieldMany items) .| C.foldC
+  bs <- runConduitRes $ void (SW.writeXlsx SW.defaultSettings $ C.yieldMany items) .| C.foldC
   case toXlsxEither $ LB.fromStrict bs of
     Right result  ->
       simplified  @==?  result
@@ -88,7 +87,8 @@ readWrite input = do
 
   where
     -- we remove some properties because the streaming is incomplete
-    simplified = (xlStyles .~ Styles mempty $ input )
+    simplified =
+      xlStyles .~ Styles mempty $ input
 
 
 -- test if the input text is also the result (a property we use for convenience)

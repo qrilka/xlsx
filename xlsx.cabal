@@ -206,24 +206,3 @@ executable countrows
   build-depends: base
                , xlsx
   default-language: Haskell2010
-
-
-executable streaming
-  hs-source-dirs: benchmarks
-  main-is: Stream.hs
-  -- ghc-options:
-  --   -threaded
-  --   -fprof-auto
-  --   -fprof-cafs
-  --   -eventlog
-  --   -prof
-  --   "-with-rtsopts=-N -l -p -s -hT -i0.1 -K100M"
-  build-depends: base
-               , bytestring
-               , criterion
-               , dlist
-               , xlsx
-               , conduit
-               , containers
-               , text
-  default-language: Haskell2010
