@@ -54,34 +54,10 @@ import Codec.Xlsx.Formatted
 
 toBs = LB.toStrict . fromXlsx testTime
 
-mkTestCase :: TestName -> Xlsx -> TestTree
-mkTestCase testName xlsx = testCase testName $ do
-  res <- C.runResourceT $ C.runConduit $  yield (toBs xlsx) .| parseSharedStringsIntoMapC
-  let
-    testSst :: Vector XlsxText
-    testSst = sstTable $ sstConstruct (xlsx ^.. xlSheets . traversed . _2)
-
-    testTexts :: Vector (Maybe Text)
-    testTexts = preview _XlsxText <$> testSst
-
-    testMap :: Map Int Text
-    testMap = Map.fromList $ do
-      (x, my) <- toList $ indexed testTexts
-      maybe [] (pure . (x,)) my
-
-  testMap @==? res
-
-
 tests :: TestTree
 tests =
   testGroup "Stream tests"
     [
-      testGroup "Reader"
-      [ mkTestCase "Get's out the shared strings" testXlsx
-      , mkTestCase "Workbook result is parsed correctly" testFormatWorkbookResult -- TODO: compare to testFormatWorkbook
-      , mkTestCase "Workbook is parsed correctly" testFormatWorkbook
-      ],
-
       testGroup "Writer"
       [ testProperty "Input same as the output" testInputSameAsOutput
       , testProperty "Set of input texts is same as map length" testSetOfInputTextsIsSameAsMapLength
@@ -99,8 +75,10 @@ tests =
 
 readWrite :: Xlsx -> IO ()
 readWrite input = do
-  readStr  <- C.runResourceT $ readXlsxC $ yield (toBs input)
-  bs <- runConduitRes $ void (SW.writeXlsx readStr) .| C.foldC
+  BS.writeFile "testinput.xlsx" (toBs input)
+  items <- runXlsxM "testinput.xlsx" $ collectItems 1
+  -- readStr  <- C.runResourceT $ readXlsxC $ yield (toBs input)
+  bs <- runConduitRes $ void (SW.writeXlsx $ C.yieldMany items) .| C.foldC
   case toXlsxEither $ LB.fromStrict bs of
     Right result  ->
       simplified  @==?  result

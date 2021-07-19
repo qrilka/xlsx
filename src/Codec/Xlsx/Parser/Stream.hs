@@ -22,7 +22,6 @@
 -- Module      : Codex.Xlsx.Parser.Stream
 -- Description : Stream parser for xlsx files
 -- Copyright   :
---   (c) Jappie Klooster, 2021
 --   (c) Adam, 2021
 --   (c) Supercede, 2021
 -- License     : MIT
@@ -49,6 +48,7 @@ module Codec.Xlsx.Parser.Stream
   , SheetItem(..)
   , readSheet
   , countRowsInSheet
+  , collectItems
   -- ** `SheetItem` lenses
   , si_sheet
   , si_row_index
@@ -360,6 +360,17 @@ runExpatForSheet initState byteSource inner =
 mkSheetName :: Int -> Text
 mkSheetName sheetNumber =
      "/sheet"  <> Text.pack (show sheetNumber) <> ".xml"
+
+-- | this will collect the sheetitems in a list.
+--   useful for cases were memory is of no concern but a sheetitem
+--   type in a list is needed.
+collectItems ::
+  Int ->
+  XlsxM [SheetItem]
+collectItems  sheetNumber = do
+  res <- liftIO $ newIORef []
+  void $ readSheet sheetNumber $ \item -> liftIO (modifyIORef' res (item :))
+  liftIO $ readIORef res
 
 readSheet ::
   -- | Sheet number
