@@ -89,6 +89,7 @@ import qualified Data.Text                       as Text
 import qualified Data.Text.Read                  as Read
 import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.Text.Lazy as LT
+import           Data.Traversable                (for)
 import           Data.XML.Types
 import           GHC.Generics
 import           NoThunks.Class
@@ -384,13 +385,17 @@ readSheet sheetNumber inner = do
 
 -- | Returns number of rows in the given sheet (identified by sheet
 -- number), or Nothing if the sheet does not exist. Does not perform a
--- full parse of the XML, so it should be more efficient than counting
--- via 'getSheetSource'.
+-- full parse of the XML into 'SheetItem's, so it should be more
+-- efficient than counting via 'readSheet'.
 countRowsInSheet :: Int -> XlsxM (Maybe Int)
 countRowsInSheet sheetNumber = do
-  ref <- liftIO $ newIORef 0
-  exists <- readSheet sheetNumber $ const $ modifyIORef' ref (+1)
-  if exists then liftIO $ Just <$> readIORef ref else pure Nothing
+  mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
+    getSheetXmlSource sheetNumber
+  for mSrc $ \sourceSheetXml -> do
+    runExpat @Int @ByteString @ByteString 0 sourceSheetXml $ \evs ->
+      forM_ evs $ \case
+        StartElement "row" _ -> modify' (+1)
+        _ -> pure ()
 
 -- | Return row from the state and empty it
 popRow :: HasSheetState m => m CellRow
