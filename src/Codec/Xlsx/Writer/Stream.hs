@@ -18,6 +18,7 @@ module Codec.Xlsx.Writer.Stream
   , defaultSettings
   , wsSheetView
   , wsZip
+  , wsColumnProperties
   -- *** Shared strings
   , sharedStrings
   , sharedStringsStream
@@ -27,11 +28,12 @@ import           Codec.Archive.Zip.Conduit.UnZip
 import           Codec.Archive.Zip.Conduit.Zip
 import           Codec.Xlsx.Parser.Internal              (n_)
 import           Codec.Xlsx.Parser.Stream
+import           Codec.Xlsx.Types                        (ColumnsProperties (..))
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
 import           Codec.Xlsx.Types.Internal.Relationships (odr, pr)
 import           Codec.Xlsx.Types.SheetViews
-import           Codec.Xlsx.Writer.Internal              (toAttrVal, toElement)
+import           Codec.Xlsx.Writer.Internal              (toAttrVal, toElement, nonEmptyElListSimple)
 import           Codec.Xlsx.Writer.Internal.Stream
 import           Conduit                                 (PrimMonad, yield,
                                                           (.|))
@@ -45,7 +47,7 @@ import           Data.Coerce
 import           Data.Conduit                            (ConduitT)
 import qualified Data.Conduit.Combinators                as C
 import qualified Data.Conduit.List                       as CL
-import           Data.Foldable                           (fold)
+import           Data.Foldable                           (fold, traverse_)
 import           Data.List
 import           Data.Map.Strict                         (Map)
 import qualified Data.Map.Strict                         as Map
@@ -58,6 +60,7 @@ import           Text.Printf
 import           Text.XML                                (toXMLElement)
 import           Text.XML.Stream.Render
 import           Text.XML.Unresolved                     (elementToEvents)
+import qualified Text.XML as TXML
 
 mapFold :: MonadState SharedStringState m => SheetItem  -> m [(Text,Int)]
 mapFold  row =
@@ -83,18 +86,21 @@ sharedStringsStream :: Monad m  =>
 sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString $
   CL.mapFoldableM mapFold
 
+-- note that currently we support only a single sheet.
 data WriteSettings = MkWriteSettings
-  { _wsSheetView :: [SheetView]
-  , _wsZip       :: ZipOptions
+  { _wsSheetView        :: [SheetView]
+  , _wsZip              :: ZipOptions
+  , _wsColumnProperties :: [ColumnsProperties]
   }
 instance Show  WriteSettings where
   -- ZipOptions lacks a show instance-}
-  show (MkWriteSettings s _) = printf "MkWriteSettings{ _wsSheetView=%s, _wsZip=defaultZipOptions }" (show s)
+  show (MkWriteSettings s _ y) = printf "MkWriteSettings{ _wsSheetView=%s, _wsColumnProperties=%s, _wsZip=defaultZipOptions }" (show s) (show y)
 makeLenses ''WriteSettings
 
 defaultSettings :: WriteSettings
-defaultSettings = MkWriteSettings {
-  _wsSheetView = []
+defaultSettings = MkWriteSettings
+  { _wsSheetView = []
+  , _wsColumnProperties = []
   , _wsZip = defaultZipOptions {
   zipOpt64 = False -- TODO renable
   -- There is a magick number in the zip archive package,
@@ -278,9 +284,17 @@ setNameSpaceRec space xelm =
                                     y -> y
     }
 
+columns :: Monad m => WriteSettings -> ConduitT SheetItem Event m ()
+columns settings =
+  traverse_ (C.yieldMany . elementToEvents . toXMLElement) cols
+  where
+    cols :: Maybe TXML.Element
+    cols = nonEmptyElListSimple (n_ "cols") . map (toElement (n_ "col")) $ settings ^. wsColumnProperties
+
 writeWorkSheet :: Monad m => WriteSettings -> Map Text Int  -> ConduitT SheetItem Event m ()
-writeWorkSheet sheetView sstable = doc (n_ "worksheet") $ do
-    sheetViews sheetView
+writeWorkSheet settings sstable = doc (n_ "worksheet") $ do
+    sheetViews settings
+    columns settings
     el (n_ "sheetData") $ C.concatMap (mapItem sstable)
 
 
