@@ -117,7 +117,6 @@ deriving via AllowThunksIn
   '[ "_si_cell_row"
    ] SheetItem
   instance NoThunks SheetItem
-
 type SharedStringMap = V.Vector Text
 
 -- | Type of the excel value
@@ -141,6 +140,7 @@ data SheetState = MkSheetState
   , _ps_sheet_name     :: Text            -- ^ Current sheet name
   , _ps_cell_row_index :: Int             -- ^ Current row number
   , _ps_cell_col_index :: Int             -- ^ Current column number
+  , _ps_cell_style     :: Maybe Int
   , _ps_is_in_val      :: Bool            -- ^ Flag for indexing wheter the parser is in value or not
   , _ps_shared_strings :: SharedStringMap -- ^ Shared string map
   , _ps_type           :: ExcelValueType  -- ^ The last detected value type
@@ -205,8 +205,9 @@ initialSheetState = MkSheetState
   , _ps_is_in_val       = False
   , _ps_shared_strings  = mempty
   , _ps_type            = Untyped
-  , _ps_text_buf = mempty
+  , _ps_text_buf        = mempty
   , _ps_worksheet_ended = False
+  , _ps_cell_style      = Nothing
   }
 
 -- | Initial parsing state
@@ -456,10 +457,11 @@ addCellToRow
   => Text -> m ()
 addCellToRow txt = do
   st <- get
+  style <- use ps_cell_style
   when (_ps_is_in_val st) $ do
     val <- liftEither $ first ParseCellError $ parseValue (_ps_shared_strings st) txt (_ps_type st)
     put $ st { _ps_row = IntMap.insert (_ps_cell_col_index st)
-                         (Cell { _cellStyle   = Nothing
+                         (Cell { _cellStyle   = style
                                , _cellValue   = Just val
                                , _cellComment = Nothing
                                , _cellFormula = Nothing
@@ -469,6 +471,7 @@ data SheetErrors
   = ParseCoordinateError CoordinateErrors -- ^ Error while parsing coordinates
   | ParseTypeError TypeError              -- ^ Error while parsing types
   | ParseCellError AddCellErrors          -- ^ Error while parsing cells
+  | ParseStyleErrors StyleError
   | HexpatParseError Hexpat.XMLParseError
   deriving stock Show
   deriving anyclass Exception
@@ -509,7 +512,7 @@ matchHexpatEvent ev = case ev of
     when inVal $
       {-# SCC "append_text_buf" #-} ps_text_buf <>= txt
     pure Nothing
-  StartElement "c" attrs -> Nothing <$ (setCoord attrs >> setType attrs)
+  StartElement "c" attrs -> Nothing <$ (setCoord attrs *> setType attrs *> setStyle attrs)
   StartElement "v" _ -> Nothing <$ (ps_is_in_val .= True)
   EndElement "v" -> {-# SCC "handle_EndElementV" #-} do
     txt <- gets _ps_text_buf
@@ -519,7 +522,10 @@ matchHexpatEvent ev = case ev of
          , _ps_text_buf = mempty
          }
     pure Nothing
-  -- If beginning of row, empty the state and return nothing [why exactly?]
+  -- If beginning of row, empty the state and return nothing.
+  -- We don't know if there is anything in the state, the user may have
+  -- decided to <row> <row> (not closing). In any case it's the beginning of a new row
+  -- so we clear the state.
   StartElement "row" _ -> Nothing <$ popRow
   -- If at the end of the row, we have collected the whole row into
   -- the current state. Empty the state and return the row.
@@ -564,6 +570,26 @@ setType list = do
 findName :: ByteString -> SheetValues -> Maybe SheetValue
 findName name = find ((name ==) . fst)
 {-# INLINE findName #-}
+
+setStyle ::
+  ( MonadError SheetErrors m
+     , HasSheetState m
+ )
+  => SheetValues -> m ()
+setStyle list = do
+  style <- liftEither $ first ParseStyleErrors $ parseStyle list
+  ps_cell_style .= style
+
+data StyleError = InvalidStyleRef { seInput:: Text,  seErrorMsg :: String}
+  deriving Show
+
+parseStyle :: SheetValues -> Either StyleError (Maybe Int)
+parseStyle list =
+  case findName "s" list of
+    Nothing -> pure Nothing
+    Just (_nm, valTex) -> case Read.decimal valTex of
+      Left err -> Left (InvalidStyleRef valTex err)
+      Right (i, _rem) -> pure $ Just i
 
 -- | Parse value type
 {-# SCC parseType #-}

@@ -20,6 +20,7 @@ module Codec.Xlsx.Writer.Stream
   , wsZip
   , wsColumnProperties
   , wsRowProperties
+  , wsStyles
   -- *** Shared strings
   , sharedStrings
   , sharedStringsStream
@@ -31,8 +32,10 @@ import           Codec.Xlsx.Parser.Internal              (n_)
 import           Codec.Xlsx.Parser.Stream
 import           Codec.Xlsx.Types                        (ColumnsProperties (..),
                                                           RowProperties (..),
+                                                          Styles (..),
                                                           _AutomaticHeight,
                                                           _CustomHeight,
+                                                          emptyStyles,
                                                           rowHeightLens)
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
@@ -40,7 +43,7 @@ import           Codec.Xlsx.Types.Internal.Relationships (odr, pr)
 import           Codec.Xlsx.Types.SheetViews
 import           Codec.Xlsx.Writer.Internal              (nonEmptyElListSimple,
                                                           toAttrVal, toElement,
-                                                          txtd)
+                                                          txtd, txti)
 import           Codec.Xlsx.Writer.Internal.Stream
 import           Conduit                                 (PrimMonad, yield,
                                                           (.|))
@@ -68,6 +71,7 @@ import           Text.XML                                (toXMLElement)
 import qualified Text.XML                                as TXML
 import           Text.XML.Stream.Render
 import           Text.XML.Unresolved                     (elementToEvents)
+import qualified Data.Text as Text
 
 
 mapFold :: MonadState SharedStringState m => SheetItem  -> m [(Text,Int)]
@@ -100,10 +104,11 @@ data WriteSettings = MkWriteSettings
   , _wsZip              :: ZipOptions
   , _wsColumnProperties :: [ColumnsProperties]
   , _wsRowProperties    :: Map Int RowProperties
+  , _wsStyles           :: Styles
   }
 instance Show  WriteSettings where
   -- ZipOptions lacks a show instance-}
-  show (MkWriteSettings s _ y r) = printf "MkWriteSettings{ _wsSheetView=%s, _wsColumnProperties=%s, _wsZip=defaultZipOptions, _wsRowProperties=%s }" (show s) (show y) (show r)
+  show (MkWriteSettings s _ y r _) = printf "MkWriteSettings{ _wsSheetView=%s, _wsColumnProperties=%s, _wsZip=defaultZipOptions, _wsRowProperties=%s }" (show s) (show y) (show r)
 makeLenses ''WriteSettings
 
 defaultSettings :: WriteSettings
@@ -111,6 +116,7 @@ defaultSettings = MkWriteSettings
   { _wsSheetView = []
   , _wsColumnProperties = []
   , _wsRowProperties = mempty
+  , _wsStyles = emptyStyles
   , _wsZip = defaultZipOptions {
   zipOpt64 = False -- TODO renable
   -- There is a magick number in the zip archive package,
@@ -124,8 +130,11 @@ defaultSettings = MkWriteSettings
 --   To validate the result is correct xml:
 --
 --   @
---   docker run -v \/home\/jappie\/projects\/xlsx:\/app\/xlsx-validator\/xlsx -it vindvaki\/xlsx-validator xlsx-validator xlsx\/out\/out.xlsx
+--   docker run -v $(pwd):/app/xlsx-validator/xlsx -it vindvaki/xlsx-validator xlsx-validator xlsx/yourfile.xlsx
 --   @
+--
+--   TODO: package that program for nix and make a unit test out of it.
+--   it's *really* usefull.
 --
 --   This will put the xlsx project root in the current working
 --   directory of xlsx validator,
@@ -176,11 +185,12 @@ writeXlsxWithSharedStrings settings sstable items = do
   pure res
 
 -- massive amount of boilerplate needed for excel to function
-boilerplate :: forall m . PrimMonad m  => Map Text Int -> [(ZipEntry,  ZipData m)]
-boilerplate sstable =
+boilerplate :: forall m . PrimMonad m  => WriteSettings -> Map Text Int -> [(ZipEntry,  ZipData m)]
+boilerplate settings sstable =
   [ (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sstable .| eventsToBS)
   , (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
   , (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook .| eventsToBS)
+  , (zipEntry "xl/styles.xml", ZipDataByteString $ coerce $ settings ^. wsStyles)
   , (zipEntry "xl/_rels/workbook.xml.rels", ZipDataSource $ writeWorkbookRels .| eventsToBS)
   , (zipEntry "_rels/.rels", ZipDataSource $ writeRootRels .| eventsToBS)
   ]
@@ -192,7 +202,7 @@ combinedFiles :: PrimMonad m
   -> ConduitT () (ZipEntry, ZipData m) m ()
 combinedFiles settings sstable items =
   C.yieldMany $
-    boilerplate sstable <>
+    boilerplate settings  sstable <>
     [(zipEntry "xl/worksheets/sheet1.xml", ZipDataSource $
        items .| C.runReaderC settings (writeWorkSheet sstable) .| eventsToBS )]
 
@@ -213,6 +223,7 @@ writeContentTypes :: Monad m => forall i.  ConduitT i Event m ()
 writeContentTypes = doc "{http://schemas.openxmlformats.org/package/2006/content-types}Types" $ do
     override "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" "/xl/workbook.xml"
     override "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" "/xl/sharedStrings.xml"
+    override "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml" "/xl/styles.xml"
     override "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml" "/xl/worksheets/sheet1.xml"
     override "application/vnd.openxmlformats-package.relationships+xml" "/xl/_rels/workbook.xml.rels"
     override "application/vnd.openxmlformats-package.relationships+xml" "/_rels/.rels"
@@ -233,22 +244,23 @@ doc root docM = do
   el root docM
   yield EventEndDocument
 
-relationship :: Monad m => Text -> Text -> Text ->  forall i.  ConduitT i Event m ()
+relationship :: Monad m => Text -> Int -> Text ->  forall i.  ConduitT i Event m ()
 relationship target id' type' =
   tag (pr "Relationship")
     (attr "Type" type'
-      <> attr "Id" id'
+      <> attr "Id" (Text.pack $ "rId" <> show id')
       <> attr "Target" target
     ) $ pure ()
 
 writeWorkbookRels :: Monad m => forall i.  ConduitT i Event m ()
 writeWorkbookRels = doc (pr "Relationships") $  do
-  relationship "sharedStrings.xml" "rId1" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
-  relationship "worksheets/sheet1.xml" "rId3" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
+  relationship "sharedStrings.xml" 1 "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
+  relationship "worksheets/sheet1.xml" 3 "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
+  relationship "styles.xml" 2 "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
 
 writeRootRels :: Monad m => forall i.  ConduitT i Event m ()
 writeRootRels = doc (pr "Relationships") $  do
-  relationship "xl/workbook.xml" "rId1" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+  relationship "xl/workbook.xml" 1 "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
   -- relationship "docProps/core.xml" "rId2" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/metadata/core-properties"
   -- relationship "docProps/app.xml" "rId3" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties"
 
@@ -323,7 +335,9 @@ mapCell sstable rix cix cell =
     el (n_ "v") $
       content $ renderCell sstable cell
   where
-    celAttr  = attr "r" ref <> renderCellType sstable cell
+    celAttr  = attr "r" ref <>
+      renderCellType sstable cell
+      <> foldMap (attr "s" . txti) (cell ^. cellStyle)
     ref :: Text
     ref = coerce $ singleCellRef (rix, cix)
 

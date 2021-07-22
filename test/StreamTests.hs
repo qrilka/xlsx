@@ -66,12 +66,12 @@ tests =
 
       testGroup "Reader/Writer"
       [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbook
+      , testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbookRow
       , testCase "Test a big workbook which caused issues with zipstream" $ readWrite bigWorkbook
       -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
       -- TODO forall SheetItem write that can be read
       ]
     ]
-
 
 readWrite :: Xlsx -> IO ()
 readWrite input = do
@@ -80,16 +80,9 @@ readWrite input = do
   bs <- runConduitRes $ void (SW.writeXlsx SW.defaultSettings $ C.yieldMany items) .| C.foldC
   case toXlsxEither $ LB.fromStrict bs of
     Right result  ->
-      simplified  @==?  result
+      input @==?  result
     Left x -> do
       throwIO x
-
-
-  where
-    -- we remove some properties because the streaming is incomplete
-    simplified =
-      xlStyles .~ Styles mempty $ input
-
 
 -- test if the input text is also the result (a property we use for convenience)
 testInputSameAsOutput :: Text -> Either String String
@@ -120,13 +113,39 @@ testSetOfInputTextsIsSameAsValueSetLength someTexts =
    unqTexts :: Set Text
    unqTexts = Set.fromList someTexts
 
+-- can we do xx
 simpleWorkbook :: Xlsx
-simpleWorkbook = formatWorkbook sheets minimalStyleSheet
+simpleWorkbook = set xlSheets sheets def
   where
-    sheets = [("Sheet1" , M.fromList [((1,1), (def & formattedCell . cellValue ?~ CellText "text at A1 Sheet1"))])]
+    sheets = [("Sheet1" , toWs [((1,1), a1), ((1,2), cellValue ?~ CellText "text at B1 Sheet1" $ def)])]
 
-bigWorkbook :: Xlsx
-bigWorkbook = formatWorkbook sheets minimalStyleSheet
+a1 :: Cell
+a1 = cellValue ?~ CellText "text at A1 Sheet1" $ cellStyle ?~ 1 $ def
+
+-- can we do x
+--           x
+simpleWorkbookRow :: Xlsx
+simpleWorkbookRow = set xlSheets sheets def
   where
-    sheets = [("Sheet1" , M.fromList $ [0..512] >>= \row ->
-                  [((row,1), (def & formattedCell . cellValue ?~ CellText "text at A1 Sheet1")), ((row,2), (def & formattedCell . cellValue ?~ CellText "text at B1 Sheet1"))])]
+    sheets = [("Sheet1" , toWs [((1,1), a1), ((2,1), cellValue ?~ CellText "text at A2 Sheet1" $ def)])]
+
+
+tshow :: Show a => a -> Text
+tshow = Text.pack . show
+
+toWs :: [((Int,Int), Cell)] -> Worksheet
+toWs x = set wsCells (M.fromList x) def
+
+-- can we do xxx
+--           xxx
+--           .
+--           .
+bigWorkbook :: Xlsx
+bigWorkbook = set xlSheets sheets def
+  where
+    sheets = [("Sheet1" , toWs $ [0..512] >>= \row ->
+                  [((row,1), a1)
+                  ,((row,2), def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
+                  ,((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
+                  ]
+              )]
