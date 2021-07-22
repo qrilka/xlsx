@@ -19,6 +19,7 @@ module Codec.Xlsx.Writer.Stream
   , wsSheetView
   , wsZip
   , wsColumnProperties
+  , wsRowProperties
   -- *** Shared strings
   , sharedStrings
   , sharedStringsStream
@@ -28,24 +29,30 @@ import           Codec.Archive.Zip.Conduit.UnZip
 import           Codec.Archive.Zip.Conduit.Zip
 import           Codec.Xlsx.Parser.Internal              (n_)
 import           Codec.Xlsx.Parser.Stream
-import           Codec.Xlsx.Types                        (ColumnsProperties (..))
+import           Codec.Xlsx.Types                        (ColumnsProperties (..),
+                                                          RowProperties (..),
+                                                          _AutomaticHeight,
+                                                          _CustomHeight,
+                                                          rowHeightLens)
 import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
 import           Codec.Xlsx.Types.Internal.Relationships (odr, pr)
 import           Codec.Xlsx.Types.SheetViews
-import           Codec.Xlsx.Writer.Internal              (toAttrVal, toElement, nonEmptyElListSimple)
+import           Codec.Xlsx.Writer.Internal              (nonEmptyElListSimple,
+                                                          toAttrVal, toElement,
+                                                          txtd)
 import           Codec.Xlsx.Writer.Internal.Stream
 import           Conduit                                 (PrimMonad, yield,
                                                           (.|))
 import qualified Conduit                                 as C
 import           Control.Lens
 import           Control.Monad.Catch
+import           Control.Monad.Reader.Class
 import           Control.Monad.State.Strict
 import           Data.ByteString                         (ByteString)
 import           Data.ByteString.Builder                 (Builder)
 import           Data.Coerce
 import           Data.Conduit                            (ConduitT)
-import qualified Data.Conduit.Combinators                as C
 import qualified Data.Conduit.List                       as CL
 import           Data.Foldable                           (fold, traverse_)
 import           Data.List
@@ -58,9 +65,10 @@ import           Data.Word
 import           Data.XML.Types
 import           Text.Printf
 import           Text.XML                                (toXMLElement)
+import qualified Text.XML                                as TXML
 import           Text.XML.Stream.Render
 import           Text.XML.Unresolved                     (elementToEvents)
-import qualified Text.XML as TXML
+
 
 mapFold :: MonadState SharedStringState m => SheetItem  -> m [(Text,Int)]
 mapFold  row =
@@ -91,16 +99,18 @@ data WriteSettings = MkWriteSettings
   { _wsSheetView        :: [SheetView]
   , _wsZip              :: ZipOptions
   , _wsColumnProperties :: [ColumnsProperties]
+  , _wsRowProperties    :: Map Int RowProperties
   }
 instance Show  WriteSettings where
   -- ZipOptions lacks a show instance-}
-  show (MkWriteSettings s _ y) = printf "MkWriteSettings{ _wsSheetView=%s, _wsColumnProperties=%s, _wsZip=defaultZipOptions }" (show s) (show y)
+  show (MkWriteSettings s _ y r) = printf "MkWriteSettings{ _wsSheetView=%s, _wsColumnProperties=%s, _wsZip=defaultZipOptions, _wsRowProperties=%s }" (show s) (show y) (show r)
 makeLenses ''WriteSettings
 
 defaultSettings :: WriteSettings
 defaultSettings = MkWriteSettings
   { _wsSheetView = []
   , _wsColumnProperties = []
+  , _wsRowProperties = mempty
   , _wsZip = defaultZipOptions {
   zipOpt64 = False -- TODO renable
   -- There is a magick number in the zip archive package,
@@ -183,7 +193,8 @@ combinedFiles :: PrimMonad m
 combinedFiles settings sstable items =
   C.yieldMany $
     boilerplate sstable <>
-    [(zipEntry "xl/worksheets/sheet1.xml", ZipDataSource $ items .| writeWorkSheet settings sstable .| eventsToBS )]
+    [(zipEntry "xl/worksheets/sheet1.xml", ZipDataSource $
+       items .| C.runReaderC settings (writeWorkSheet sstable) .| eventsToBS )]
 
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 el x = tag x mempty
@@ -261,16 +272,14 @@ writeSst sstable = doc (n_ "sst") $
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
 writeEvents = renderBuilder (def {rsPretty=False})
 
-sheetViews :: forall m . Monad m => WriteSettings -> forall i . ConduitT i Event m ()
-sheetViews settings = el (n_ "sheetViews") $ do
+sheetViews :: forall m . MonadReader WriteSettings m => forall i . ConduitT i Event m ()
+sheetViews = el (n_ "sheetViews") $ do
+  sheetView <- view wsSheetView
+  let
+      view' :: [Element]
+      view' = setNameSpaceRec spreadSheetNS . toXMLElement .  toElement (n_ "sheetView") <$> sheetView
   -- tag (n_ "sheetView") (attr "topLeftCell" "D10" <> attr "tabSelected" "1") $ pure ()
   C.yieldMany $ elementToEvents =<< view'
-  where
-    view' :: [Element]
-    view' = setNameSpaceRec spreadSheetNS . toXMLElement .  toElement (n_ "sheetView") <$> sheetView
-
-    sheetView :: [SheetView]
-    sheetView = settings ^. wsSheetView
 
 spreadSheetNS :: Text
 spreadSheetNS = fold $ nameNamespace $ n_ ""
@@ -284,47 +293,44 @@ setNameSpaceRec space xelm =
                                     y -> y
     }
 
-columns :: Monad m => WriteSettings -> ConduitT SheetItem Event m ()
-columns settings =
+columns :: MonadReader WriteSettings m => ConduitT SheetItem Event m ()
+columns = do
+  colProps <- view wsColumnProperties
+  let cols :: Maybe TXML.Element
+      cols = nonEmptyElListSimple (n_ "cols") $ map (toElement (n_ "col")) colProps
   traverse_ (C.yieldMany . elementToEvents . toXMLElement) cols
-  where
-    cols :: Maybe TXML.Element
-    cols = nonEmptyElListSimple (n_ "cols") . map (toElement (n_ "col")) $ settings ^. wsColumnProperties
 
-writeWorkSheet :: Monad m => WriteSettings -> Map Text Int  -> ConduitT SheetItem Event m ()
-writeWorkSheet settings sstable = doc (n_ "worksheet") $ do
-    sheetViews settings
-    columns settings
-    el (n_ "sheetData") $ C.concatMap (mapItem sstable)
+writeWorkSheet :: MonadReader WriteSettings  m => Map Text Int  -> ConduitT SheetItem Event m ()
+writeWorkSheet sstable = doc (n_ "worksheet") $ do
+    sheetViews
+    columns
+    el (n_ "sheetData") $ C.awaitForever (mapRow sstable)
 
-
-mapItem :: Map Text Int -> SheetItem -> [Event]
-mapItem sstable sheetItem =
-  [EventBeginElement (n_ "row")  [("r", [ContentText $ toAttrVal rowIx])]]
-   <>
-  (ifoldMap (mapCell sstable rowIx) $ sheetItem ^. si_cell_row)
-   <>
-  [EventEndElement (n_ "row")]
+mapRow :: MonadReader WriteSettings m => Map Text Int -> SheetItem -> ConduitT SheetItem Event m ()
+mapRow sstable sheetItem = do
+  mRowProp <- preview $ wsRowProperties . ix rowIx . rowHeightLens . _Just . failing _CustomHeight _AutomaticHeight
+  let rowAttr :: Attributes
+      rowAttr = ixAttr <> fold (attr "ht" . txtd <$> mRowProp)
+  tag (n_ "row") rowAttr $
+    void $ itraverse (mapCell sstable rowIx) (sheetItem ^. si_cell_row)
   where
     rowIx = sheetItem ^. si_row_index
+    ixAttr = attr "r" $ toAttrVal rowIx
 
-mapCell :: Map Text Int -> RowIndex -> ColIndex -> Cell -> [Event]
+mapCell :: Monad m => Map Text Int -> RowIndex -> ColIndex -> Cell -> ConduitT SheetItem Event m ()
 mapCell sstable rix cix cell =
-  [ EventBeginElement (n_ "c")
-    ([("r", [ContentText ref])] <> renderCellType sstable cell)
-  , EventBeginElement (n_ "v")  []
-  , EventContent $ ContentText $ renderCell sstable cell
-  , EventEndElement (n_ "v")
-  , EventEndElement (n_ "c")
-  ]
+  tag (n_ "c") celAttr $
+    el (n_ "v") $
+      content $ renderCell sstable cell
   where
+    celAttr  = attr "r" ref <> renderCellType sstable cell
     ref :: Text
     ref = coerce $ singleCellRef (rix, cix)
 
-renderCellType :: Map Text Int -> Cell -> [(Name, [Content])]
+renderCellType :: Map Text Int -> Cell -> Attributes
 renderCellType sstable cell =
-  maybe []
-  (\x -> [("t", [ContentText $ renderType sstable x])])
+  maybe mempty
+  (attr "t" . renderType sstable)
   $ cell ^? cellValue . _Just
 
 renderCell :: Map Text Int -> Cell -> Text

@@ -48,6 +48,10 @@ module Codec.Xlsx.Types (
     , Cell.cellStyle
     , Cell.cellComment
     , Cell.cellFormula
+    -- ** Row properties
+    , rowHeightLens
+    , _CustomHeight
+    , _AutomaticHeight
     -- * Style helpers
     , emptyStyles
     , renderStyleSheet
@@ -99,6 +103,7 @@ import Codec.Xlsx.Types.StyleSheet as X
 import Codec.Xlsx.Types.Table as X
 import Codec.Xlsx.Types.Variant as X
 import Codec.Xlsx.Writer.Internal
+import Control.Lens hiding ((.=))
 
 -- | Height of a row in points (1/72in)
 data RowHeight
@@ -108,6 +113,8 @@ data RowHeight
     -- ^ Row height is set automatically by the program
   deriving (Eq, Ord, Show, Read, Generic)
 instance NFData RowHeight
+
+makePrisms ''RowHeight
 
 -- | Properties of a row. See §18.3.1.73 "row (Row)" for more details
 data RowProperties = RowProps
@@ -119,6 +126,9 @@ data RowProperties = RowProps
     -- ^ Whether row is visible or not
   } deriving (Eq, Ord, Show, Read, Generic)
 instance NFData RowProperties
+
+rowHeightLens :: Lens' RowProperties (Maybe RowHeight)
+rowHeightLens = lens rowHeight $ \x y -> x{rowHeight=y}
 
 instance Default RowProperties where
   def = RowProps { rowHeight       = Nothing
