@@ -571,11 +571,7 @@ findName :: ByteString -> SheetValues -> Maybe SheetValue
 findName name = find ((name ==) . fst)
 {-# INLINE findName #-}
 
-setStyle ::
-  ( MonadError SheetErrors m
-     , HasSheetState m
- )
-  => SheetValues -> m ()
+setStyle :: (MonadError SheetErrors m, HasSheetState m) => SheetValues -> m ()
 setStyle list = do
   style <- liftEither $ first ParseStyleErrors $ parseStyle list
   ps_cell_style .= style
