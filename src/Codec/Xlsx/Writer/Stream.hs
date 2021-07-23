@@ -179,15 +179,15 @@ writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m
     -> Map Text Int -- ^ shared strings table
     -> ConduitT () SheetItem m ()
     -> ConduitT () ByteString m Word64
-writeXlsxWithSharedStrings settings sstable items = do
-  res  <- combinedFiles settings sstable items .| zipStream (settings ^. wsZip)
+writeXlsxWithSharedStrings settings sharedStrings' items = do
+  res  <- combinedFiles settings sharedStrings' items .| zipStream (settings ^. wsZip)
   -- yield (LBS.toStrict $ BS.toLazyByteString $ BS.word32LE 0x06054b50) -- insert magic number for fun.
   pure res
 
 -- massive amount of boilerplate needed for excel to function
 boilerplate :: forall m . PrimMonad m  => WriteSettings -> Map Text Int -> [(ZipEntry,  ZipData m)]
-boilerplate settings sstable =
-  [ (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sstable .| eventsToBS)
+boilerplate settings sharedStrings' =
+  [ (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sharedStrings' .| eventsToBS)
   , (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
   , (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook .| eventsToBS)
   , (zipEntry "xl/styles.xml", ZipDataByteString $ coerce $ settings ^. wsStyles)
@@ -200,11 +200,11 @@ combinedFiles :: PrimMonad m
   -> Map Text Int
   -> ConduitT () SheetItem m ()
   -> ConduitT () (ZipEntry, ZipData m) m ()
-combinedFiles settings sstable items =
+combinedFiles settings sharedStrings' items =
   C.yieldMany $
-    boilerplate settings  sstable <>
+    boilerplate settings  sharedStrings' <>
     [(zipEntry "xl/worksheets/sheet1.xml", ZipDataSource $
-       items .| C.runReaderC settings (writeWorkSheet sstable) .| eventsToBS )]
+       items .| C.runReaderC settings (writeWorkSheet sharedStrings') .| eventsToBS )]
 
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 el x = tag x mempty
@@ -277,9 +277,9 @@ eventsToBS :: PrimMonad m  => ConduitT Event ByteString m ()
 eventsToBS = writeEvents .| C.builderToByteString
 
 writeSst ::  Monad m  => Map Text Int  -> forall i.  ConduitT i Event m ()
-writeSst sstable = doc (n_ "sst") $
+writeSst sharedStrings' = doc (n_ "sst") $
     void $ traverse (el (n_ "si") .  el (n_ "t") . content . fst
-                  ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sstable
+                  ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sharedStrings'
 
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
 writeEvents = renderBuilder (def {rsPretty=False})
@@ -313,51 +313,51 @@ columns = do
   traverse_ (C.yieldMany . elementToEvents . toXMLElement) cols
 
 writeWorkSheet :: MonadReader WriteSettings  m => Map Text Int  -> ConduitT SheetItem Event m ()
-writeWorkSheet sstable = doc (n_ "worksheet") $ do
+writeWorkSheet sharedStrings' = doc (n_ "worksheet") $ do
     sheetViews
     columns
-    el (n_ "sheetData") $ C.awaitForever (mapRow sstable)
+    el (n_ "sheetData") $ C.awaitForever (mapRow sharedStrings')
 
 mapRow :: MonadReader WriteSettings m => Map Text Int -> SheetItem -> ConduitT SheetItem Event m ()
-mapRow sstable sheetItem = do
+mapRow sharedStrings' sheetItem = do
   mRowProp <- preview $ wsRowProperties . ix rowIx . rowHeightLens . _Just . failing _CustomHeight _AutomaticHeight
   let rowAttr :: Attributes
       rowAttr = ixAttr <> fold (attr "ht" . txtd <$> mRowProp)
   tag (n_ "row") rowAttr $
-    void $ itraverse (mapCell sstable rowIx) (sheetItem ^. si_cell_row)
+    void $ itraverse (mapCell sharedStrings' rowIx) (sheetItem ^. si_cell_row)
   where
     rowIx = sheetItem ^. si_row_index
     ixAttr = attr "r" $ toAttrVal rowIx
 
 mapCell :: Monad m => Map Text Int -> RowIndex -> ColIndex -> Cell -> ConduitT SheetItem Event m ()
-mapCell sstable rix cix cell =
+mapCell sharedStrings' rix cix cell =
   tag (n_ "c") celAttr $
     el (n_ "v") $
-      content $ renderCell sstable cell
+      content $ renderCell sharedStrings' cell
   where
     celAttr  = attr "r" ref <>
-      renderCellType sstable cell
+      renderCellType sharedStrings' cell
       <> foldMap (attr "s" . txti) (cell ^. cellStyle)
     ref :: Text
     ref = coerce $ singleCellRef (rix, cix)
 
 renderCellType :: Map Text Int -> Cell -> Attributes
-renderCellType sstable cell =
+renderCellType sharedStrings' cell =
   maybe mempty
-  (attr "t" . renderType sstable)
+  (attr "t" . renderType sharedStrings')
   $ cell ^? cellValue . _Just
 
 renderCell :: Map Text Int -> Cell -> Text
-renderCell sstable cell =  renderValue sstable val
+renderCell sharedStrings' cell =  renderValue sharedStrings' val
   where
     val :: CellValue
     val = fromMaybe (CellText mempty) $ cell ^? cellValue . _Just
 
 renderValue :: Map Text Int -> CellValue -> Text
-renderValue sstable = \case
+renderValue sharedStrings' = \case
   CellText x ->
     -- if we can't find it in the sst, print the string
-    maybe x toAttrVal $ sstable ^? ix x
+    maybe x toAttrVal $ sharedStrings' ^? ix x
   CellDouble x -> toAttrVal x
   CellBool b -> toAttrVal b
   CellRich _ -> error "rich text is not supported yet"
@@ -365,9 +365,9 @@ renderValue sstable = \case
 
 
 renderType :: Map Text Int -> CellValue -> Text
-renderType sstable = \case
+renderType sharedStrings' = \case
   CellText x ->
-    maybe "str" (const "s") $ sstable ^? ix x
+    maybe "str" (const "s") $ sharedStrings' ^? ix x
   CellDouble _ -> "n"
   CellBool _ -> "b"
   CellRich _ -> "r"
