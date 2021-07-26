@@ -334,7 +334,9 @@ mapRow sharedStrings' sheetItem = do
 
 mapCell :: Monad m => Map Text Int -> RowIndex -> ColIndex -> Cell -> ConduitT SheetItem Event m ()
 mapCell sharedStrings' rix cix cell =
+  when (has (cellValue . _Just) cell || has (cellStyle . _Just) cell) $
   tag (n_ "c") celAttr $
+    when (has (cellValue . _Just) cell) $
     el (n_ "v") $
       content $ renderCell sharedStrings' cell
   where
