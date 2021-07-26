@@ -371,7 +371,7 @@ collectItems ::
 collectItems  sheetNumber = do
   res <- liftIO $ newIORef []
   void $ readSheet sheetNumber $ \item -> liftIO (modifyIORef' res (item :))
-  liftIO $ readIORef res
+  fmap reverse $ liftIO $ readIORef res
 
 readSheet ::
   -- | Sheet number
