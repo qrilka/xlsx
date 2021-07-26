@@ -285,13 +285,16 @@ writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
 writeEvents = renderBuilder (def {rsPretty=False})
 
 sheetViews :: forall m . MonadReader WriteSettings m => forall i . ConduitT i Event m ()
-sheetViews = el (n_ "sheetViews") $ do
+sheetViews = do
   sheetView <- view wsSheetView
-  let
-      view' :: [Element]
-      view' = setNameSpaceRec spreadSheetNS . toXMLElement .  toElement (n_ "sheetView") <$> sheetView
-  -- tag (n_ "sheetView") (attr "topLeftCell" "D10" <> attr "tabSelected" "1") $ pure ()
-  C.yieldMany $ elementToEvents =<< view'
+
+  unless (null sheetView) $ el (n_ "sheetViews") $ do
+    let
+        view' :: [Element]
+        view' = setNameSpaceRec spreadSheetNS . toXMLElement .  toElement (n_ "sheetView") <$> sheetView
+    -- tag (n_ "sheetView") (attr "topLeftCell" "D10" <> attr "tabSelected" "1") $ pure ()
+
+    C.yieldMany $ elementToEvents =<< view'
 
 spreadSheetNS :: Text
 spreadSheetNS = fold $ nameNamespace $ n_ ""
