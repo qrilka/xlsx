@@ -67,6 +67,7 @@ tests =
       testGroup "Reader/Writer"
       [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbook
       , testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbookRow
+      , testCase "Test a big workbook which caused issues with zipstream" $ readWrite smallWorkbook
       , testCase "Test a big workbook which caused issues with zipstream" $ readWrite bigWorkbook
       -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
       -- TODO forall SheetItem write that can be read
@@ -140,10 +141,21 @@ toWs x = set wsCells (M.fromList x) def
 --           xxx
 --           .
 --           .
+smallWorkbook :: Xlsx
+smallWorkbook = set xlSheets sheets def
+  where
+    sheets = [("Sheet1" , toWs $ [1..2] >>= \row ->
+                  [((row,1), a1)
+                  , ((row,2), def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
+                  , ((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
+                  , ((row,4), def & cellValue ?~ CellDouble (0.2 + 0.1))
+                  , ((row,5), def & cellValue ?~ CellBool False)
+                  ]
+              )]
 bigWorkbook :: Xlsx
 bigWorkbook = set xlSheets sheets def
   where
-    sheets = [("Sheet1" , toWs $ [0..512] >>= \row ->
+    sheets = [("Sheet1" , toWs $ [1..512] >>= \row ->
                   [((row,1), a1)
                   ,((row,2), def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
                   ,((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
