@@ -1,1 +1,0 @@
-(import ./.).devShell."${builtins.currentSystem}"

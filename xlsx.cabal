@@ -193,16 +193,5 @@ benchmark bench
                , bytestring
                , criterion
                , xlsx
-  default-language: Haskell2010
-
-executable countrows
-  type: exitcode-stdio-1.0
-  hs-source-dirs: countrows
-  main-is: Main.hs
-  -- profiling: True
-  -- ghc-options: -rtsopts -threaded -fprof-auto -O2 -prof
-  profiling: False
-  ghc-options: -rtsopts -threaded -O2
-  build-depends: base
                , xlsx
   default-language: Haskell2010
