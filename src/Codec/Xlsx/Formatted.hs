@@ -251,6 +251,7 @@ formatWorkbook nfcss initStyle = extract go
     initSt = stateFromStyleSheet initStyle
     go = flip runState initSt $
       forM nfcss $ \(name, fcs) -> do
+        modify (\s -> s { _formattingMerges = [] }) -- We do not want merge information to accumulate across sheets.
         cs' <- forM (M.toList fcs) $ \(rc, fc) -> formatCell rc fc
         merges <- reverse . _formattingMerges <$> get
         return ( name
