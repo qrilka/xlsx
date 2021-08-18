@@ -4,6 +4,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RankNTypes          #-}
+
 module Codec.Xlsx.Types (
     -- * The main types
     Xlsx(..)
@@ -68,6 +70,8 @@ module Codec.Xlsx.Types (
 import Control.Exception (SomeException, toException)
 #ifdef USE_MICROLENS
 import Lens.Micro.TH
+import Data.Profunctor(dimap)
+import Data.Profunctor.Choice
 #else
 import Control.Lens.TH
 #endif
@@ -103,7 +107,11 @@ import Codec.Xlsx.Types.StyleSheet as X
 import Codec.Xlsx.Types.Table as X
 import Codec.Xlsx.Types.Variant as X
 import Codec.Xlsx.Writer.Internal
+#ifdef USE_MICROLENS
+import Lens.Micro
+#else
 import Control.Lens hiding ((.=))
+#endif
 
 -- | Height of a row in points (1/72in)
 data RowHeight
@@ -114,7 +122,35 @@ data RowHeight
   deriving (Eq, Ord, Show, Read, Generic)
 instance NFData RowHeight
 
+#ifdef USE_MICROLENS
+type Prism s t a b = forall p f. (Choice p, Applicative f) => p a (f b) -> p s (f t)
+type Prism' s a = Prism s s a a
+
+prism :: (b -> t) -> (s -> Either t a) -> Prism s t a b
+prism bt seta = dimap seta (either pure (fmap bt)) . right'
+
+_CustomHeight :: Prism' RowHeight Double
+_CustomHeight
+  = (prism (\ x1_a4xgd -> CustomHeight x1_a4xgd))
+      (\ x_a4xge
+         -> case x_a4xge of
+              CustomHeight y1_a4xgf -> Right y1_a4xgf
+              _ -> Left x_a4xge)
+{-# INLINE _CustomHeight #-}
+
+_AutomaticHeight :: Prism' RowHeight Double
+_AutomaticHeight
+  = (prism (\ x1_a4xgg -> AutomaticHeight x1_a4xgg))
+      (\ x_a4xgh
+         -> case x_a4xgh of
+              AutomaticHeight y1_a4xgi -> Right y1_a4xgi
+              _ -> Left x_a4xgh)
+{-# INLINE _AutomaticHeight #-}
+
+#else
 makePrisms ''RowHeight
+#endif
+
 
 -- | Properties of a row. See §18.3.1.73 "row (Row)" for more details
 data RowProperties = RowProps

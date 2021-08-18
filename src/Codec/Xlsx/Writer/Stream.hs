@@ -1,6 +1,5 @@
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DerivingVia         #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -8,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StrictData          #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE CPP #-}
 
 -- | Writes excell files from a stream, which allows creation of
 --   large excell files while remaining in constant memory.
@@ -48,7 +48,12 @@ import           Codec.Xlsx.Writer.Internal.Stream
 import           Conduit                                 (PrimMonad, yield,
                                                           (.|))
 import qualified Conduit                                 as C
+#ifdef USE_MICROLENS
+import           Lens.Micro.Platform
+import           Data.Traversable.WithIndex
+#else
 import           Control.Lens
+#endif
 import           Control.Monad.Catch
 import           Control.Monad.Reader.Class
 import           Control.Monad.State.Strict

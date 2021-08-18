@@ -115,7 +115,6 @@ Library
                    , zip-stream   >= 0.2.0.1
                    , xml-types
                    , exceptions
-                   , nothunks
                    , lifted-async
                    , stm
                    , transformers-base
@@ -125,6 +124,9 @@ Library
                      , microlens-mtl
                      , microlens-ghc
                      , microlens-th
+                     , profunctors
+                     , microlens-platform
+                     , indexed-traversable
     cpp-options: -DUSE_MICROLENS
   else
     Build-depends:     lens         >= 3.8 && < 5.1
@@ -176,6 +178,8 @@ test-suite data-test
   if flag(microlens)
     Build-depends:     microlens    >= 0.4 && < 0.5
                      , microlens-mtl
+                     , microlens-platform
+                     , microlens-th
     cpp-options: -DUSE_MICROLENS
   else
     Build-depends:     lens         >= 3.8 && < 5.1

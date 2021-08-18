@@ -2,9 +2,15 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE CPP #-}
+
 module TestXlsx where
 
+#ifdef USE_MICROLENS
+import           Lens.Micro.Platform
+#else
 import Control.Lens
+#endif
 import Control.Monad.State.Lazy
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB

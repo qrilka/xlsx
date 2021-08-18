@@ -2,7 +2,6 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE DerivingVia         #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE NamedFieldPuns      #-}
@@ -14,6 +13,7 @@
 {-# LANGUAGE StrictData          #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE CPP #-}
 
 -- | Internal stream related functions.
 --   These are exported because they're tested like this.
@@ -25,7 +25,12 @@ module Codec.Xlsx.Writer.Internal.Stream
   , SharedStringState(..)
   ) where
 
+
+#ifdef USE_MICROLENS
+import           Lens.Micro.Platform
+#else
 import           Control.Lens
+#endif
 import           Control.Monad.State.Strict
 import           Data.Map.Strict            (Map)
 import           Data.Maybe

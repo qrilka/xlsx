@@ -4,8 +4,8 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE GeneralisedNewtypeDeriving #-}
-{-# LANGUAGE DerivingVia         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DerivingStrategies  #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE MultiWayIf          #-}
@@ -18,6 +18,8 @@
 {-# LANGUAGE StrictData          #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE CPP #-}
+
 -- |
 -- Module      : Codex.Xlsx.Parser.Stream
 -- Description : Stream parser for xlsx files
@@ -68,7 +70,15 @@ import           Codec.Xlsx.Types.Cell
 import           Codec.Xlsx.Types.Common
 import           Conduit                         (PrimMonad, (.|))
 import qualified Conduit                         as C
+#ifdef USE_MICROLENS
+import           Lens.Micro
+import           Lens.Micro.TH
+import           Lens.Micro.Mtl
+import           Lens.Micro.GHC ()
+import           Lens.Micro.Platform
+#else
 import           Control.Lens
+#endif
 import           Control.Monad.Catch
 import           Control.Monad.Except
 import           Control.Monad.Reader
@@ -92,7 +102,6 @@ import qualified Data.Text.Lazy as LT
 import           Data.Traversable                (for)
 import           Data.XML.Types
 import           GHC.Generics
-import           NoThunks.Class
 import Codec.Xlsx.Parser.Internal
 
 import Text.XML.Expat.SAX as Hexpat
@@ -100,6 +109,12 @@ import Text.XML.Expat.Internal.IO as Hexpat
 import Control.Monad.Base
 import Control.Monad.Trans.Control
 import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
+
+#ifdef USE_MICROLENS
+(<>=) :: (MonadState s m, Monoid a) => ASetter' s a -> a -> m ()
+l <>= a = modify (l <>~ a)
+#else
+#endif
 
 type CellRow = IntMap Cell
 
@@ -113,10 +128,6 @@ data SheetItem = MkSheetItem
   } deriving stock (Generic, Show)
 makeLenses 'MkSheetItem
 
-deriving via AllowThunksIn
-  '[ "_si_cell_row"
-   ] SheetItem
-  instance NoThunks SheetItem
 type SharedStringMap = V.Vector Text
 
 -- | Type of the excel value
@@ -132,7 +143,6 @@ data ExcelValueType
   | TE      -- ^ excell error, the sheet can contain error values, for example if =1/0, causes division by zero
   | Untyped -- ^ Not all values are types
   deriving stock (Generic, Show)
-  deriving anyclass NoThunks
 
 -- | State for parsing sheets
 data SheetState = MkSheetState
@@ -152,11 +162,6 @@ data SheetState = MkSheetState
   -- rather than ending gracefully.
   } deriving stock (Generic, Show)
 makeLenses 'MkSheetState
-
-deriving via AllowThunksIn
-  '[ "_ps_row"
-   ] SheetState
-  instance NoThunks SheetState
 
 -- | State for parsing shared strings
 data SharedStringState = MkSharedStringState
@@ -433,7 +438,7 @@ parseValue :: SharedStringMap -> Text -> ExcelValueType -> Either AddCellErrors 
 parseValue sstrings txt = \case
   TS -> do
     (idx, _) <- ReadError txt `first` Read.decimal @Int txt
-    string <- maybe (Left $ SharedStringNotFound idx sstrings) Right $ {-# SCC "sstrings_lookup_scc" #-}  sstrings ^? ix idx
+    string <- maybe (Left $ SharedStringNotFound idx sstrings) Right $ {-# SCC "sstrings_lookup_scc" #-}  (sstrings ^? ix idx)
     Right $ CellText string
   TStr -> pure $ CellText txt
   TN -> bimap (ReadError txt) (CellDouble . fst) $ Read.double txt
@@ -510,7 +515,7 @@ matchHexpatEvent ev = case ev of
   CharacterData txt -> {-# SCC "handle_CharData" #-} do
     inVal <- use ps_is_in_val
     when inVal $
-      {-# SCC "append_text_buf" #-} ps_text_buf <>= txt
+      {-# SCC "append_text_buf" #-} (ps_text_buf <>= txt)
     pure Nothing
   StartElement "c" attrs -> Nothing <$ (setCoord attrs *> setType attrs *> setStyle attrs)
   StartElement "v" _ -> Nothing <$ (ps_is_in_val .= True)

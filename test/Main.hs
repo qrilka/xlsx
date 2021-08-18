@@ -7,7 +7,6 @@ module Main
   ( main
   ) where
 
-import           Control.Lens
 import           Control.Monad.State.Lazy
 import           Data.ByteString.Lazy                        (ByteString)
 import qualified Data.ByteString.Lazy                        as LB

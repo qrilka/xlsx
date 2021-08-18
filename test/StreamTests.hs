@@ -1,13 +1,25 @@
-{-# LANGUAGE BlockArguments    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE CPP #-}
 
 module StreamTests
   ( tests
   ) where
+
+#ifdef USE_MICROLENS
+
+import           Test.Tasty                                  (TestName,
+                                                              TestTree,
+                                                              testGroup)
+
+tests :: TestTree
+tests = testGroup "Use lens to get stream tests."
+    []
+#else
+
 import Control.Exception
 import           Codec.Xlsx
 import           Codec.Xlsx.Parser.Stream
@@ -16,7 +28,8 @@ import           Codec.Xlsx.Types.Internal.SharedStringTable
 import           Conduit                                     ((.|))
 import qualified Conduit                                     as C
 import           Control.Exception                           (bracket)
-import           Control.Lens                                hiding (indexed)
+import           Control.Lens hiding (indexed)
+import           Data.Set.Lens
 import           Data.ByteString.Lazy                        (ByteString)
 import qualified Data.ByteString.Lazy                        as LB
 import qualified Data.ByteString  as BS
@@ -47,7 +60,6 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import Text.Printf
 import Debug.Trace
-import Data.Set.Lens
 import Control.DeepSeq
 import Data.Conduit
 import Codec.Xlsx.Formatted
@@ -161,3 +173,5 @@ bigWorkbook = set xlSheets sheets def
                   ,((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
                   ]
               )]
+
+#endif

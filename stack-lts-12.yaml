@@ -1,3 +1,6 @@
 resolver: lts-12.26
 packages:
 - '.'
+
+extra-deps:
+- zip-stream-0.2.1.0@sha256:9601c2a5addd3edd8ab1f7ac8c3753e92326e1971c6d15d123e621ff8c92e002,1749
