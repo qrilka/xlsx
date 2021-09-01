@@ -37,7 +37,7 @@ Flag microlens
 Library
   Hs-source-dirs:    src
   profiling: False
-  ghc-options:       -Wall -O2
+  ghc-options:       -Wall
   Exposed-modules:   Codec.Xlsx
                    , Codec.Xlsx.Types
                    , Codec.Xlsx.Formatted
@@ -81,6 +81,9 @@ Library
                    , Codec.Xlsx.Writer.Stream
                    , Codec.Xlsx.Writer.Internal.Stream
 
+  -- The only function it exports is also hidden by the upstream library: https://github.com/the-real-blackh/hexpat/blob/master/Text/XML/Expat/SAX.hs#L227
+  -- We could expose it but then this function is in the xlsx API for a long time.
+  -- It be better to expose it in the upstream library instead I think. It was copied here so the parser can use it.
   Other-modules:     Codec.Xlsx.Parser.Stream.HexpatInternal
 
   Build-depends:     base         >= 4.9.0.0 && < 5.0
@@ -196,6 +199,5 @@ benchmark bench
   build-depends: base
                , bytestring
                , criterion
-               , xlsx
                , xlsx
   default-language: Haskell2010

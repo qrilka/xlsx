@@ -52,7 +52,7 @@ module Codec.Xlsx.Parser.Stream
   , countRowsInSheet
   , collectItems
   -- ** `SheetItem` lenses
-  , si_sheet
+  , si_sheet_index
   , si_row_index
   , si_cell_row
   -- * Errors
@@ -95,7 +95,6 @@ import qualified Data.IntMap.Strict as IntMap
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text                       (Text)
-import qualified Data.Text                       as Text
 import qualified Data.Text.Read                  as Read
 import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.Text.Lazy as LT
@@ -122,9 +121,9 @@ type CellRow = IntMap Cell
 --
 -- The current sheet at a time, every sheet is constructed of these items.
 data SheetItem = MkSheetItem
-  { _si_sheet     :: Text      -- ^ The sheet number
-  , _si_row_index :: Int       -- ^ Row number
-  , _si_cell_row  :: ~CellRow  -- ^ Row itself
+  { _si_sheet_index :: Int       -- ^ The sheet number
+  , _si_row_index   :: Int       -- ^ Row number
+  , _si_cell_row    :: ~CellRow  -- ^ Row itself
   } deriving stock (Generic, Show)
 makeLenses 'MkSheetItem
 
@@ -147,7 +146,7 @@ data ExcelValueType
 -- | State for parsing sheets
 data SheetState = MkSheetState
   { _ps_row            :: ~CellRow        -- ^ Current row
-  , _ps_sheet_name     :: Text            -- ^ Current sheet name
+  , _ps_sheet_index    :: Int
   , _ps_cell_row_index :: Int             -- ^ Current row number
   , _ps_cell_col_index :: Int             -- ^ Current column number
   , _ps_cell_style     :: Maybe Int
@@ -204,7 +203,7 @@ newtype XlsxM a = XlsxM {_unXlsxM :: ReaderT XlsxMState Zip.ZipArchive a}
 initialSheetState :: SheetState
 initialSheetState = MkSheetState
   { _ps_row             = mempty
-  , _ps_sheet_name      = mempty
+  , _ps_sheet_index     = 0
   , _ps_cell_row_index  = 0
   , _ps_cell_col_index  = 0
   , _ps_is_in_val       = False
@@ -299,7 +298,7 @@ getSheetXmlSource ::
   Int ->
   XlsxM (Maybe (ConduitT () ByteString m ()))
 getSheetXmlSource sheetNumber = do
-  -- XXX: The Zip library may throw exceptions that aren't exposed from this
+  -- TODO: The Zip library may throw exceptions that aren't exposed from this
   -- module, so downstream library users would need to add the 'zip' package to
   -- handle them. Consider re-wrapping zip library exceptions, or just
   -- re-export them?
@@ -349,7 +348,7 @@ runExpatForSheet ::
 runExpatForSheet initState byteSource inner =
   void $ runExpat initState byteSource handler
   where
-    sheetName = _ps_sheet_name initState
+    sheetName = _ps_sheet_index initState
     handler evs = forM_ evs $ \ev -> do
       parseRes <- runExceptT $ matchHexpatEvent ev
       case parseRes of
@@ -359,13 +358,6 @@ runExpatForSheet initState byteSource inner =
               rowNum <- use ps_cell_row_index
               liftIO $ inner $ MkSheetItem sheetName rowNum cellRow
         _ -> pure ()
-
--- FIXME: hack to be compatible with the zip-stream parser (no longer
--- present), which as of this writing sets the sheet name to be
--- "/sheetN.xml"
-mkSheetName :: Int -> Text
-mkSheetName sheetNumber =
-     "/sheet"  <> Text.pack (show sheetNumber) <> ".xml"
 
 -- | this will collect the sheetitems in a list.
 --   useful for cases were memory is of no concern but a sheetitem
@@ -394,11 +386,9 @@ readSheet sheetNumber inner = do
       sharedStrs <- getOrParseSharedStrings
       let sheetState0 = initialSheetState
             & ps_shared_strings .~ sharedStrs
-            & ps_sheet_name .~ sheetName
+            & ps_sheet_index .~ sheetNumber
       runExpatForSheet sheetState0 sourceSheetXml inner
       pure True
-  where
-    sheetName = mkSheetName sheetNumber
 
 -- | Returns number of rows in the given sheet (identified by sheet
 -- number), or Nothing if the sheet does not exist. Does not perform a

@@ -16,7 +16,10 @@ import           Test.Tasty                                  (TestName,
                                                               testGroup)
 
 tests :: TestTree
-tests = testGroup "Use lens to get stream tests."
+tests = testGroup
+  "I stubbed out the tests module for microlens \
+   because it doesn't understand setOf. \
+   Volunteers are welcome to fix this!"
     []
 #else
 
@@ -70,17 +73,22 @@ tests :: TestTree
 tests =
   testGroup "Stream tests"
     [
-      testGroup "Writer"
-      [ testProperty "Input same as the output" testInputSameAsOutput
-      , testProperty "Set of input texts is same as map length" testSetOfInputTextsIsSameAsMapLength
-      , testProperty "Set of input texts is as value set length" testSetOfInputTextsIsSameAsValueSetLength
+      testGroup "Writer/shared strings"
+      [ testProperty "Input same as the output" sharedStringInputSameAsOutput
+      , testProperty "Set of input texts is same as map length" sharedStringInputTextsIsSameAsMapLength
+      , testProperty "Set of input texts is as value set length" sharedStringInputTextsIsSameAsValueSetLength
       ],
 
       testGroup "Reader/Writer"
       [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbook
       , testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbookRow
-      , testCase "Test a big workbook which caused issues with zipstream" $ readWrite smallWorkbook
-      , testCase "Test a big workbook which caused issues with zipstream" $ readWrite bigWorkbook
+      , testCase "Test a small workbook which has a fullblown sqaure" $ readWrite smallWorkbook
+      , testCase "Test a big workbook as a full square which caused issues with zipstream \
+                 The buffer of zipstream maybe 1kb, this workbook is big enough \
+                 to be more than that. \
+                 So if this encodes/decodes we know we can handle those sizes. \
+                 In some older version the bytestring got cut off resulting in a corrupt xlsx file"
+                  $ readWrite bigWorkbook
       -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
       -- TODO forall SheetItem write that can be read
       ]
@@ -98,8 +106,8 @@ readWrite input = do
       throwIO x
 
 -- test if the input text is also the result (a property we use for convenience)
-testInputSameAsOutput :: Text -> Either String String
-testInputSameAsOutput someText =
+sharedStringInputSameAsOutput :: Text -> Either String String
+sharedStringInputSameAsOutput someText =
   if someText  == out then Right msg  else Left msg
 
   where
@@ -107,8 +115,8 @@ testInputSameAsOutput someText =
     msg = printf "'%s' = '%s'" (Text.unpack out) (Text.unpack someText)
 
 -- test if unique strings actually get set in the map as keys
-testSetOfInputTextsIsSameAsMapLength :: [Text] -> Bool
-testSetOfInputTextsIsSameAsMapLength someTexts =
+sharedStringInputTextsIsSameAsMapLength :: [Text] -> Bool
+sharedStringInputTextsIsSameAsMapLength someTexts =
     length result == length unqTexts
   where
    result  :: Map Text Int
@@ -117,8 +125,8 @@ testSetOfInputTextsIsSameAsMapLength someTexts =
    unqTexts = Set.fromList someTexts
 
 -- test for every unique string we get a unique number
-testSetOfInputTextsIsSameAsValueSetLength :: [Text] -> Bool
-testSetOfInputTextsIsSameAsValueSetLength someTexts =
+sharedStringInputTextsIsSameAsValueSetLength :: [Text] -> Bool
+sharedStringInputTextsIsSameAsValueSetLength someTexts =
     length result == length unqTexts
   where
    result  :: Set Int

@@ -28,7 +28,7 @@ import Lens.Micro
 #else
 import Control.Lens hiding ((<.>), element, views)
 #endif
-import Control.Monad (forM, join, void)
+import Control.Monad (join, void)
 import Control.Monad.Except (catchError, throwError)
 import Data.Bool (bool)
 import Data.ByteString (ByteString)
@@ -55,7 +55,6 @@ import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Parser.Internal.PivotTable
 import Codec.Xlsx.Types
 import Codec.Xlsx.Types.Cell (formulaDataFromCursor)
-import Codec.Xlsx.Types.Common (xlsxTextToCellValue)
 import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CfPair
 import Codec.Xlsx.Types.Internal.CommentTable as CommentTable

@@ -2,20 +2,19 @@
 Under BSD 3-Clause license, (c) 2009 Doug Beardsley <mightybyte@gmail.com>, (c) 2009-2012 Stephen Blackheath <http://blacksapphire.com/antispam/>, (c) 2009 Gregory Collins, (c) 2008 Evan Martin <martine@danga.com>, (c) 2009 Matthew Pocock <matthew.pocock@ncl.ac.uk>, (c) 2007-2009 Galois Inc., (c) 2010 Kevin Jardine, (c) 2012 Simon Hengel
 
 From https://hackage.haskell.org/package/hexpat-0.20.13
+     https://github.com/the-real-blackh/hexpat/blob/master/Text/XML/Expat/SAX.hs#L227
 -}
 module Codec.Xlsx.Parser.Stream.HexpatInternal (parseBuf) where
 
 import Control.Monad
 import Text.XML.Expat.SAX
-import Text.XML.Expat.Internal.IO
 import qualified Data.ByteString.Internal as I
 import Data.Bits
 import Data.Int
-import Data.ByteString.Internal (c2w, w2c, c_strlen)
+import Data.ByteString.Internal (c_strlen)
 import Data.Word
 import Foreign.C
 import Foreign.ForeignPtr
-import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
 

@@ -12,8 +12,6 @@ let
                 mkDerivation = args: super.mkDerivation (args // {
                   enableLibraryProfiling = true;
                 });
-                # libxml-sax = pkgs_super.haskell.lib.dontHaddock (pkgs_super.haskell.lib.dontCheck (
-                #   self.callCabal2nix "libxml-sax" ../libxml-sax {}));
               };
             };
           };

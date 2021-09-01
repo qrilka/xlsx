@@ -439,6 +439,11 @@ type RowIndex = Int
 type ColIndex = Int
 
 #ifdef USE_MICROLENS
+-- Since micro-lens denies the existence of prisms,
+-- I pasted the splice that's generated from makePrisms,
+-- then I copied over the definitions from Control.Lens for the prism
+-- function as well.
+-- Essentially this is doing the template haskell by hand.
 type Prism s t a b = forall p f. (Choice p, Applicative f) => p a (f b) -> p s (f t)
 type Prism' s a = Prism s s a a
 
