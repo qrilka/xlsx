@@ -73,7 +73,6 @@ import Lens.Micro.TH
 import Data.Profunctor(dimap)
 import Data.Profunctor.Choice
 #else
-import Control.Lens.TH
 #endif
 import Control.DeepSeq (NFData)
 import qualified Data.ByteString.Lazy as L
@@ -110,7 +109,8 @@ import Codec.Xlsx.Writer.Internal
 #ifdef USE_MICROLENS
 import Lens.Micro
 #else
-import Control.Lens hiding ((.=))
+import Control.Lens (lens, Lens', makeLenses)
+import Control.Lens.TH (makePrisms)
 #endif
 
 -- | Height of a row in points (1/72in)
