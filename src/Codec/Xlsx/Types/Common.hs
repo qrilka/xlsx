@@ -251,23 +251,38 @@ baseDate :: DateBase -> Day
 baseDate DateBase1900 = fromGregorian 1899 12 30
 baseDate DateBase1904 = fromGregorian 1904 1 1
 
--- | Convertts serial value into datetime according to the specified
--- date base
+-- | Converts serial value into datetime according to the specified
+-- date base. Because Excel treats 1900 as a leap year even though it isn't,
+-- this function converts any numbers that represent some time in 1900-02-29
+-- in Excel to @UTCTime@ 1900-03-01 00:00.
 --
 -- > show (dateFromNumber DateBase1900 42929.75) == "2017-07-13 18:00:00 UTC"
+-- > show (dateFromNumber DateBase1900 60) == "1900-03-01 00:00:00 UTC"
+-- > show (dateFromNumber DateBase1900 61) == "1900-03-01 00:00:00 UTC"
 dateFromNumber :: RealFrac t => DateBase -> t -> UTCTime
-dateFromNumber b d = UTCTime day diffTime
+dateFromNumber b d
+  | isBadFeb29 = marchFirst1900
+  | otherwise = UTCTime day diffTime
   where
     (numberOfDays, fractionOfOneDay) = properFraction d
-    day = addDays numberOfDays $ baseDate b
+    day = addDays correctedNumberOfDays $ baseDate b
     diffTime = picosecondsToDiffTime (round (fractionOfOneDay * 24*60*60*1E12))
+    isBadFeb29 = b == DateBase1900 && d >= 60 && d < 61 -- 60 is Excel's 2020-02-29 00:00 and 61 is Excel's 2020-03-01
+    marchFirst1900 = UTCTime (fromGregorian 1900 3 1) 0
+    correctedNumberOfDays = if b == DateBase1900 && d < 60 then numberOfDays + 1 else numberOfDays
 
 -- | Converts datetime into serial value
 dateToNumber :: Fractional a => DateBase -> UTCTime -> a
 dateToNumber b (UTCTime day diffTime) = numberOfDays + fractionOfOneDay
   where
-    numberOfDays = fromIntegral (diffDays day $ baseDate b)
+    numberOfDays = fromIntegral (diffDays excel1900CorrectedDay $ baseDate b)
     fractionOfOneDay = realToFrac diffTime / (24 * 60 * 60)
+    -- For historical reasons, Excel thinks 1900 is a leap year (https://docs.microsoft.com/en-gb/office/troubleshoot/excel/wrongly-assumes-1900-is-leap-year).
+    -- So dates strictly before March 1st 1900 need to be corrected.
+    marchFirst1900              = fromGregorian 1900 3 1
+    excel1900CorrectedDay = if day < marchFirst1900
+      then addDays (-1) day
+      else day
 
 {-------------------------------------------------------------------------------
   Parsing
