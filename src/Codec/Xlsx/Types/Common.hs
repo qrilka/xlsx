@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Codec.Xlsx.Types.Common
   ( CellRef(..)
   , singleCellRef
@@ -259,17 +260,20 @@ baseDate DateBase1904 = fromGregorian 1904 1 1
 -- > show (dateFromNumber DateBase1900 42929.75) == "2017-07-13 18:00:00 UTC"
 -- > show (dateFromNumber DateBase1900 60) == "1900-03-01 00:00:00 UTC"
 -- > show (dateFromNumber DateBase1900 61) == "1900-03-01 00:00:00 UTC"
-dateFromNumber :: RealFrac t => DateBase -> t -> UTCTime
+dateFromNumber :: forall t. RealFrac t => DateBase -> t -> UTCTime
 dateFromNumber b d
-  | isBadFeb29 = marchFirst1900
-  | otherwise = UTCTime day diffTime
+  -- 60 is Excel's 2020-02-29 00:00 and 61 is Excel's 2020-03-01
+  | b == DateBase1900 && d < 60            = getUTCTime (d + 1)
+  | b == DateBase1900 && d >= 60 && d < 61 = getUTCTime (61 :: t)
+  | otherwise                              = getUTCTime d
   where
-    (numberOfDays, fractionOfOneDay) = properFraction d
-    day = addDays correctedNumberOfDays $ baseDate b
-    diffTime = picosecondsToDiffTime (round (fractionOfOneDay * 24*60*60*1E12))
-    isBadFeb29 = b == DateBase1900 && d >= 60 && d < 61 -- 60 is Excel's 2020-02-29 00:00 and 61 is Excel's 2020-03-01
-    marchFirst1900 = UTCTime (fromGregorian 1900 3 1) 0
-    correctedNumberOfDays = if b == DateBase1900 && d < 60 then numberOfDays + 1 else numberOfDays
+    getUTCTime n =
+      let
+        (numberOfDays, fractionOfOneDay) = properFraction n
+        day = addDays numberOfDays $ baseDate b
+        diffTime = picosecondsToDiffTime (round (fractionOfOneDay * 24*60*60*1E12))
+      in
+        UTCTime day diffTime
 
 -- | Converts datetime into serial value
 dateToNumber :: Fractional a => DateBase -> UTCTime -> a

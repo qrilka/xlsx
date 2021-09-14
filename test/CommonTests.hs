@@ -32,6 +32,7 @@ tests =
         dateFromNumber DateBase1900 60.0 @?= read "1900-03-01 00:00:00 UTC"
         dateFromNumber DateBase1900 60.5 @?= read "1900-03-01 00:00:00 UTC"
         dateFromNumber DateBase1900 61 @?= read "1900-03-01 00:00:00 UTC"
+        dateFromNumber DateBase1900 61.5 @?= read "1900-03-01 12:00:00 UTC"
         dateFromNumber DateBase1900 62 @?= read "1900-03-02 00:00:00 UTC"
         dateFromNumber DateBase1904 (-3800.0) @?= read "1893-08-05 00:00:00 UTC"
         dateFromNumber DateBase1904 0.0 @?= read "1904-01-01 00:00:00 UTC"
