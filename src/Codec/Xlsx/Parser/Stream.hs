@@ -39,11 +39,13 @@ module Codec.Xlsx.Parser.Stream
   ( XlsxM
   , runXlsxM
   , WorkbookInfo(..)
+  , SheetInfo(..)
   , wiSheets
   , getWorkbookInfo
   , CellRow
   , SheetItem(..)
   , readSheet
+  , readSheetByName
   , countRowsInSheet
   , collectItems
   -- ** `SheetItem` lenses
@@ -90,6 +92,7 @@ import qualified Data.IntMap.Strict as IntMap
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text                       (Text)
+import qualified Data.Text as T
 import qualified Data.Text.Read                  as Read
 import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.Text.Lazy as LT
@@ -97,6 +100,7 @@ import           Data.Traversable                (for)
 import           Data.XML.Types
 import           GHC.Generics
 import Codec.Xlsx.Parser.Internal
+import           Text.Read (readMaybe)
 
 import Text.XML.Expat.SAX as Hexpat
 import Text.XML.Expat.Internal.IO as Hexpat
@@ -167,11 +171,21 @@ makeLenses 'MkSharedStringState
 type HasSheetState = MonadState SheetState
 type HasSharedStringState = MonadState SharedStringState
 
+-- | Represents sheets from the workbook.xml file. E.g.
+-- <sheet name="Data" sheetid="1" state="hidden" r:id="rId1" /
+data SheetInfo = SheetInfo
+  { sheetInfoName :: Text,
+    -- | The number of the r:id attribute value. This number
+    -- corresponds to the <N> of the corresponding file
+    -- xl/worksheets/sheet<N>.xml
+    sheetInfoRelId :: Int,
+    sheetInfoSheetId :: Int
+  } deriving (Show, Eq)
+
 -- | Information about the workbook contained in xl/workbook.xml
 -- (currently a subset)
 data WorkbookInfo = WorkbookInfo
-  { _wiSheets :: Map Int Text
-  -- ^ Map from the sheet number (AKA sheetId) to the sheet name
+  { _wiSheets :: [SheetInfo]
   } deriving Show
 makeLenses 'WorkbookInfo
 
@@ -270,16 +284,18 @@ getWorkbookInfo = do
     Nothing -> do
       sel <- liftZip $ Zip.mkEntrySelector "xl/workbook.xml"
       src <- liftZip $ Zip.getEntrySource sel
-      sheets <- runExpat mempty src $ \evs -> forM_ evs $ \case
+      sheets <- runExpat [] src $ \evs -> forM_ evs $ \case
         StartElement ("sheet" :: ByteString) attrs -> do
           nm <- maybe (throwM MalformedWorkbook) pure $ lookup ("name" :: ByteString) attrs
           sheetId <- maybe (throwM MalformedWorkbook) pure $ lookup "sheetId" attrs
+          rId <- maybe (throwM MalformedWorkbook) pure $ lookup "r:id" attrs >>= parseRelId
           sheetNum <- either (const $ throwM MalformedWorkbook) pure $ eitherDecimal sheetId
-          modify' (M.insert sheetNum nm)
+          modify' (SheetInfo nm rId sheetNum :)
         _ -> pure ()
       let info = WorkbookInfo sheets
       liftIO $ writeIORef ref $ Just info
       pure info
+  where parseRelId = readMaybe . T.unpack . T.drop 3 -- e.g. "rId3"
 
 type HexpatEvent = SAXEvent ByteString Text
 
@@ -365,8 +381,26 @@ collectItems  sheetNumber = do
   void $ readSheet sheetNumber $ \item -> liftIO (modifyIORef' res (item :))
   fmap reverse $ liftIO $ readIORef res
 
+readSheetByName ::
+  -- | Case-insensitive sheet name
+  Text ->
+  -- | Function to consume the sheet's rows
+  (SheetItem -> IO ()) ->
+  -- | Returns False if sheet doesn't exist, or True otherwise
+  XlsxM Bool
+readSheetByName sheetName inner = do
+  wi <- getWorkbookInfo
+  -- The Excel UI does not allow a user to create two sheets whose
+  -- names differ only in alphabetic case (at least for ascii...)
+  let sheetNameCI = T.toLower sheetName
+  case find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi of
+    Nothing -> pure False
+    Just sheetInfo ->
+      readSheet (sheetInfoRelId sheetInfo) inner
+
 readSheet ::
-  -- | Sheet number
+  -- | Sheet r:id, as represented by 'sheetInfoRelId' (obtainable via
+  -- 'getWorkbookInfo')
   Int ->
   -- | Function to consume the sheet's rows
   (SheetItem -> IO ()) ->
