@@ -7,6 +7,8 @@ module CommonTests
   ) where
 
 import Data.Fixed (Pico, Fixed(..), E12)
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (UTCTime(..))
 import Test.Tasty.SmallCheck (testProperty)
 import Test.SmallCheck.Series
        (Positive(..), Serial(..), newtypeCons, cons0, (\/))
@@ -39,8 +41,14 @@ tests =
         dateFromNumber DateBase1904 2225.0 @?= read "1910-02-03 00:00:00 UTC"
         dateFromNumber DateBase1904 37287.0 @?= read "2006-02-01 00:00:00 UTC"
         dateFromNumber DateBase1904 2957003.0 @?= read "9999-12-31 00:00:00 UTC"
+     , testCase "Converting dates in the vicinity of 1900-03-01 to numbers" $ do
+        -- Note how the fact that 1900-02-29 exists for Excel forces us to skip 60
+        dateToNumber DateBase1900 (UTCTime (fromGregorian 1900 2 28) 0) @?= (59 :: Double)
+        dateToNumber DateBase1900 (UTCTime (fromGregorian 1900 3 1) 0) @?= (61 :: Double)
      , testProperty "dateToNumber . dateFromNumber == id" $
-       \b (n :: Pico) -> n == dateToNumber b (dateFromNumber b $ n)
+       -- Because excel treats 1900 as a leap year, dateToNumber and dateFromNumber
+       -- aren't inverses of each other in the range n E [60, 61[ for DateBase1900
+       \b (n :: Pico) -> (n >= 60 && n < 61 && b == DateBase1900) || n == dateToNumber b (dateFromNumber b $ n)
     ]
 
 instance Monad m => Serial m (Fixed E12) where
