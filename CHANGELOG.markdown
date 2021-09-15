@@ -1,3 +1,7 @@
+0.8.5
+------------
+* Treat 1900 as a leap year like Excel does
+
 0.8.4
 ------------
 * dropped support for GHC 8.0.* and 8.2.* and added support for GHC 8.10.* and 9.0.*
