@@ -264,15 +264,20 @@ getOrParseSharedStrings = do
     Just strs -> pure strs
     Nothing -> do
       sharedStrsSel <- liftZip $ Zip.mkEntrySelector "xl/sharedStrings.xml"
-      let state0 = initialSharedString
-      byteSrc <- liftZip $ Zip.getEntrySource sharedStrsSel
-      st <- runExpat state0 byteSrc $ \evs -> forM_ evs $ \ev -> do
-        mTxt <- parseSharedString ev
-        for_ mTxt $ \txt ->
-          ss_list %= (`DL.snoc` txt)
-      let sharedStrings = V.fromList $ DL.toList $ _ss_list st
-      liftIO $ writeIORef sharedStringsRef $ Just sharedStrings
-      pure sharedStrings
+      hasSharedStrs <- liftZip $ Zip.doesEntryExist sharedStrsSel
+      sharedStrs <-
+        if not hasSharedStrs
+        then pure mempty
+        else do
+          let state0 = initialSharedString
+          byteSrc <- liftZip $ Zip.getEntrySource sharedStrsSel
+          st <- runExpat state0 byteSrc $ \evs -> forM_ evs $ \ev -> do
+            mTxt <- parseSharedString ev
+            for_ mTxt $ \txt ->
+              ss_list %= (`DL.snoc` txt)
+          pure $ V.fromList $ DL.toList $ _ss_list st
+      liftIO $ writeIORef sharedStringsRef $ Just sharedStrs
+      pure sharedStrs
 
 -- | Returns information about the workbook, found in
 -- xl/workbook.xml. The result is cached so the XML will only be
