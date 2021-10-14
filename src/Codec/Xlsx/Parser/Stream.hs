@@ -47,6 +47,7 @@ module Codec.Xlsx.Parser.Stream
   , readSheet
   , readSheetByName
   , countRowsInSheet
+  , countRowsInSheetByName
   , collectItems
   -- ** `SheetItem` lenses
   , si_sheet_index
@@ -419,10 +420,11 @@ readSheet sheetNumber inner = do
       runExpatForSheet sheetState0 sourceSheetXml inner
       pure True
 
--- | Returns number of rows in the given sheet (identified by sheet
--- number), or Nothing if the sheet does not exist. Does not perform a
--- full parse of the XML into 'SheetItem's, so it should be more
--- efficient than counting via 'readSheet'.
+-- | Returns number of rows in the given sheet (identified by the
+-- sheet's relational ID, AKA r:id, AKA 'sheetInfoRelId'), or Nothing
+-- if the sheet does not exist. Does not perform a full parse of the
+-- XML into 'SheetItem's, so it should be more efficient than counting
+-- via 'readSheet'.
 countRowsInSheet :: Int -> XlsxM (Maybe Int)
 countRowsInSheet sheetNumber = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
@@ -432,6 +434,15 @@ countRowsInSheet sheetNumber = do
       forM_ evs $ \case
         StartElement "row" _ -> modify' (+1)
         _ -> pure ()
+
+-- | Same as 'countRowsInSheet', except here the sheet is identified by
+-- case-insensitive name.
+countRowsInSheetByName :: Text -> XlsxM (Maybe Int)
+countRowsInSheetByName sheetName = do
+  wi <- getWorkbookInfo
+  let sheetNameCI = T.toLower sheetName
+      mRelId = find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi
+  maybe (pure Nothing) (countRowsInSheet . sheetInfoRelId) mRelId
 
 -- | Return row from the state and empty it
 popRow :: HasSheetState m => m CellRow
