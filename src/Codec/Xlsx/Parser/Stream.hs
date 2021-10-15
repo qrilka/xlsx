@@ -173,17 +173,13 @@ type HasSheetState = MonadState SheetState
 type HasSharedStringState = MonadState SharedStringState
 
 -- | Represents sheets from the workbook.xml file. E.g.
---
---  <sheet name="Data" sheetId="1" state="hidden" r:id="rId1" />
---
--- The sheetId and r:id numbers may be different.
+-- <sheet name="Data" sheetid="1" state="hidden" r:id="rId1" /
 data SheetInfo = SheetInfo
   { sheetInfoName :: Text,
-    -- | The number of the r:id attribute value.
+    -- | The number of the r:id attribute value. This number
+    -- corresponds to the <N> of the corresponding file
+    -- xl/worksheets/sheet<N>.xml
     sheetInfoRelId :: Int,
-    -- | This sheetId number corresponds to the <N> of the
-    -- corresponding file xl/worksheets/sheet<N>.xml. Functions such
-    -- as 'readSheet' use the sheetid attribute to access the sheet
     sheetInfoSheetId :: Int
   } deriving (Show, Eq)
 
@@ -401,10 +397,10 @@ readSheetByName sheetName inner = do
   case find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi of
     Nothing -> pure False
     Just sheetInfo ->
-      readSheet (sheetInfoSheetId sheetInfo) inner
+      readSheet (sheetInfoRelId sheetInfo) inner
 
 readSheet ::
-  -- | Sheet sheetId, as represented by 'sheetInfoSheetId' (obtainable via
+  -- | Sheet r:id, as represented by 'sheetInfoRelId' (obtainable via
   -- 'getWorkbookInfo')
   Int ->
   -- | Function to consume the sheet's rows
@@ -425,7 +421,7 @@ readSheet sheetNumber inner = do
       pure True
 
 -- | Returns number of rows in the given sheet (identified by the
--- sheet's sheetId attribute, AKA 'sheetInfoSheetId'), or Nothing
+-- sheet's relational ID, AKA r:id, AKA 'sheetInfoRelId'), or Nothing
 -- if the sheet does not exist. Does not perform a full parse of the
 -- XML into 'SheetItem's, so it should be more efficient than counting
 -- via 'readSheet'.
@@ -445,8 +441,8 @@ countRowsInSheetByName :: Text -> XlsxM (Maybe Int)
 countRowsInSheetByName sheetName = do
   wi <- getWorkbookInfo
   let sheetNameCI = T.toLower sheetName
-      mSheetInfo = find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi
-  maybe (pure Nothing) (countRowsInSheet . sheetInfoSheetId) mSheetInfo
+      mRelId = find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi
+  maybe (pure Nothing) (countRowsInSheet . sheetInfoRelId) mRelId
 
 -- | Return row from the state and empty it
 popRow :: HasSheetState m => m CellRow
