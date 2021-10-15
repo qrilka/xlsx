@@ -42,6 +42,7 @@ module Codec.Xlsx.Parser.Stream
   , SheetInfo(..)
   , wiSheets
   , getWorkbookInfo
+  , getWorkbookRelationships
   , CellRow
   , SheetItem(..)
   , readSheet
@@ -65,7 +66,9 @@ module Codec.Xlsx.Parser.Stream
 import qualified "zip" Codec.Archive.Zip as Zip
 import qualified Data.Vector as V
 import           Codec.Xlsx.Types.Cell
+import           Codec.Xlsx.Types.Internal (RefId(..))
 import           Codec.Xlsx.Types.Common
+import           Codec.Xlsx.Types.Internal.Relationships (Relationship(..), Relationships(..))
 import           Conduit                         (PrimMonad, (.|))
 import qualified Conduit                         as C
 #ifdef USE_MICROLENS
@@ -90,7 +93,6 @@ import           Data.Foldable
 import           Data.IORef
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text                       (Text)
 import qualified Data.Text as T
@@ -101,7 +103,6 @@ import           Data.Traversable                (for)
 import           Data.XML.Types
 import           GHC.Generics
 import Codec.Xlsx.Parser.Internal
-import           Text.Read (readMaybe)
 
 import Text.XML.Expat.SAX as Hexpat
 import Text.XML.Expat.Internal.IO as Hexpat
@@ -146,7 +147,7 @@ data ExcelValueType
 -- | State for parsing sheets
 data SheetState = MkSheetState
   { _ps_row            :: ~CellRow        -- ^ Current row
-  , _ps_sheet_index    :: Int
+  , _ps_sheet_index    :: Int             -- ^ Current sheet ID (AKA 'sheetInfoSheetId')
   , _ps_cell_row_index :: Int             -- ^ Current row number
   , _ps_cell_col_index :: Int             -- ^ Current column number
   , _ps_cell_style     :: Maybe Int
@@ -173,13 +174,12 @@ type HasSheetState = MonadState SheetState
 type HasSharedStringState = MonadState SharedStringState
 
 -- | Represents sheets from the workbook.xml file. E.g.
--- <sheet name="Data" sheetid="1" state="hidden" r:id="rId1" /
+-- <sheet name="Data" sheetId="1" state="hidden" r:id="rId2" /
 data SheetInfo = SheetInfo
   { sheetInfoName :: Text,
-    -- | The number of the r:id attribute value. This number
-    -- corresponds to the <N> of the corresponding file
-    -- xl/worksheets/sheet<N>.xml
-    sheetInfoRelId :: Int,
+    -- | The r:id attribute value.
+    sheetInfoRelId :: RefId,
+    -- | The sheetId attribute value
     sheetInfoSheetId :: Int
   } deriving (Show, Eq)
 
@@ -193,6 +193,7 @@ makeLenses 'WorkbookInfo
 data XlsxMState = MkXlsxMState
   { _xs_shared_strings :: IORef (Maybe (V.Vector Text))
   , _xs_workbook_info :: IORef (Maybe WorkbookInfo)
+  , _xs_relationships :: IORef (Maybe Relationships)
   }
 
 newtype XlsxM a = XlsxM {_unXlsxM :: ReaderT XlsxMState Zip.ZipArchive a}
@@ -248,7 +249,8 @@ parseSharedString = \case
 -- | Run a series of actions on an Xlsx file
 runXlsxM :: MonadIO m => FilePath -> XlsxM a -> m a
 runXlsxM xlsxFile (XlsxM act) = do
-  env0 <- liftIO $ MkXlsxMState <$> newIORef Nothing <*> newIORef Nothing
+  env0 <- liftIO $ MkXlsxMState <$>
+    newIORef Nothing <*> newIORef Nothing <*> newIORef Nothing
   Zip.withArchive xlsxFile $ runReaderT act env0
 
 liftZip :: Zip.ZipArchive a -> XlsxM a
@@ -289,16 +291,60 @@ getWorkbookInfo = do
         StartElement ("sheet" :: ByteString) attrs -> do
           nm <- maybe (throwM MalformedWorkbook) pure $ lookup ("name" :: ByteString) attrs
           sheetId <- maybe (throwM MalformedWorkbook) pure $ lookup "sheetId" attrs
-          rId <- maybe (throwM MalformedWorkbook) pure $ lookup "r:id" attrs >>= parseRelId
+          rId <- maybe (throwM MalformedWorkbook) pure $ lookup "r:id" attrs
           sheetNum <- either (const $ throwM MalformedWorkbook) pure $ eitherDecimal sheetId
-          modify' (SheetInfo nm rId sheetNum :)
+          modify' (SheetInfo nm (RefId rId) sheetNum :)
         _ -> pure ()
       let info = WorkbookInfo sheets
       liftIO $ writeIORef ref $ Just info
       pure info
-  where parseRelId = readMaybe . T.unpack . T.drop 3 -- e.g. "rId3"
+
+-- | Gets relationships for the workbook (this means the filenames in
+-- the relationships map are relative to "xl/" base path within the
+-- zip file.
+--
+-- The relationships xml file will only be parsed once when called
+-- multiple times within a larger XlsxM action.
+getWorkbookRelationships :: XlsxM Relationships
+getWorkbookRelationships = do
+  ref <- asks _xs_relationships
+  mInfo <- liftIO $ readIORef ref
+  case mInfo of
+    Just info -> pure info
+    Nothing -> do
+      sel <- liftZip $ Zip.mkEntrySelector "xl/_rels/workbook.xml.rels"
+      src <- liftZip $ Zip.getEntrySource sel
+      rels <- fmap Relationships $ runExpat mempty src $ \evs -> forM_ evs $ \case
+        StartElement ("Relationship" :: ByteString) attrs -> do
+          rId <- maybe (throwM MalformedWorkbook) pure $ lookup ("Id" :: ByteString) attrs
+          rTarget <- maybe (throwM MalformedWorkbook) pure $ lookup "Target" attrs
+          rType <- maybe (throwM MalformedWorkbook) pure $ lookup "Type" attrs
+          modify' $ M.insert (RefId rId) $
+            Relationship { relType = rType,
+                           relTarget = T.unpack rTarget
+                          }
+        _ -> pure ()
+      liftIO $ writeIORef ref $ Just rels
+      pure rels
 
 type HexpatEvent = SAXEvent ByteString Text
+
+relIdToEntrySelector :: RefId -> XlsxM (Maybe Zip.EntrySelector)
+relIdToEntrySelector rid = do
+  Relationships rels <- getWorkbookRelationships
+  for (M.lookup rid rels) $ \rel -> do
+    Zip.mkEntrySelector $ "xl/" <> relTarget rel
+
+sheetIdToRelId :: Int -> XlsxM (Maybe RefId)
+sheetIdToRelId sheetId = do
+  WorkbookInfo sheets <- getWorkbookInfo
+  pure $ sheetInfoRelId <$> find ((== sheetId) . sheetInfoSheetId) sheets
+
+sheetIdToEntrySelector :: Int -> XlsxM (Maybe Zip.EntrySelector)
+sheetIdToEntrySelector sheetId = do
+  sheetIdToRelId sheetId >>= \case
+    Nothing -> pure Nothing
+    Just rid -> relIdToEntrySelector rid
 
 -- If the given sheet number exists, returns Just a conduit source of the stream
 -- of XML events in a particular sheet. Returns Nothing when the sheet doesn't
@@ -306,19 +352,21 @@ type HexpatEvent = SAXEvent ByteString Text
 {-# SCC getSheetXmlSource #-}
 getSheetXmlSource ::
   (PrimMonad m, MonadThrow m, C.MonadResource m) =>
-  -- | The sheet number
   Int ->
   XlsxM (Maybe (ConduitT () ByteString m ()))
-getSheetXmlSource sheetNumber = do
+getSheetXmlSource sheetId = do
   -- TODO: The Zip library may throw exceptions that aren't exposed from this
   -- module, so downstream library users would need to add the 'zip' package to
   -- handle them. Consider re-wrapping zip library exceptions, or just
   -- re-export them?
-  sheetSel <- liftZip $ Zip.mkEntrySelector $ "xl/worksheets/sheet" <> show sheetNumber <> ".xml"
-  sheetExists <- liftZip $ Zip.doesEntryExist sheetSel
-  if not sheetExists
-    then pure Nothing
-    else Just <$> liftZip (Zip.getEntrySource sheetSel)
+  mSheetSel <- sheetIdToEntrySelector sheetId
+  sheetExists <- maybe (pure False) (liftZip . Zip.doesEntryExist) mSheetSel
+  case mSheetSel of
+    Just sheetSel
+      | sheetExists ->
+          Just <$> liftZip (Zip.getEntrySource sheetSel)
+    _ -> pure Nothing
+
 
 {-# SCC runExpat #-}
 runExpat :: forall state tag text.
@@ -375,12 +423,14 @@ runExpatForSheet initState byteSource inner =
 --   useful for cases were memory is of no concern but a sheetitem
 --   type in a list is needed.
 collectItems ::
+  -- | Sheet ID (the sheetId attribute of the sheet element)
   Int ->
   XlsxM [SheetItem]
-collectItems  sheetNumber = do
-  res <- liftIO $ newIORef []
-  void $ readSheet sheetNumber $ \item -> liftIO (modifyIORef' res (item :))
-  fmap reverse $ liftIO $ readIORef res
+collectItems sheetId = do
+ res <- liftIO $ newIORef []
+ void $ readSheet sheetId $ \item ->
+   liftIO (modifyIORef' res (item :))
+ fmap reverse $ liftIO $ readIORef res
 
 readSheetByName ::
   -- | Case-insensitive sheet name
@@ -397,38 +447,39 @@ readSheetByName sheetName inner = do
   case find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi of
     Nothing -> pure False
     Just sheetInfo ->
-      readSheet (sheetInfoRelId sheetInfo) inner
+      readSheet (sheetInfoSheetId sheetInfo) inner
 
 readSheet ::
-  -- | Sheet r:id, as represented by 'sheetInfoRelId' (obtainable via
-  -- 'getWorkbookInfo')
+  -- | Sheet attribute sheetId, as represented by 'sheetInfoSheetId'
+  -- (obtainable via 'getWorkbookInfo'). Or use 'readSheetByName'.
   Int ->
   -- | Function to consume the sheet's rows
   (SheetItem -> IO ()) ->
   -- | Returns False if sheet doesn't exist, or True otherwise
   XlsxM Bool
-readSheet sheetNumber inner = do
+readSheet sheetId inner = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
-    getSheetXmlSource sheetNumber
+    getSheetXmlSource sheetId
+  let
   case mSrc of
     Nothing -> pure False
     Just sourceSheetXml -> do
       sharedStrs <- getOrParseSharedStrings
       let sheetState0 = initialSheetState
             & ps_shared_strings .~ sharedStrs
-            & ps_sheet_index .~ sheetNumber
+            & ps_sheet_index .~ sheetId
       runExpatForSheet sheetState0 sourceSheetXml inner
       pure True
 
 -- | Returns number of rows in the given sheet (identified by the
--- sheet's relational ID, AKA r:id, AKA 'sheetInfoRelId'), or Nothing
+-- sheet's ID, AKA the sheetId attribute, AKA 'sheetInfoSheetId'), or Nothing
 -- if the sheet does not exist. Does not perform a full parse of the
 -- XML into 'SheetItem's, so it should be more efficient than counting
 -- via 'readSheet'.
 countRowsInSheet :: Int -> XlsxM (Maybe Int)
-countRowsInSheet sheetNumber = do
+countRowsInSheet sheetId = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
-    getSheetXmlSource sheetNumber
+    getSheetXmlSource sheetId
   for mSrc $ \sourceSheetXml -> do
     runExpat @Int @ByteString @ByteString 0 sourceSheetXml $ \evs ->
       forM_ evs $ \case
@@ -441,8 +492,8 @@ countRowsInSheetByName :: Text -> XlsxM (Maybe Int)
 countRowsInSheetByName sheetName = do
   wi <- getWorkbookInfo
   let sheetNameCI = T.toLower sheetName
-      mRelId = find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi
-  maybe (pure Nothing) (countRowsInSheet . sheetInfoRelId) mRelId
+      mInfo = find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi
+  maybe (pure Nothing) (countRowsInSheet . sheetInfoSheetId) mInfo
 
 -- | Return row from the state and empty it
 popRow :: HasSheetState m => m CellRow
