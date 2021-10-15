@@ -42,7 +42,6 @@ module Codec.Xlsx.Parser.Stream
   , SheetInfo(..)
   , wiSheets
   , getWorkbookInfo
-  , getWorkbookRelationships
   , CellRow
   , SheetItem(..)
   , readSheet
