@@ -21,4 +21,4 @@ let
   };
 
   hpkgs = pkgs.haskell.packages."${compiler}";
-in pkgs.haskell.lib.dontCheck (hpkgs.callCabal2nix "xlsx" ./. {})
+in hpkgs.callCabal2nix "xlsx" ./. {}
