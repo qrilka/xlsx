@@ -39,6 +39,7 @@ import qualified Data.ByteString  as BS
 import           Data.Map                                    (Map)
 import qualified Data.Map                                    as M
 import qualified Data.Map                                    as Map
+import qualified Data.IntMap.Strict                          as IM
 import           Data.Maybe                                  (mapMaybe)
 import           Data.Text                                   (Text)
 import qualified Data.Text                                   as T
@@ -91,6 +92,10 @@ tests =
                   $ readWrite bigWorkbook
       -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
       -- TODO forall SheetItem write that can be read
+      ],
+
+      testGroup "Reader/inline strings"
+      [ testCase "Can parse row with inline strings" inlineStringsAreParsed
       ]
     ]
 
@@ -181,5 +186,30 @@ bigWorkbook = set xlSheets sheets def
                   ,((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
                   ]
               )]
+
+inlineStringsAreParsed :: IO ()
+inlineStringsAreParsed = do
+  items <- runXlsxM "data/inline-strings.xlsx" $ collectItems 1
+  let expected =
+        [ IM.fromList
+            [ ( 1,
+                Cell
+                  { _cellStyle = Nothing,
+                    _cellValue = Just (CellText "My Inline String"),
+                    _cellComment = Nothing,
+                    _cellFormula = Nothing
+                  }
+              ),
+              ( 2,
+                Cell
+                  { _cellStyle = Nothing,
+                    _cellValue = Just (CellText "two"),
+                    _cellComment = Nothing,
+                    _cellFormula = Nothing
+                  }
+              )
+            ]
+        ]
+  expected @==? map _si_cell_row items
 
 #endif
