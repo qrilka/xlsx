@@ -73,9 +73,9 @@ import Text.XML.Stream.Render
 import Text.XML.Unresolved (elementToEvents)
 
 
-mapFold :: MonadState SharedStringState m => SheetItem  -> m [(Text,Int)]
-mapFold  row =
-  traverse getSetNumber items
+upsertSharedStrings :: MonadState SharedStringState m => SheetItem  -> m [(Text,Int)]
+upsertSharedStrings row =
+  traverse upsertSharedString items
   where
     items :: [Text]
     items = row ^.. si_cell_row . traversed . cellValue . _Just . _CellText
@@ -95,7 +95,7 @@ sharedStrings = void sharedStringsStream .| CL.foldMap (uncurry Map.singleton)
 sharedStringsStream :: Monad m  =>
   ConduitT SheetItem (Text, Int) m (Map Text Int)
 sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString $
-  CL.mapFoldableM mapFold
+  CL.mapFoldableM upsertSharedStrings
 
 -- note that currently we support only a single sheet.
 data WriteSettings = MkWriteSettings

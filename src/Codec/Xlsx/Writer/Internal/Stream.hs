@@ -6,7 +6,7 @@
 --   These are exported because they're tested like this.
 --   It's not expected a user would need this.
 module Codec.Xlsx.Writer.Internal.Stream
-  ( getSetNumber
+  ( upsertSharedString
   , initialSharedString
   , string_map
   , SharedStringState(..)
@@ -33,8 +33,8 @@ initialSharedString = MkSharedStringState mempty
 
 -- properties:
 -- for a list of [text], every unique text gets a unique number.
-getSetNumber :: MonadState SharedStringState m => Text -> m (Text,Int)
-getSetNumber current = do
+upsertSharedString :: MonadState SharedStringState m => Text -> m (Text,Int)
+upsertSharedString current = do
   strings  <- use string_map
 
   let mIdx :: Maybe Int
