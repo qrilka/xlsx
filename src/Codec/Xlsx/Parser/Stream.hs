@@ -140,7 +140,7 @@ data ExcelValueType
   | TN      -- ^ number
   | TB      -- ^ boolean
   | TE      -- ^ excell error, the sheet can contain error values, for example if =1/0, causes division by zero
-  | Untyped -- ^ Not all values are types
+  | Untyped -- ^ Not all values have types
   deriving stock (Generic, Show)
 
 -- | State for parsing sheets
