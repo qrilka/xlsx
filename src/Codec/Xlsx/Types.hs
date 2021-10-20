@@ -123,6 +123,10 @@ data RowHeight
 instance NFData RowHeight
 
 #ifdef USE_MICROLENS
+-- Since micro-lens denies the existence of prisms,
+-- I pasted the splice that's generated from makePrisms,
+-- then I copied over the definitions from Control.Lens for the prism
+-- function as well.
 type Prism s t a b = forall p f. (Choice p, Applicative f) => p a (f b) -> p s (f t)
 type Prism' s a = Prism s s a a
 

@@ -1,19 +1,6 @@
-{-# LANGUAGE ConstraintKinds     #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveAnyClass      #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE StrictData          #-}
 {-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts    #-}
 
 -- | Internal stream related functions.
 --   These are exported because they're tested like this.
