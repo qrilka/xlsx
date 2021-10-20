@@ -55,11 +55,9 @@ module Codec.Xlsx.Parser.Stream
   , si_cell_row
   -- * Errors
   , SheetErrors(..)
-  {-- TODO: check if these errors could be thrown exposed to API users or not
   , AddCellErrors(..)
   , CoordinateErrors(..)
   , TypeError(..)
-  --}
   ) where
 
 import qualified "zip" Codec.Archive.Zip as Zip
@@ -416,7 +414,7 @@ runExpatForSheet initState byteSource inner =
     handler evs = forM_ evs $ \ev -> do
       parseRes <- runExceptT $ matchHexpatEvent ev
       case parseRes of
-        Left err -> error $ "error after matchHexpatEvent: " <> show err
+        Left err -> throwM err
         Right (Just cellRow)
           | not (IntMap.null cellRow) -> do
               rowNum <- use ps_cell_row_index
