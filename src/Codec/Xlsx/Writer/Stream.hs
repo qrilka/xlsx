@@ -10,7 +10,7 @@
 {-# LANGUAGE CPP #-}
 
 -- | Writes Excel files from a stream, which allows creation of
---   large excell files while remaining in constant memory.
+--   large Excel files while remaining in constant memory.
 module Codec.Xlsx.Writer.Stream
   ( writeXlsx
   , writeXlsxWithSharedStrings
