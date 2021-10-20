@@ -7,38 +7,37 @@ module Main
   ( main
   ) where
 
-import           Control.Monad.State.Lazy
-import           Data.ByteString.Lazy                        (ByteString)
-import qualified Data.ByteString.Lazy                        as LB
-import           Data.Map                                    (Map)
-import qualified Data.Map                                    as M
-import           Data.Time.Clock.POSIX                       (POSIXTime)
-import qualified Data.Vector                                 as V
+import Control.Monad.State.Lazy
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as LB
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Time.Clock.POSIX (POSIXTime)
+import qualified Data.Vector as V
 import qualified StreamTests
-import           Text.RawString.QQ
-import           Text.XML
+import Text.RawString.QQ
+import Text.XML
 
-import           Test.Tasty                                  (defaultMain,
-                                                              testGroup)
-import           Test.Tasty.HUnit                            (testCase)
+import Test.Tasty (defaultMain, testGroup)
+import Test.Tasty.HUnit (testCase)
 
-import           Test.Tasty.HUnit                            ((@=?))
-import           TestXlsx
+import Test.Tasty.HUnit ((@=?))
+import TestXlsx
 
-import           Codec.Xlsx
-import           Codec.Xlsx.Formatted
-import           Codec.Xlsx.Types.Internal
-import           Codec.Xlsx.Types.Internal.CommentTable
-import           Codec.Xlsx.Types.Internal.CustomProperties  as CustomProperties
-import           Codec.Xlsx.Types.Internal.SharedStringTable
+import Codec.Xlsx
+import Codec.Xlsx.Formatted
+import Codec.Xlsx.Types.Internal
+import Codec.Xlsx.Types.Internal.CommentTable
+import Codec.Xlsx.Types.Internal.CustomProperties as CustomProperties
+import Codec.Xlsx.Types.Internal.SharedStringTable
 
-import           AutoFilterTests
-import           Common
-import           CommonTests
-import           CondFmtTests
-import           Diff
-import           DrawingTests
-import           PivotTableTests
+import AutoFilterTests
+import Common
+import CommonTests
+import CondFmtTests
+import Diff
+import DrawingTests
+import PivotTableTests
 
 main :: IO ()
 main = defaultMain $

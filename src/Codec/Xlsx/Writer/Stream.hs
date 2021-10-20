@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
@@ -7,7 +8,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StrictData          #-}
 {-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE CPP #-}
 
 -- | Writes Excel files from a stream, which allows creation of
 --   large Excel files while remaining in constant memory.
@@ -26,57 +26,51 @@ module Codec.Xlsx.Writer.Stream
   , sharedStringsStream
   ) where
 
-import           Codec.Archive.Zip.Conduit.UnZip
-import           Codec.Archive.Zip.Conduit.Zip
-import           Codec.Xlsx.Parser.Internal              (n_)
-import           Codec.Xlsx.Parser.Stream
-import           Codec.Xlsx.Types                        (ColumnsProperties (..),
-                                                          RowProperties (..),
-                                                          Styles (..),
-                                                          _AutomaticHeight,
-                                                          _CustomHeight,
-                                                          emptyStyles,
-                                                          rowHeightLens)
-import           Codec.Xlsx.Types.Cell
-import           Codec.Xlsx.Types.Common
-import           Codec.Xlsx.Types.Internal.Relationships (odr, pr)
-import           Codec.Xlsx.Types.SheetViews
-import           Codec.Xlsx.Writer.Internal              (nonEmptyElListSimple,
-                                                          toAttrVal, toElement,
-                                                          txtd, txti)
-import           Codec.Xlsx.Writer.Internal.Stream
-import           Conduit                                 (PrimMonad, yield,
-                                                          (.|))
-import qualified Conduit                                 as C
+import Codec.Archive.Zip.Conduit.UnZip
+import Codec.Archive.Zip.Conduit.Zip
+import Codec.Xlsx.Parser.Internal (n_)
+import Codec.Xlsx.Parser.Stream
+import Codec.Xlsx.Types (ColumnsProperties (..), RowProperties (..),
+                         Styles (..), _AutomaticHeight, _CustomHeight,
+                         emptyStyles, rowHeightLens)
+import Codec.Xlsx.Types.Cell
+import Codec.Xlsx.Types.Common
+import Codec.Xlsx.Types.Internal.Relationships (odr, pr)
+import Codec.Xlsx.Types.SheetViews
+import Codec.Xlsx.Writer.Internal (nonEmptyElListSimple, toAttrVal, toElement,
+                                   txtd, txti)
+import Codec.Xlsx.Writer.Internal.Stream
+import Conduit (PrimMonad, yield, (.|))
+import qualified Conduit as C
 #ifdef USE_MICROLENS
-import           Lens.Micro.Platform
-import           Data.Traversable.WithIndex
+import Data.Traversable.WithIndex
+import Lens.Micro.Platform
 #else
-import           Control.Lens
+import Control.Lens
 #endif
-import           Control.Monad.Catch
-import           Control.Monad.Reader.Class
-import           Control.Monad.State.Strict
-import           Data.ByteString                         (ByteString)
-import           Data.ByteString.Builder                 (Builder)
-import           Data.Coerce
-import           Data.Conduit                            (ConduitT)
-import qualified Data.Conduit.List                       as CL
-import           Data.Foldable                           (fold, traverse_)
-import           Data.List
-import           Data.Map.Strict                         (Map)
-import qualified Data.Map.Strict                         as Map
-import           Data.Maybe
-import           Data.Text                               (Text)
-import           Data.Time
-import           Data.Word
-import           Data.XML.Types
-import           Text.Printf
-import           Text.XML                                (toXMLElement)
-import qualified Text.XML                                as TXML
-import           Text.XML.Stream.Render
-import           Text.XML.Unresolved                     (elementToEvents)
+import Control.Monad.Catch
+import Control.Monad.Reader.Class
+import Control.Monad.State.Strict
+import Data.ByteString (ByteString)
+import Data.ByteString.Builder (Builder)
+import Data.Coerce
+import Data.Conduit (ConduitT)
+import qualified Data.Conduit.List as CL
+import Data.Foldable (fold, traverse_)
+import Data.List
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import Data.Maybe
+import Data.Text (Text)
 import qualified Data.Text as Text
+import Data.Time
+import Data.Word
+import Data.XML.Types
+import Text.Printf
+import Text.XML (toXMLElement)
+import qualified Text.XML as TXML
+import Text.XML.Stream.Render
+import Text.XML.Unresolved (elementToEvents)
 
 
 mapFold :: MonadState SharedStringState m => SheetItem  -> m [(Text,Int)]

@@ -1,6 +1,6 @@
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE CPP              #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell  #-}
 
 -- | Internal stream related functions.
 --   These are exported because they're tested like this.
@@ -14,14 +14,14 @@ module Codec.Xlsx.Writer.Internal.Stream
 
 
 #ifdef USE_MICROLENS
-import           Lens.Micro.Platform
+import Lens.Micro.Platform
 #else
-import           Control.Lens
+import Control.Lens
 #endif
-import           Control.Monad.State.Strict
-import           Data.Map.Strict            (Map)
-import           Data.Maybe
-import           Data.Text                  (Text)
+import Control.Monad.State.Strict
+import Data.Map.Strict (Map)
+import Data.Maybe
+import Data.Text (Text)
 
 newtype SharedStringState = MkSharedStringState
   { _string_map :: Map Text Int

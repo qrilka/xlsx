@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
+
 module Codec.Xlsx.Writer.Internal (
     -- * Rendering documents
     ToDocument(..)

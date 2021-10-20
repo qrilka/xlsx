@@ -11,10 +11,7 @@ module StreamTests
 
 #ifdef USE_MICROLENS
 
-import           Test.Tasty                                  (TestName,
-                                                              TestTree,
-                                                              testGroup)
-
+import Test.Tasty (TestName, TestTree, testGroup)
 tests :: TestTree
 tests = testGroup
   "I stubbed out the tests module for microlens \
@@ -24,38 +21,35 @@ tests = testGroup
 #else
 
 import Control.Exception
-import           Codec.Xlsx
-import           Codec.Xlsx.Parser.Stream
-import           Codec.Xlsx.Types.Common
-import           Codec.Xlsx.Types.Internal.SharedStringTable
-import           Conduit                                     ((.|))
-import qualified Conduit                                     as C
-import           Control.Exception                           (bracket)
-import           Control.Lens hiding (indexed)
-import           Data.Set.Lens
-import           Data.ByteString.Lazy                        (ByteString)
-import qualified Data.ByteString.Lazy                        as LB
-import qualified Data.ByteString  as BS
-import           Data.Map                                    (Map)
-import qualified Data.Map                                    as M
-import qualified Data.Map                                    as Map
-import qualified Data.IntMap.Strict                          as IM
-import           Data.Maybe                                  (mapMaybe)
-import           Data.Text                                   (Text)
-import qualified Data.Text                                   as T
-import qualified Data.Text                                   as Text
-import           Data.Vector                                 (Vector, indexed,
-                                                              toList)
-import           Diff
+import Codec.Xlsx
+import Codec.Xlsx.Parser.Stream
+import Codec.Xlsx.Types.Common
+import Codec.Xlsx.Types.Internal.SharedStringTable
+import Conduit ((.|))
+import qualified Conduit as C
+import Control.Exception (bracket)
+import Control.Lens hiding (indexed)
+import Data.Set.Lens
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.ByteString as BS
+import Data.Map (Map)
+import qualified Data.Map as M
+import qualified Data.Map as Map
+import qualified Data.IntMap.Strict as IM
+import Data.Maybe (mapMaybe)
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text as Text
+import Data.Vector (Vector, indexed, toList)
+import Diff
 import System.Directory (getTemporaryDirectory)
-import           System.FilePath.Posix
-import           Test.Tasty                                  (TestName,
-                                                              TestTree,
-                                                              testGroup)
-import           Test.Tasty.HUnit                            (testCase)
-import           TestXlsx
-import           Text.RawString.QQ
-import           Text.XML
+import System.FilePath.Posix
+import Test.Tasty (TestName, TestTree, testGroup)
+import Test.Tasty.HUnit (testCase)
+import TestXlsx
+import Text.RawString.QQ
+import Text.XML
 import qualified Codec.Xlsx.Writer.Stream as SW
 import qualified Codec.Xlsx.Writer.Internal.Stream as SW
 import Control.Monad.State.Lazy
