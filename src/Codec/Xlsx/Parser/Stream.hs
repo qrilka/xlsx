@@ -1,4 +1,5 @@
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveGeneric       #-}
@@ -34,7 +35,6 @@
 -- Inside the XlsxM monad, you can stream 'SheetItem's (a row) from a
 -- particular sheet, using 'readSheet', which is callback-based and tied to IO.
 --
-{-# LANGUAGE TypeApplications    #-}
 module Codec.Xlsx.Parser.Stream
   ( XlsxM
   , runXlsxM
