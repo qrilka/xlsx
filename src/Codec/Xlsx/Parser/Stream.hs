@@ -125,7 +125,7 @@ data SheetItem = MkSheetItem
   } deriving stock (Generic, Show)
 makeLenses 'MkSheetItem
 
-type SharedStringMap = V.Vector Text
+type SharedStringsMap = V.Vector Text
 
 -- | Type of the excel value
 --
@@ -149,7 +149,7 @@ data SheetState = MkSheetState
   , _ps_cell_col_index :: Int             -- ^ Current column number
   , _ps_cell_style     :: Maybe Int
   , _ps_is_in_val      :: Bool            -- ^ Flag for indexing wheter the parser is in value or not
-  , _ps_shared_strings :: SharedStringMap -- ^ Shared string map
+  , _ps_shared_strings :: SharedStringsMap -- ^ Shared string map
   , _ps_type           :: ExcelValueType  -- ^ The last detected value type
 
   , _ps_text_buf :: Text
@@ -161,14 +161,14 @@ data SheetState = MkSheetState
 makeLenses 'MkSheetState
 
 -- | State for parsing shared strings
-data SharedStringState = MkSharedStringState
+data SharedStringsState = MkSharedStringsState
   { _ss_string    :: TB.Builder -- ^ String we are parsing
   , _ss_list :: DL.DList Text -- ^ list of shared strings
   } deriving stock (Generic, Show)
-makeLenses 'MkSharedStringState
+makeLenses 'MkSharedStringsState
 
 type HasSheetState = MonadState SheetState
-type HasSharedStringState = MonadState SharedStringState
+type HasSharedStringsState = MonadState SharedStringsState
 
 -- | Represents sheets from the workbook.xml file. E.g.
 -- <sheet name="Data" sheetId="1" state="hidden" r:id="rId2" /
@@ -223,21 +223,21 @@ initialSheetState = MkSheetState
   }
 
 -- | Initial parsing state
-initialSharedString :: SharedStringState
-initialSharedString = MkSharedStringState
+initialSharedStrings :: SharedStringsState
+initialSharedStrings = MkSharedStringsState
   { _ss_string = mempty
   , _ss_list = mempty
   }
 
 -- | Parse shared string entry from xml event and return it once
 -- we've reached the end of given element
-{-# SCC parseSharedString #-}
-parseSharedString
+{-# SCC parseSharedStrings #-}
+parseSharedStrings
   :: ( MonadThrow m
-     , HasSharedStringState m
+     , HasSharedStringsState m
      )
   => HexpatEvent -> m (Maybe Text)
-parseSharedString = \case
+parseSharedStrings = \case
   StartElement "t" _ -> Nothing <$ (ss_string .= mempty)
   EndElement "t" -> Just . LT.toStrict . TB.toLazyText <$> gets _ss_string
   CharacterData txt -> Nothing <$ (ss_string <>= TB.fromText txt)
@@ -253,12 +253,12 @@ runXlsxM xlsxFile (XlsxM act) = do
 liftZip :: Zip.ZipArchive a -> XlsxM a
 liftZip = XlsxM . ReaderT . const
 
-{-# SCC getOrParseSharedStrings #-}
-getOrParseSharedStrings :: XlsxM (V.Vector Text)
-getOrParseSharedStrings = do
+{-# SCC getOrParseSharedStringss #-}
+getOrParseSharedStringss :: XlsxM (V.Vector Text)
+getOrParseSharedStringss = do
   sharedStringsRef <- asks _xs_shared_strings
-  mSharedStrings <- liftIO $ readIORef sharedStringsRef
-  case mSharedStrings of
+  mSharedStringss <- liftIO $ readIORef sharedStringsRef
+  case mSharedStringss of
     Just strs -> pure strs
     Nothing -> do
       sharedStrsSel <- liftZip $ Zip.mkEntrySelector "xl/sharedStrings.xml"
@@ -267,10 +267,10 @@ getOrParseSharedStrings = do
         if not hasSharedStrs
         then pure mempty
         else do
-          let state0 = initialSharedString
+          let state0 = initialSharedStrings
           byteSrc <- liftZip $ Zip.getEntrySource sharedStrsSel
           st <- runExpat state0 byteSrc $ \evs -> forM_ evs $ \ev -> do
-            mTxt <- parseSharedString ev
+            mTxt <- parseSharedStrings ev
             for_ mTxt $ \txt ->
               ss_list %= (`DL.snoc` txt)
           pure $ V.fromList $ DL.toList $ _ss_list st
@@ -466,7 +466,7 @@ readSheet sheetId inner = do
   case mSrc of
     Nothing -> pure False
     Just sourceSheetXml -> do
-      sharedStrs <- getOrParseSharedStrings
+      sharedStrs <- getOrParseSharedStringss
       let sheetState0 = initialSheetState
             & ps_shared_strings .~ sharedStrs
             & ps_sheet_index .~ sheetId
@@ -508,7 +508,7 @@ data AddCellErrors
   = ReadError -- ^ Could not read current cell value
       Text    -- ^ Original value
       String  -- ^ Error message
-  | SharedStringNotFound -- ^ Could not find string by index in shared string table
+  | SharedStringsNotFound -- ^ Could not find string by index in shared string table
       Int                -- ^ Given index
       (V.Vector Text)      -- ^ Given shared strings to lookup in
   deriving Show
@@ -517,11 +517,11 @@ data AddCellErrors
 --
 -- If it's a string, we try to get it our of a shared string table
 {-# SCC parseValue #-}
-parseValue :: SharedStringMap -> Text -> ExcelValueType -> Either AddCellErrors CellValue
+parseValue :: SharedStringsMap -> Text -> ExcelValueType -> Either AddCellErrors CellValue
 parseValue sstrings txt = \case
   TS -> do
     (idx, _) <- ReadError txt `first` Read.decimal @Int txt
-    string <- maybe (Left $ SharedStringNotFound idx sstrings) Right $ {-# SCC "sstrings_lookup_scc" #-}  (sstrings ^? ix idx)
+    string <- maybe (Left $ SharedStringsNotFound idx sstrings) Right $ {-# SCC "sstrings_lookup_scc" #-}  (sstrings ^? ix idx)
     Right $ CellText string
   TStr -> pure $ CellText txt
   TN -> bimap (ReadError txt) (CellDouble . fst) $ Read.double txt

@@ -337,7 +337,7 @@ mapRow sharedStrings' sheetItem = do
     rowIx = sheetItem ^. si_row_index
     ixAttr = attr "r" $ toAttrVal rowIx
 
-mapCell :: Monad m => Map Text Int -> RowIndex -> ColIndex -> Cell -> ConduitT SheetItem Event m ()
+mapCell :: Monad m => Map Text Int -> Int -> Int -> Cell -> ConduitT SheetItem Event m ()
 mapCell sharedStrings' rix cix cell =
   when (has (cellValue . _Just) cell || has (cellStyle . _Just) cell) $
   tag (n_ "c") celAttr $
