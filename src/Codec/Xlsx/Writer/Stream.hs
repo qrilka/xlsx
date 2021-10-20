@@ -9,7 +9,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE CPP #-}
 
--- | Writes excell files from a stream, which allows creation of
+-- | Writes Excel files from a stream, which allows creation of
 --   large excell files while remaining in constant memory.
 module Codec.Xlsx.Writer.Stream
   ( writeXlsx
