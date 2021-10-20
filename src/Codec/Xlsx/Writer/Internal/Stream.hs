@@ -45,7 +45,7 @@ initialSharedString :: SharedStringState
 initialSharedString = MkSharedStringState mempty
 
 -- properties:
--- for a list of [text], every unique text get's a unique number.
+-- for a list of [text], every unique text gets a unique number.
 getSetNumber :: MonadState SharedStringState m => Text -> m (Text,Int)
 getSetNumber current = do
   strings  <- use string_map
