@@ -3,6 +3,8 @@ Under BSD 3-Clause license, (c) 2009 Doug Beardsley <mightybyte@gmail.com>, (c) 
 
 From https://hackage.haskell.org/package/hexpat-0.20.13
      https://github.com/the-real-blackh/hexpat/blob/master/Text/XML/Expat/SAX.hs#L227
+
+copied over because the upstream library doesn't expose this function.
 -}
 module Codec.Xlsx.Parser.Stream.HexpatInternal (parseBuf) where
 
