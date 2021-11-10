@@ -152,7 +152,7 @@ writeXlsx settings sheetC = do
 --   There are several conditions on shared strings,
 --
 --      1. Every text to int is unique on both text and int.
---      2. Every Int should have a gap no greater then 1. [("xx", 3), ("yy", 4)] is okay, whereas [("xx", 3), ("yy", 5)] is not.
+--      2. Every Int should have a gap no greater than 1. [("xx", 3), ("yy", 4)] is okay, whereas [("xx", 3), ("yy", 5)] is not.
 --      3. It's expected this starts from 0.
 --
 --   Use 'sharedStringsStream' to get a good shared strings table.
