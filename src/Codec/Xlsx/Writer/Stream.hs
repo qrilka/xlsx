@@ -125,20 +125,6 @@ defaultSettings = MkSheetWriteSettings
   }
 
 
---   To validate the result is correct xml:
---
---   @
---   docker run -v $(pwd):/app/xlsx-validator/xlsx -it vindvaki/xlsx-validator xlsx-validator xlsx/yourfile.xlsx
---   @
---
---   TODO: package that program for nix and make a unit test out of it.
---   it's *really* usefull.
---
---   This will put the xlsx project root in the current working
---   directory of xlsx validator,
---   allowing you to run that program on the output from
---   streaming (which in this example was written to out/out.xlsx).
---   This gives a much more descriptive error reporting than excel.
 -- | Transform a 'SheetItem' stream into a stream that creates the xlsx file format
 --   (to be consumed by sinkfile for example)
 --  This first runs 'sharedStrings' and then 'writeXlsxWithSharedStrings'.
