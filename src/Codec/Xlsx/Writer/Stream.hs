@@ -146,7 +146,7 @@ writeXlsx settings sheetC = do
 
 -- TODO maybe should use bimap instead: https://hackage.haskell.org/package/bimap-0.4.0/docs/Data-Bimap.html
 -- it guarantees uniqueness of both text and int
--- | This write excell file with a shared strings lookup table.
+-- | This write Excel file with a shared strings lookup table.
 --   It appears that it is optional.
 --   Failed lookups will result in valid xlsx.
 --   There are several conditions on shared strings,
@@ -203,7 +203,7 @@ override content' part =
        <> attr "PartName" part) $ pure ()
 
 
--- | required by excell.
+-- | required by Excel.
 writeContentTypes :: Monad m => forall i.  ConduitT i Event m ()
 writeContentTypes = doc "{http://schemas.openxmlformats.org/package/2006/content-types}Types" $ do
     override "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" "/xl/workbook.xml"
@@ -213,7 +213,7 @@ writeContentTypes = doc "{http://schemas.openxmlformats.org/package/2006/content
     override "application/vnd.openxmlformats-package.relationships+xml" "/xl/_rels/workbook.xml.rels"
     override "application/vnd.openxmlformats-package.relationships+xml" "/_rels/.rels"
 
--- | required by excell.
+-- | required by Excel.
 writeWorkbook :: Monad m => forall i.  ConduitT i Event m ()
 writeWorkbook = doc (n_ "workbook") $ do
     el (n_ "sheets") $ do
