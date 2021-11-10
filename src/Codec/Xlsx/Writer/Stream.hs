@@ -243,10 +243,8 @@ writeWorkbookRels = doc (pr "Relationships") $  do
   relationship "styles.xml" 2 "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
 
 writeRootRels :: Monad m => forall i.  ConduitT i Event m ()
-writeRootRels = doc (pr "Relationships") $  do
+writeRootRels = doc (pr "Relationships") $
   relationship "xl/workbook.xml" 1 "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
-  -- relationship "docProps/core.xml" "rId2" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/metadata/core-properties"
-  -- relationship "docProps/app.xml" "rId3" "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties"
 
 
 zipEntry :: Text -> ZipEntry
