@@ -14,7 +14,7 @@
 module Codec.Xlsx.Writer.Stream
   ( writeXlsx
   , writeXlsxWithSharedStrings
-  , WriteSettings(..)
+  , SheetWriteSettings(..)
   , defaultSettings
   , wsSheetView
   , wsZip
@@ -97,21 +97,21 @@ sharedStringsStream :: Monad m  =>
 sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString $
   CL.mapFoldableM upsertSharedStrings
 
--- note that currently we support only a single sheet.
-data WriteSettings = MkWriteSettings
+-- | Settings for writing a single sheet.
+data SheetWriteSettings = MkSheetWriteSettings
   { _wsSheetView        :: [SheetView]
   , _wsZip              :: ZipOptions
   , _wsColumnProperties :: [ColumnsProperties]
   , _wsRowProperties    :: Map Int RowProperties
   , _wsStyles           :: Styles
   }
-instance Show  WriteSettings where
+instance Show  SheetWriteSettings where
   -- ZipOptions lacks a show instance-}
-  show (MkWriteSettings s _ y r _) = printf "MkWriteSettings{ _wsSheetView=%s, _wsColumnProperties=%s, _wsZip=defaultZipOptions, _wsRowProperties=%s }" (show s) (show y) (show r)
-makeLenses ''WriteSettings
+  show (MkSheetWriteSettings s _ y r _) = printf "MkSheetWriteSettings{ _wsSheetView=%s, _wsColumnProperties=%s, _wsZip=defaultZipOptions, _wsRowProperties=%s }" (show s) (show y) (show r)
+makeLenses ''SheetWriteSettings
 
-defaultSettings :: WriteSettings
-defaultSettings = MkWriteSettings
+defaultSettings :: SheetWriteSettings
+defaultSettings = MkSheetWriteSettings
   { _wsSheetView = []
   , _wsColumnProperties = []
   , _wsRowProperties = mempty
@@ -150,7 +150,7 @@ defaultSettings = MkWriteSettings
 --  In other words there is no tab support yet.
 writeXlsx :: MonadThrow m
     => PrimMonad m
-    => WriteSettings -- ^ use 'defaultSettings'
+    => SheetWriteSettings -- ^ use 'defaultSettings'
     -> ConduitT () SheetItem m () -- ^ the conduit producing sheetitems
     -> ConduitT () ByteString m Word64 -- ^ result conduit producing xlsx files
 writeXlsx settings sheetC = do
@@ -174,7 +174,7 @@ writeXlsx settings sheetC = do
 --   constructing this table then the library can provide,
 --   for example trough database operations.
 writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m
-    => WriteSettings
+    => SheetWriteSettings
     -> Map Text Int -- ^ shared strings table
     -> ConduitT () SheetItem m ()
     -> ConduitT () ByteString m Word64
@@ -184,7 +184,7 @@ writeXlsxWithSharedStrings settings sharedStrings' items = do
   pure res
 
 -- massive amount of boilerplate needed for excel to function
-boilerplate :: forall m . PrimMonad m  => WriteSettings -> Map Text Int -> [(ZipEntry,  ZipData m)]
+boilerplate :: forall m . PrimMonad m  => SheetWriteSettings -> Map Text Int -> [(ZipEntry,  ZipData m)]
 boilerplate settings sharedStrings' =
   [ (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sharedStrings' .| eventsToBS)
   , (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
@@ -195,7 +195,7 @@ boilerplate settings sharedStrings' =
   ]
 
 combinedFiles :: PrimMonad m
-  => WriteSettings
+  => SheetWriteSettings
   -> Map Text Int
   -> ConduitT () SheetItem m ()
   -> ConduitT () (ZipEntry, ZipData m) m ()
@@ -283,7 +283,7 @@ writeSst sharedStrings' = doc (n_ "sst") $
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
 writeEvents = renderBuilder (def {rsPretty=False})
 
-sheetViews :: forall m . MonadReader WriteSettings m => forall i . ConduitT i Event m ()
+sheetViews :: forall m . MonadReader SheetWriteSettings m => forall i . ConduitT i Event m ()
 sheetViews = do
   sheetView <- view wsSheetView
 
@@ -307,20 +307,20 @@ setNameSpaceRec space xelm =
                                     y -> y
     }
 
-columns :: MonadReader WriteSettings m => ConduitT SheetItem Event m ()
+columns :: MonadReader SheetWriteSettings m => ConduitT SheetItem Event m ()
 columns = do
   colProps <- view wsColumnProperties
   let cols :: Maybe TXML.Element
       cols = nonEmptyElListSimple (n_ "cols") $ map (toElement (n_ "col")) colProps
   traverse_ (C.yieldMany . elementToEvents . toXMLElement) cols
 
-writeWorkSheet :: MonadReader WriteSettings  m => Map Text Int  -> ConduitT SheetItem Event m ()
+writeWorkSheet :: MonadReader SheetWriteSettings  m => Map Text Int  -> ConduitT SheetItem Event m ()
 writeWorkSheet sharedStrings' = doc (n_ "worksheet") $ do
     sheetViews
     columns
     el (n_ "sheetData") $ C.awaitForever (mapRow sharedStrings')
 
-mapRow :: MonadReader WriteSettings m => Map Text Int -> SheetItem -> ConduitT SheetItem Event m ()
+mapRow :: MonadReader SheetWriteSettings m => Map Text Int -> SheetItem -> ConduitT SheetItem Event m ()
 mapRow sharedStrings' sheetItem = do
   mRowProp <- preview $ wsRowProperties . ix rowIx . rowHeightLens . _Just . failing _CustomHeight _AutomaticHeight
   let rowAttr :: Attributes
