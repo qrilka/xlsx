@@ -100,7 +100,7 @@ sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString 
 -- | Settings for writing a single sheet.
 data SheetWriteSettings = MkSheetWriteSettings
   { _wsSheetView        :: [SheetView]
-  , _wsZip              :: ZipOptions
+  , _wsZip              :: ZipOptions -- ^ Enable zipOpt64=True if you intend writing large xlsx files, zip needs 64bit for files over 4gb.
   , _wsColumnProperties :: [ColumnsProperties]
   , _wsRowProperties    :: Map Int RowProperties
   , _wsStyles           :: Styles
