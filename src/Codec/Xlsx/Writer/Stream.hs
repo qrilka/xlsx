@@ -158,16 +158,14 @@ writeXlsx settings sheetC = do
 --   Use 'sharedStringsStream' to get a good shared strings table.
 --   This is provided because the user may have a more efficient way of
 --   constructing this table than the library can provide,
---   for example trough database operations.
+--   for example through database operations.
 writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m
     => SheetWriteSettings
     -> Map Text Int -- ^ shared strings table
     -> ConduitT () RowItem m ()
     -> ConduitT () ByteString m Word64
-writeXlsxWithSharedStrings settings sharedStrings' items = do
-  res  <- combinedFiles settings sharedStrings' items .| zipStream (settings ^. wsZip)
-  -- yield (LBS.toStrict $ BS.toLazyByteString $ BS.word32LE 0x06054b50) -- insert magic number for fun.
-  pure res
+writeXlsxWithSharedStrings settings sharedStrings' items =
+  combinedFiles settings sharedStrings' items .| zipStream (settings ^. wsZip)
 
 -- massive amount of boilerplate needed for excel to function
 boilerplate :: forall m . PrimMonad m  => SheetWriteSettings -> Map Text Int -> [(ZipEntry,  ZipData m)]
