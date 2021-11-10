@@ -192,8 +192,9 @@ combinedFiles settings sharedStrings' items =
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 el x = tag x mempty
 
---   Clark notation a lot for xml namespaces:
+--   Clark notation is used a lot for xml namespaces in this module:
 --   <https://hackage.haskell.org/package/xml-types-0.3.8/docs/Data-XML-Types.html#t:Name>
+--   Name has an IsString instance which parses it
 override :: Monad m => Text -> Text -> forall i.  ConduitT i Event m ()
 override content' part =
     tag "{http://schemas.openxmlformats.org/package/2006/content-types}Override"
