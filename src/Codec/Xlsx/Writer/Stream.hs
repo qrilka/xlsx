@@ -117,11 +117,10 @@ defaultSettings = MkSheetWriteSettings
   , _wsRowProperties = mempty
   , _wsStyles = emptyStyles
   , _wsZip = defaultZipOptions {
-  zipOpt64 = False -- TODO renable
+  zipOpt64 = False
   -- There is a magick number in the zip archive package,
   -- https://hackage.haskell.org/package/zip-archive-0.4.1/docs/src/Codec.Archive.Zip.html#local-6989586621679055672
   -- if we enable 64bit the number doesn't align causing the test to fail.
-  -- I'll make the test pass, and after that I'll make the
   }
   }
 
