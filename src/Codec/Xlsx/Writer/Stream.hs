@@ -126,7 +126,7 @@ defaultSettings = MkSheetWriteSettings
 
 
 
--- | Transform a 'SheetItem' stream into a stream that creates the xlsx file format
+-- | Transform a 'RowItem' stream into a stream that creates the xlsx file format
 --   (to be consumed by sinkfile for example)
 --  This first runs 'sharedStrings' and then 'writeXlsxWithSharedStrings'.
 --  If you want xlsx files this is the most obvious function to use.
