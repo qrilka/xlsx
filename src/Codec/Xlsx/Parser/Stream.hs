@@ -43,16 +43,19 @@ module Codec.Xlsx.Parser.Stream
   , wiSheets
   , getWorkbookInfo
   , CellRow
-  , SheetItem(..)
   , readSheet
   , readSheetByName
   , countRowsInSheet
   , countRowsInSheetByName
   , collectItems
-  -- ** `SheetItem` lenses
+  -- ** SheetItem
+  , SheetItem(..)
   , si_sheet_index
-  , si_row_index
-  , si_cell_row
+  , si_row
+  -- ** RowItem
+  , RowItem(..)
+  , ri_row_index
+  , ri_cell_row
   -- * Errors
   , SheetErrors(..)
   , AddCellErrors(..)
@@ -121,10 +124,17 @@ type CellRow = IntMap Cell
 -- The current sheet at a time, every sheet is constructed of these items.
 data SheetItem = MkSheetItem
   { _si_sheet_index :: Int       -- ^ The sheet number
-  , _si_row_index   :: Int       -- ^ Row number
-  , _si_cell_row    :: ~CellRow  -- ^ Row itself
+  , _si_row         :: ~RowItem
   } deriving stock (Generic, Show)
+
+data RowItem = MkRowItem
+  { _ri_row_index   :: Int       -- ^ Row number
+  , _ri_cell_row    :: ~CellRow  -- ^ Row itself
+  } deriving stock (Generic, Show)
+
 makeLenses 'MkSheetItem
+makeLenses 'MkRowItem
+
 
 type SharedStringsMap = V.Vector Text
 
@@ -419,7 +429,7 @@ runExpatForSheet initState byteSource inner =
         Right (Just cellRow)
           | not (IntMap.null cellRow) -> do
               rowNum <- use ps_cell_row_index
-              liftIO $ inner $ MkSheetItem sheetName rowNum cellRow
+              liftIO $ inner $ MkSheetItem sheetName $ MkRowItem rowNum cellRow
         _ -> pure ()
 
 -- | this will collect the sheetitems in a list.

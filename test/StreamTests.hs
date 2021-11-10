@@ -96,7 +96,7 @@ tests =
 readWrite :: Xlsx -> IO ()
 readWrite input = do
   BS.writeFile "testinput.xlsx" (toBs input)
-  items <- runXlsxM "testinput.xlsx" $ collectItems 1
+  items <- fmap (toListOf (traversed . si_row)) $ runXlsxM "testinput.xlsx" $ collectItems 1
   bs <- runConduitRes $ void (SW.writeXlsx SW.defaultSettings $ C.yieldMany items) .| C.foldC
   case toXlsxEither $ LB.fromStrict bs of
     Right result  ->
@@ -204,6 +204,6 @@ inlineStringsAreParsed = do
               )
             ]
         ]
-  expected @==? map _si_cell_row items
+  expected @==? (items ^.. traversed . si_row . ri_cell_row)
 
 #endif

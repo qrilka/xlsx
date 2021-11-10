@@ -73,16 +73,16 @@ import Text.XML.Stream.Render
 import Text.XML.Unresolved (elementToEvents)
 
 
-upsertSharedStrings :: MonadState SharedStringState m => SheetItem  -> m [(Text,Int)]
+upsertSharedStrings :: MonadState SharedStringState m => RowItem -> m [(Text,Int)]
 upsertSharedStrings row =
   traverse upsertSharedString items
   where
     items :: [Text]
-    items = row ^.. si_cell_row . traversed . cellValue . _Just . _CellText
+    items = row ^.. ri_cell_row . traversed . cellValue . _Just . _CellText
 
 -- | Process sheetItems into shared strings structure to be put into
 --   'writeXlsxWithSharedStrings'
-sharedStrings :: Monad m  => ConduitT SheetItem b m (Map Text Int)
+sharedStrings :: Monad m  => ConduitT RowItem b m (Map Text Int)
 sharedStrings = void sharedStringsStream .| CL.foldMap (uncurry Map.singleton)
 
 -- | creates a unique number for every encountered string in the stream
@@ -93,7 +93,7 @@ sharedStrings = void sharedStringsStream .| CL.foldMap (uncurry Map.singleton)
 --   but I don't think conduit provides a way of getting that out.
 --   use 'sharedStrings' to just get the map
 sharedStringsStream :: Monad m  =>
-  ConduitT SheetItem (Text, Int) m (Map Text Int)
+  ConduitT RowItem (Text, Int) m (Map Text Int)
 sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString $
   CL.mapFoldableM upsertSharedStrings
 
@@ -125,18 +125,19 @@ defaultSettings = MkSheetWriteSettings
   }
 
 
+
 -- | Transform a 'SheetItem' stream into a stream that creates the xlsx file format
 --   (to be consumed by sinkfile for example)
 --  This first runs 'sharedStrings' and then 'writeXlsxWithSharedStrings'.
 --  If you want xlsx files this is the most obvious function to use.
 --  the others are exposed in case you can cache the shared strings for example.
 --
---  Note that the current concatination concatinates everything into a single sheet.
+--  Note that the current implementation concatenates everything into a single sheet.
 --  In other words there is no tab support yet.
 writeXlsx :: MonadThrow m
     => PrimMonad m
     => SheetWriteSettings -- ^ use 'defaultSettings'
-    -> ConduitT () SheetItem m () -- ^ the conduit producing sheetitems
+    -> ConduitT () RowItem m () -- ^ the conduit producing sheetitems
     -> ConduitT () ByteString m Word64 -- ^ result conduit producing xlsx files
 writeXlsx settings sheetC = do
     sstrings  <- sheetC .| sharedStrings
@@ -161,7 +162,7 @@ writeXlsx settings sheetC = do
 writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m
     => SheetWriteSettings
     -> Map Text Int -- ^ shared strings table
-    -> ConduitT () SheetItem m ()
+    -> ConduitT () RowItem m ()
     -> ConduitT () ByteString m Word64
 writeXlsxWithSharedStrings settings sharedStrings' items = do
   res  <- combinedFiles settings sharedStrings' items .| zipStream (settings ^. wsZip)
@@ -182,7 +183,7 @@ boilerplate settings sharedStrings' =
 combinedFiles :: PrimMonad m
   => SheetWriteSettings
   -> Map Text Int
-  -> ConduitT () SheetItem m ()
+  -> ConduitT () RowItem m ()
   -> ConduitT () (ZipEntry, ZipData m) m ()
 combinedFiles settings sharedStrings' items =
   C.yieldMany $
@@ -292,31 +293,31 @@ setNameSpaceRec space xelm =
                                     y -> y
     }
 
-columns :: MonadReader SheetWriteSettings m => ConduitT SheetItem Event m ()
+columns :: MonadReader SheetWriteSettings m => ConduitT RowItem Event m ()
 columns = do
   colProps <- view wsColumnProperties
   let cols :: Maybe TXML.Element
       cols = nonEmptyElListSimple (n_ "cols") $ map (toElement (n_ "col")) colProps
   traverse_ (C.yieldMany . elementToEvents . toXMLElement) cols
 
-writeWorkSheet :: MonadReader SheetWriteSettings  m => Map Text Int  -> ConduitT SheetItem Event m ()
+writeWorkSheet :: MonadReader SheetWriteSettings  m => Map Text Int  -> ConduitT RowItem Event m ()
 writeWorkSheet sharedStrings' = doc (n_ "worksheet") $ do
     sheetViews
     columns
     el (n_ "sheetData") $ C.awaitForever (mapRow sharedStrings')
 
-mapRow :: MonadReader SheetWriteSettings m => Map Text Int -> SheetItem -> ConduitT SheetItem Event m ()
+mapRow :: MonadReader SheetWriteSettings m => Map Text Int -> RowItem -> ConduitT RowItem Event m ()
 mapRow sharedStrings' sheetItem = do
   mRowProp <- preview $ wsRowProperties . ix rowIx . rowHeightLens . _Just . failing _CustomHeight _AutomaticHeight
   let rowAttr :: Attributes
       rowAttr = ixAttr <> fold (attr "ht" . txtd <$> mRowProp)
   tag (n_ "row") rowAttr $
-    void $ itraverse (mapCell sharedStrings' rowIx) (sheetItem ^. si_cell_row)
+    void $ itraverse (mapCell sharedStrings' rowIx) (sheetItem ^. ri_cell_row)
   where
-    rowIx = sheetItem ^. si_row_index
+    rowIx = sheetItem ^. ri_row_index
     ixAttr = attr "r" $ toAttrVal rowIx
 
-mapCell :: Monad m => Map Text Int -> Int -> Int -> Cell -> ConduitT SheetItem Event m ()
+mapCell :: Monad m => Map Text Int -> Int -> Int -> Cell -> ConduitT RowItem Event m ()
 mapCell sharedStrings' rix cix cell =
   when (has (cellValue . _Just) cell || has (cellStyle . _Just) cell) $
   tag (n_ "c") celAttr $
