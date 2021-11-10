@@ -157,7 +157,7 @@ writeXlsx settings sheetC = do
 --
 --   Use 'sharedStringsStream' to get a good shared strings table.
 --   This is provided because the user may have a more efficient way of
---   constructing this table then the library can provide,
+--   constructing this table than the library can provide,
 --   for example trough database operations.
 writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m
     => SheetWriteSettings
