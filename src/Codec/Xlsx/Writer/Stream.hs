@@ -274,7 +274,6 @@ sheetViews = do
     let
         view' :: [Element]
         view' = setNameSpaceRec spreadSheetNS . toXMLElement .  toElement (n_ "sheetView") <$> sheetView
-    -- tag (n_ "sheetView") (attr "topLeftCell" "D10" <> attr "tabSelected" "1") $ pure ()
 
     C.yieldMany $ elementToEvents =<< view'
 
