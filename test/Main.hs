@@ -1,8 +1,5 @@
--- {-# OPTIONS_GHC -F -pgmF tasty-discover #-}
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
-{-# LANGUAGE RecordWildCards   #-}
 module Main
   ( main
   ) where
