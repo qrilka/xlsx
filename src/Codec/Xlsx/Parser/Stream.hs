@@ -106,6 +106,7 @@ import qualified Data.Text.Read as Read
 import Data.Traversable (for)
 import Data.XML.Types
 import GHC.Generics
+import Control.DeepSeq
 
 import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
 import Control.Monad.Base
@@ -128,11 +129,13 @@ data SheetItem = MkSheetItem
   { _si_sheet_index :: Int       -- ^ The sheet number
   , _si_row         :: ~RowItem
   } deriving stock (Generic, Show)
+    deriving anyclass NFData
 
 data RowItem = MkRowItem
   { _ri_row_index   :: Int       -- ^ Row number
   , _ri_cell_row    :: ~CellRow  -- ^ Row itself
   } deriving stock (Generic, Show)
+    deriving anyclass NFData
 
 makeLenses 'MkSheetItem
 makeLenses 'MkRowItem
@@ -450,6 +453,7 @@ collectItems sheetId = do
 --   can be done with 'makeIndexFromName', which is the preferred approach.
 --   although 'makeIndex' is available in case it's already known.
 newtype SheetIndex = MkSheetIndex Int
+ deriving newtype NFData
 
 makeIndex :: Int -> SheetIndex
 makeIndex = MkSheetIndex

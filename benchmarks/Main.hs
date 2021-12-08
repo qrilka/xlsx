@@ -20,8 +20,11 @@ main = do
         -- "data/6000.rows.x.26.cols.xlsx"
   bs <- BS.readFile filename
   let bs' = LB.fromStrict bs
+      parsed :: Xlsx
+      parsed = toXlsxFast bs'
   idx <- fmap (fromMaybe (error "ix not found")) $ runXlsxM filename $ makeIndexFromName "Sample list"
   items <- runXlsxM filename $ collectItems idx
+  deepseq (parsed, bs', idx, items) (pure ())
   defaultMain
     [ bgroup
         "readFile"
@@ -32,9 +35,14 @@ main = do
         ]
     , bgroup
         "writeFile"
-        [ bench "stream" $
+        [ bench "with xlsx" $ nf (fromXlsx 0) parsed
+        , bench "with stream (no sst)" $
           nfIO $ C.runConduit $
             void (writeXlsxWithSharedStrings defaultSettings mempty $ C.yieldMany $ view si_row <$> items)
+            C..| C.fold
+        , bench "with stream (sst)" $
+          nfIO $ C.runConduit $
+            void (writeXlsx defaultSettings $ C.yieldMany $ view si_row <$> items)
             C..| C.fold
         ]
     ]
