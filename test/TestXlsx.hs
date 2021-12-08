@@ -267,34 +267,42 @@ testCommentTable = CommentTable $ M.fromList
              , _richTextRunText = "Why such high expense?"}]
 
 testStrings :: ByteString
-testStrings = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
-  \<si><t>plain text</t></si>\
-  \<si><r><t>Just </t></r><r><rPr><b /><i />\
-  \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
-  \</sst>"
+testStrings = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
+  <si><t>plain text</t></si>
+  <si><r><t>Just </t></r><r><rPr><b /><i />
+  <sz val="10"/><rFont val="Arial"/><family val="2"/></rPr><t>example</t></r></si>
+  </sst>
+|]
 
 testStringsWithSingleUnderline :: ByteString
-testStringsWithSingleUnderline = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
-  \<si><t>plain text</t></si>\
-  \<si><r><t>Just </t></r><r><rPr><b /><i /><u />\
-  \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
-  \</sst>"
+testStringsWithSingleUnderline = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
+  <si><t>plain text</t></si>
+  <si><r><t>Just </t></r><r><rPr><b /><i /><u />
+  <sz val="10"/><rFont val="Arial"/><family val="2"/></rPr><t>example</t></r></si>
+  </sst>
+|]
 
 testStringsWithDoubleUnderline :: ByteString
-testStringsWithDoubleUnderline = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
-  \<si><t>plain text</t></si>\
-  \<si><r><t>Just </t></r><r><rPr><b /><i /><u val=\"double\"/>\
-  \<sz val=\"10\"/><rFont val=\"Arial\"/><family val=\"2\"/></rPr><t>example</t></r></si>\
-  \</sst>"
+testStringsWithDoubleUnderline = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
+  <si><t>plain text</t></si>
+  <si><r><t>Just </t></r><r><rPr><b /><i /><u val="double"/>
+  <sz val="10"/><rFont val="Arial"/><family val="2"/></rPr><t>example</t></r></si>
+  </sst>
+|]
 
 testStringsWithEmpty :: ByteString
-testStringsWithEmpty = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
-  \<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"2\" uniqueCount=\"2\">\
-  \<si><t/></si>\
-  \</sst>"
+testStringsWithEmpty = [r|
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
+  <si><t/></si>
+  </sst>
+|]
 
 testComments :: ByteString
 testComments = [r|
