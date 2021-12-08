@@ -2,10 +2,17 @@
 module Main (main) where
 
 import Codec.Xlsx
+import Codec.Xlsx.Parser.Stream
+import Codec.Xlsx.Writer.Stream
+import Control.DeepSeq
+import Control.Lens
+import Control.Monad (void)
 import Criterion.Main
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
-import Codec.Xlsx.Parser.Stream
+import qualified Data.Conduit as C
+import qualified Data.Conduit.Combinators as C
+import Data.Maybe
 
 main :: IO ()
 main = do
@@ -13,11 +20,21 @@ main = do
         -- "data/6000.rows.x.26.cols.xlsx"
   bs <- BS.readFile filename
   let bs' = LB.fromStrict bs
+  idx <- fmap (fromMaybe (error "ix not found")) $ runXlsxM filename $ makeIndexFromName "Sample list"
+  items <- runXlsxM filename $ collectItems idx
   defaultMain
     [ bgroup
         "readFile"
         [ bench "with xlsx" $ nf toXlsx bs'
         , bench "with xlsx fast" $ nf toXlsxFast bs'
-        , bench "with stream (counting)" $ nfIO $ runXlsxM filename $ countRowsInSheetByName "Sample list"
+        , bench "with stream (counting)" $ nfIO $ runXlsxM filename $ countRowsInSheet idx
+        , bench "with stream (reading)" $ nfIO $ runXlsxM filename $ readSheet idx (pure . rwhnf)
+        ]
+    , bgroup
+        "writeFile"
+        [ bench "stream" $
+          nfIO $ C.runConduit $
+            void (writeXlsxWithSharedStrings defaultSettings mempty $ C.yieldMany $ view si_row <$> items)
+            C..| C.fold
         ]
     ]

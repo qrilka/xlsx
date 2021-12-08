@@ -195,4 +195,7 @@ benchmark bench
                , bytestring
                , criterion
                , xlsx
+               , deepseq
+               , conduit
+               , lens
   default-language: Haskell2010
