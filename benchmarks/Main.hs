@@ -5,6 +5,7 @@ import Codec.Xlsx
 import Criterion.Main
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
+import Codec.Xlsx.Parser.Stream
 
 main :: IO ()
 main = do
@@ -17,5 +18,6 @@ main = do
         "readFile"
         [ bench "with xlsx" $ nf toXlsx bs'
         , bench "with xlsx fast" $ nf toXlsxFast bs'
+        , bench "with stream (counting)" $ nfIO $ runXlsxM filename $ countRowsInSheetByName "Sample list"
         ]
     ]
