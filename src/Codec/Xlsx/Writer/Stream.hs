@@ -133,7 +133,7 @@ defaultSettings = MkSheetWriteSettings
 --  the others are exposed in case you can cache the shared strings for example.
 --
 --  Note that the current implementation concatenates everything into a single sheet.
---  In other words there is no tab support yet.
+--  In other words there is no support for writing multiple sheets
 writeXlsx :: MonadThrow m
     => PrimMonad m
     => SheetWriteSettings -- ^ use 'defaultSettings'
