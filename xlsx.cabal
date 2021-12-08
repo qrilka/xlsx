@@ -36,7 +36,6 @@ Flag microlens
 
 Library
   Hs-source-dirs:    src
-  profiling: False
   ghc-options:       -Wall
   Exposed-modules:   Codec.Xlsx
                    , Codec.Xlsx.Types
@@ -87,7 +86,6 @@ Library
   Other-modules:     Codec.Xlsx.Parser.Stream.HexpatInternal
 
   Build-depends:     base         >= 4.9.0.0 && < 5.0
-                   , async
                    , attoparsec
                    , base64-bytestring
                    , binary-search
@@ -101,7 +99,6 @@ Library
                    , extra
                    , filepath
                    , hexpat
-                   , List
                    , mtl          >= 2.1
                    , network-uri
                    , old-locale   >= 1.0.0.5
@@ -118,8 +115,6 @@ Library
                    , zip-stream   >= 0.2.0.1
                    , xml-types
                    , exceptions
-                   , lifted-async
-                   , stm
                    , transformers-base
                    , monad-control
   if flag(microlens)
