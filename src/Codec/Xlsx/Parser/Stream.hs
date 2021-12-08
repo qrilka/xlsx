@@ -33,7 +33,7 @@
 -- inherited from the "zip" package's ZipArchive monad.
 --
 -- Inside the XlsxM monad, you can stream 'SheetItem's (a row) from a
--- particular sheet, using 'readSheet', which is callback-based and tied to IO.
+-- particular sheet, using 'readSheetByIndex', which is callback-based and tied to IO.
 --
 module Codec.Xlsx.Parser.Stream
   ( XlsxM
@@ -44,10 +44,12 @@ module Codec.Xlsx.Parser.Stream
   , getWorkbookInfo
   , CellRow
   , readSheet
-  , readSheetByName
   , countRowsInSheet
-  , countRowsInSheetByName
   , collectItems
+  -- ** Index
+  , SheetIndex
+  , makeIndex
+  , makeIndexFromName
   -- ** SheetItem
   , SheetItem(..)
   , si_sheet_index
@@ -436,8 +438,7 @@ runExpatForSheet initState byteSource inner =
 --   useful for cases were memory is of no concern but a sheetitem
 --   type in a list is needed.
 collectItems ::
-  -- | Sheet ID (the sheetId attribute of the sheet element)
-  Int ->
+  SheetIndex ->
   XlsxM [SheetItem]
 collectItems sheetId = do
  res <- liftIO $ newIORef []
@@ -445,32 +446,33 @@ collectItems sheetId = do
    liftIO (modifyIORef' res (item :))
  fmap reverse $ liftIO $ readIORef res
 
-readSheetByName ::
-  -- | Case-insensitive sheet name
-  Text ->
-  -- | Function to consume the sheet's rows
-  (SheetItem -> IO ()) ->
-  -- | Returns False if sheet doesn't exist, or True otherwise
-  XlsxM Bool
-readSheetByName sheetName inner = do
+-- | datatype representing a sheet index, looking it up by name
+--   can be done with 'makeIndexFromName', which is the preferred approach.
+--   although 'makeIndex' is available in case it's already known.
+newtype SheetIndex = MkSheetIndex Int
+
+makeIndex :: Int -> SheetIndex
+makeIndex = MkSheetIndex
+
+-- | Look up the index of a case insensitive sheet name
+makeIndexFromName :: Text -> XlsxM (Maybe SheetIndex)
+makeIndexFromName sheetName = do
   wi <- getWorkbookInfo
   -- The Excel UI does not allow a user to create two sheets whose
   -- names differ only in alphabetic case (at least for ascii...)
   let sheetNameCI = T.toLower sheetName
-  case find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi of
-    Nothing -> pure False
-    Just sheetInfo ->
-      readSheet (sheetInfoSheetId sheetInfo) inner
+      findRes :: Maybe SheetInfo
+      findRes = find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi
+  pure $ makeIndex . sheetInfoSheetId <$> findRes
+
 
 readSheet ::
-  -- | Sheet attribute sheetId, as represented by 'sheetInfoSheetId'
-  -- (obtainable via 'getWorkbookInfo'). Or use 'readSheetByName'.
-  Int ->
+  SheetIndex ->
   -- | Function to consume the sheet's rows
   (SheetItem -> IO ()) ->
   -- | Returns False if sheet doesn't exist, or True otherwise
   XlsxM Bool
-readSheet sheetId inner = do
+readSheet (MkSheetIndex sheetId) inner = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
     getSheetXmlSource sheetId
   let
@@ -488,9 +490,9 @@ readSheet sheetId inner = do
 -- sheet's ID, AKA the sheetId attribute, AKA 'sheetInfoSheetId'), or Nothing
 -- if the sheet does not exist. Does not perform a full parse of the
 -- XML into 'SheetItem's, so it should be more efficient than counting
--- via 'readSheet'.
-countRowsInSheet :: Int -> XlsxM (Maybe Int)
-countRowsInSheet sheetId = do
+-- via 'readSheetByIndex'.
+countRowsInSheet :: SheetIndex -> XlsxM (Maybe Int)
+countRowsInSheet (MkSheetIndex sheetId) = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
     getSheetXmlSource sheetId
   for mSrc $ \sourceSheetXml -> do
@@ -498,15 +500,6 @@ countRowsInSheet sheetId = do
       forM_ evs $ \case
         StartElement "row" _ -> modify' (+1)
         _                    -> pure ()
-
--- | Same as 'countRowsInSheet', except here the sheet is identified by
--- case-insensitive name.
-countRowsInSheetByName :: Text -> XlsxM (Maybe Int)
-countRowsInSheetByName sheetName = do
-  wi <- getWorkbookInfo
-  let sheetNameCI = T.toLower sheetName
-      mInfo = find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi
-  maybe (pure Nothing) (countRowsInSheet . sheetInfoSheetId) mInfo
 
 -- | Return row from the state and empty it
 popRow :: HasSheetState m => m CellRow

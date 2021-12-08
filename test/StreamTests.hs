@@ -96,7 +96,7 @@ tests =
 readWrite :: Xlsx -> IO ()
 readWrite input = do
   BS.writeFile "testinput.xlsx" (toBs input)
-  items <- fmap (toListOf (traversed . si_row)) $ runXlsxM "testinput.xlsx" $ collectItems 1
+  items <- fmap (toListOf (traversed . si_row)) $ runXlsxM "testinput.xlsx" $ collectItems $ makeIndex 1
   bs <- runConduitRes $ void (SW.writeXlsx SW.defaultSettings $ C.yieldMany items) .| C.foldC
   case toXlsxEither $ LB.fromStrict bs of
     Right result  ->
@@ -183,7 +183,7 @@ bigWorkbook = set xlSheets sheets def
 
 inlineStringsAreParsed :: IO ()
 inlineStringsAreParsed = do
-  items <- runXlsxM "data/inline-strings.xlsx" $ collectItems 1
+  items <- runXlsxM "data/inline-strings.xlsx" $ collectItems $ makeIndex 1
   let expected =
         [ IM.fromList
             [ ( 1,
