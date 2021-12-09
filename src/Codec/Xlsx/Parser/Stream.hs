@@ -54,8 +54,8 @@ module Codec.Xlsx.Parser.Stream
   , SheetItem(..)
   , si_sheet_index
   , si_row
-  -- ** RowItem
-  , RowItem(..)
+  -- ** Row
+  , Row(..)
   , ri_row_index
   , ri_cell_row
   -- * Errors
@@ -127,18 +127,18 @@ type CellRow = IntMap Cell
 -- The current sheet at a time, every sheet is constructed of these items.
 data SheetItem = MkSheetItem
   { _si_sheet_index :: Int       -- ^ The sheet number
-  , _si_row         :: ~RowItem
+  , _si_row         :: ~Row
   } deriving stock (Generic, Show)
     deriving anyclass NFData
 
-data RowItem = MkRowItem
+data Row = MkRow
   { _ri_row_index   :: Int       -- ^ Row number
   , _ri_cell_row    :: ~CellRow  -- ^ Row itself
   } deriving stock (Generic, Show)
     deriving anyclass NFData
 
 makeLenses 'MkSheetItem
-makeLenses 'MkRowItem
+makeLenses 'MkRow
 
 
 type SharedStringsMap = V.Vector Text
@@ -434,7 +434,7 @@ runExpatForSheet initState byteSource inner =
         Right (Just cellRow)
           | not (IntMap.null cellRow) -> do
               rowNum <- use ps_cell_row_index
-              liftIO $ inner $ MkSheetItem sheetName $ MkRowItem rowNum cellRow
+              liftIO $ inner $ MkSheetItem sheetName $ MkRow rowNum cellRow
         _ -> pure ()
 
 -- | this will collect the sheetitems in a list.
