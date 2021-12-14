@@ -142,7 +142,6 @@ data Row = MkRow
 makeLenses 'MkSheetItem
 makeLenses 'MkRow
 
-
 type SharedStringsMap = V.Vector Text
 
 -- | Type of the excel value
@@ -379,7 +378,6 @@ getSheetXmlSource sheetId = do
           Just <$> liftZip (Zip.getEntrySource sheetSel)
     _ -> pure Nothing
 
-
 {-# SCC runExpat #-}
 runExpat :: forall state tag text.
   (GenericXMLString tag, GenericXMLString text) =>
@@ -464,7 +462,6 @@ makeIndexFromName sheetName = do
       findRes :: Maybe SheetInfo
       findRes = find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi
   pure $ makeIndex . sheetInfoSheetId <$> findRes
-
 
 readSheet ::
   SheetIndex ->
