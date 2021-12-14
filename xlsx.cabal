@@ -84,6 +84,7 @@ Library
   -- We could expose it but then this function is in the xlsx API for a long time.
   -- It be better to expose it in the upstream library instead I think. It was copied here so the parser can use it.
   Other-modules:     Codec.Xlsx.Parser.Stream.HexpatInternal
+                   , Codec.Xlsx.Parser.Internal.Memoize
 
   Build-depends:     base         >= 4.9.0.0 && < 5.0
                    , attoparsec

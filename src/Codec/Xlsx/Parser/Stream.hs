@@ -63,6 +63,7 @@ module Codec.Xlsx.Parser.Stream
   , AddCellErrors(..)
   , CoordinateErrors(..)
   , TypeError(..)
+  , WorkbookError(..)
   ) where
 
 import qualified "zip" Codec.Archive.Zip as Zip
@@ -107,6 +108,7 @@ import Data.Traversable (for)
 import Data.XML.Types
 import GHC.Generics
 import Control.DeepSeq
+import Codec.Xlsx.Parser.Internal.Memoize
 
 import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
 import Control.Monad.Base
@@ -204,9 +206,9 @@ data WorkbookInfo = WorkbookInfo
 makeLenses 'WorkbookInfo
 
 data XlsxMState = MkXlsxMState
-  { _xs_shared_strings :: IORef (Maybe (V.Vector Text))
-  , _xs_workbook_info  :: IORef (Maybe WorkbookInfo)
-  , _xs_relationships  :: IORef (Maybe Relationships)
+  { _xs_shared_strings :: Memoized (V.Vector Text)
+  , _xs_workbook_info  :: Memoized WorkbookInfo
+  , _xs_relationships  :: Memoized Relationships
   }
 
 newtype XlsxM a = XlsxM {_unXlsxM :: ReaderT XlsxMState Zip.ZipArchive a}
@@ -261,61 +263,72 @@ parseSharedStrings = \case
 
 -- | Run a series of actions on an Xlsx file
 runXlsxM :: MonadIO m => FilePath -> XlsxM a -> m a
-runXlsxM xlsxFile (XlsxM act) = do
-  env0 <- liftIO $ MkXlsxMState <$>
-    newIORef Nothing <*> newIORef Nothing <*> newIORef Nothing
-  Zip.withArchive xlsxFile $ runReaderT act env0
+runXlsxM xlsxFile (XlsxM act) = liftIO $ do
+  -- TODO: don't run the withArchive multiple times but use liftWith or runInIO instead
+  _xs_workbook_info  <- memoizeRef (Zip.withArchive xlsxFile readWorkbookInfo)
+  _xs_relationships  <- memoizeRef (Zip.withArchive xlsxFile readWorkbookRelatinoships)
+  _xs_shared_strings <- memoizeRef (Zip.withArchive xlsxFile parseSharedStringss)
+  Zip.withArchive xlsxFile $ runReaderT act $ MkXlsxMState{..}
 
 liftZip :: Zip.ZipArchive a -> XlsxM a
 liftZip = XlsxM . ReaderT . const
 
-{-# SCC getOrParseSharedStringss #-}
-getOrParseSharedStringss :: XlsxM (V.Vector Text)
-getOrParseSharedStringss = do
-  sharedStringsRef <- asks _xs_shared_strings
-  mSharedStringss <- liftIO $ readIORef sharedStringsRef
-  case mSharedStringss of
-    Just strs -> pure strs
-    Nothing -> do
-      sharedStrsSel <- liftZip $ Zip.mkEntrySelector "xl/sharedStrings.xml"
-      hasSharedStrs <- liftZip $ Zip.doesEntryExist sharedStrsSel
-      sharedStrs <-
-        if not hasSharedStrs
+parseSharedStringss :: Zip.ZipArchive (V.Vector Text)
+parseSharedStringss = do
+      sharedStrsSel <- Zip.mkEntrySelector "xl/sharedStrings.xml"
+      hasSharedStrs <- Zip.doesEntryExist sharedStrsSel
+      if not hasSharedStrs
         then pure mempty
         else do
           let state0 = initialSharedStrings
-          byteSrc <- liftZip $ Zip.getEntrySource sharedStrsSel
-          st <- runExpat state0 byteSrc $ \evs -> forM_ evs $ \ev -> do
+          byteSrc <- Zip.getEntrySource sharedStrsSel
+          st <- liftIO $ runExpat state0 byteSrc $ \evs -> forM_ evs $ \ev -> do
             mTxt <- parseSharedStrings ev
             for_ mTxt $ \txt ->
               ss_list %= (`DL.snoc` txt)
           pure $ V.fromList $ DL.toList $ _ss_list st
-      liftIO $ writeIORef sharedStringsRef $ Just sharedStrs
-      pure sharedStrs
+
+{-# SCC getOrParseSharedStringss #-}
+getOrParseSharedStringss :: XlsxM (V.Vector Text)
+getOrParseSharedStringss = runMemoized =<< asks _xs_shared_strings
+
+readWorkbookInfo :: Zip.ZipArchive WorkbookInfo
+readWorkbookInfo = do
+   sel <- Zip.mkEntrySelector "xl/workbook.xml"
+   src <- Zip.getEntrySource sel
+   sheets <- liftIO $ runExpat [] src $ \evs -> forM_ evs $ \case
+     StartElement ("sheet" :: ByteString) attrs -> do
+       nm <- lookupBy "name" attrs
+       sheetId <- lookupBy "sheetId" attrs
+       rId <- lookupBy "r:id" attrs
+       sheetNum <- either (throwM . ParseDecimalError sheetId) pure $ eitherDecimal sheetId
+       modify' (SheetInfo nm (RefId rId) sheetNum :)
+     _ -> pure ()
+   pure $ WorkbookInfo sheets
+
+lookupBy :: MonadThrow m => ByteString -> [(ByteString, Text)] -> m Text
+lookupBy fields attrs = maybe (throwM $ LookupError attrs fields) pure $ lookup fields attrs
 
 -- | Returns information about the workbook, found in
 -- xl/workbook.xml. The result is cached so the XML will only be
 -- decompressed and parsed once inside a larger XlsxM action.
 getWorkbookInfo :: XlsxM WorkbookInfo
-getWorkbookInfo = do
-  ref <- asks _xs_workbook_info
-  mInfo <- liftIO $ readIORef ref
-  case mInfo of
-    Just info -> pure info
-    Nothing -> do
-      sel <- liftZip $ Zip.mkEntrySelector "xl/workbook.xml"
-      src <- liftZip $ Zip.getEntrySource sel
-      sheets <- runExpat [] src $ \evs -> forM_ evs $ \case
-        StartElement ("sheet" :: ByteString) attrs -> do
-          nm <- maybe (throwM MalformedWorkbook) pure $ lookup ("name" :: ByteString) attrs
-          sheetId <- maybe (throwM MalformedWorkbook) pure $ lookup "sheetId" attrs
-          rId <- maybe (throwM MalformedWorkbook) pure $ lookup "r:id" attrs
-          sheetNum <- either (const $ throwM MalformedWorkbook) pure $ eitherDecimal sheetId
-          modify' (SheetInfo nm (RefId rId) sheetNum :)
-        _ -> pure ()
-      let info = WorkbookInfo sheets
-      liftIO $ writeIORef ref $ Just info
-      pure info
+getWorkbookInfo = runMemoized =<< asks _xs_workbook_info
+
+readWorkbookRelatinoships :: Zip.ZipArchive Relationships
+readWorkbookRelatinoships = do
+   sel <- Zip.mkEntrySelector "xl/_rels/workbook.xml.rels"
+   src <- Zip.getEntrySource sel
+   liftIO $ fmap Relationships $ runExpat mempty src $ \evs -> forM_ evs $ \case
+     StartElement ("Relationship" :: ByteString) attrs -> do
+       rId <- lookupBy "Id" attrs
+       rTarget <- lookupBy "Target" attrs
+       rType <- lookupBy "Type" attrs
+       modify' $ M.insert (RefId rId) $
+         Relationship { relType = rType,
+                        relTarget = T.unpack rTarget
+                       }
+     _ -> pure ()
 
 -- | Gets relationships for the workbook (this means the filenames in
 -- the relationships map are relative to "xl/" base path within the
@@ -324,26 +337,7 @@ getWorkbookInfo = do
 -- The relationships xml file will only be parsed once when called
 -- multiple times within a larger XlsxM action.
 getWorkbookRelationships :: XlsxM Relationships
-getWorkbookRelationships = do
-  ref <- asks _xs_relationships
-  mInfo <- liftIO $ readIORef ref
-  case mInfo of
-    Just info -> pure info
-    Nothing -> do
-      sel <- liftZip $ Zip.mkEntrySelector "xl/_rels/workbook.xml.rels"
-      src <- liftZip $ Zip.getEntrySource sel
-      rels <- fmap Relationships $ runExpat mempty src $ \evs -> forM_ evs $ \case
-        StartElement ("Relationship" :: ByteString) attrs -> do
-          rId <- maybe (throwM MalformedWorkbook) pure $ lookup ("Id" :: ByteString) attrs
-          rTarget <- maybe (throwM MalformedWorkbook) pure $ lookup "Target" attrs
-          rType <- maybe (throwM MalformedWorkbook) pure $ lookup "Type" attrs
-          modify' $ M.insert (RefId rId) $
-            Relationship { relType = rType,
-                           relTarget = T.unpack rTarget
-                          }
-        _ -> pure ()
-      liftIO $ writeIORef ref $ Just rels
-      pure rels
+getWorkbookRelationships = runMemoized =<< asks _xs_relationships
 
 type HexpatEvent = SAXEvent ByteString Text
 
@@ -392,8 +386,8 @@ runExpat :: forall state tag text.
   state ->
   ConduitT () ByteString (C.ResourceT IO) () ->
   ([SAXEvent tag text] -> StateT state IO ()) ->
-  XlsxM state
-runExpat initialState byteSource handler = liftIO $ do
+  IO state
+runExpat initialState byteSource handler = do
   -- Set up state
   ref <- newIORef initialState
   -- Set up parser and callbacks
@@ -424,7 +418,7 @@ runExpatForSheet ::
   (SheetItem -> IO ()) ->
   XlsxM ()
 runExpatForSheet initState byteSource inner =
-  void $ runExpat initState byteSource handler
+  void $ liftIO $ runExpat initState byteSource handler
   where
     sheetName = _ps_sheet_index initState
     handler evs = forM_ evs $ \ev -> do
@@ -455,6 +449,8 @@ collectItems sheetId = do
 newtype SheetIndex = MkSheetIndex Int
  deriving newtype NFData
 
+-- | This does *no* checking if the index exists or not.
+--   you could have index out of bounds issues because of this.
 makeIndex :: Int -> SheetIndex
 makeIndex = MkSheetIndex
 
@@ -500,7 +496,7 @@ countRowsInSheet (MkSheetIndex sheetId) = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
     getSheetXmlSource sheetId
   for mSrc $ \sourceSheetXml -> do
-    runExpat @Int @ByteString @ByteString 0 sourceSheetXml $ \evs ->
+    liftIO $ runExpat @Int @ByteString @ByteString 0 sourceSheetXml $ \evs ->
       forM_ evs $ \case
         StartElement "row" _ -> modify' (+1)
         _                    -> pure ()
@@ -591,7 +587,8 @@ data TypeError
   deriving Show
   deriving anyclass Exception
 
-data WorkbookError = MalformedWorkbook
+data WorkbookError = LookupError { lookup_attrs :: [(ByteString, Text)], lookup_field :: ByteString }
+                   | ParseDecimalError Text String
   deriving Show
   deriving anyclass Exception
 
