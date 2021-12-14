@@ -108,7 +108,6 @@ readWrite input = do
 sharedStringInputSameAsOutput :: Text -> Either String String
 sharedStringInputSameAsOutput someText =
   if someText  == out then Right msg  else Left msg
-
   where
     out = fst $ evalState (SW.upsertSharedString someText) SW.initialSharedString
     msg = printf "'%s' = '%s'" (Text.unpack out) (Text.unpack someText)
