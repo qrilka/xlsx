@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TupleSections             #-}
@@ -16,7 +17,7 @@ module Codec.Xlsx.Parser
   , Parser
   ) where
 
-import qualified Codec.Archive.Zip as Zip
+import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Control.Applicative
 import Control.Arrow (left)
 import Control.Error.Safe (headErr)
@@ -27,7 +28,7 @@ import Lens.Micro
 #else
 import Control.Lens hiding ((<.>), element, views)
 #endif
-import Control.Monad (forM, join, void)
+import Control.Monad (join, void)
 import Control.Monad.Except (catchError, throwError)
 import Data.Bool (bool)
 import Data.ByteString (ByteString)
@@ -54,7 +55,6 @@ import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Parser.Internal.PivotTable
 import Codec.Xlsx.Types
 import Codec.Xlsx.Types.Cell (formulaDataFromCursor)
-import Codec.Xlsx.Types.Common (xlsxTextToCellValue)
 import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CfPair
 import Codec.Xlsx.Types.Internal.CommentTable as CommentTable
@@ -71,7 +71,7 @@ import Codec.Xlsx.Types.PivotTable.Internal
 toXlsx :: L.ByteString -> Xlsx
 toXlsx = either (error . show) id . toXlsxEither
 
-data ParseError = InvalidZipArchive
+data ParseError = InvalidZipArchive String
                 | MissingFile FilePath
                 | InvalidFile FilePath Text
                 | InvalidRef FilePath RefId
@@ -106,7 +106,7 @@ toXlsxEitherBase ::
   -> L.ByteString
   -> Parser Xlsx
 toXlsxEitherBase parseSheet bs = do
-  ar <- left (const InvalidZipArchive) $ Zip.toArchiveOrFail bs
+  ar <- left InvalidZipArchive $ Zip.toArchiveOrFail bs
   sst <- getSharedStrings ar
   contentTypes <- getContentTypes ar
   (wfs, names, cacheSources, dateBase) <- readWorkbook ar

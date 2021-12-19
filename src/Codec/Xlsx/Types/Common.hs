@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE RankNTypes #-}
+
 module Codec.Xlsx.Types.Common
   ( CellRef(..)
   , singleCellRef
@@ -20,6 +24,14 @@ module Codec.Xlsx.Types.Common
   , dateToNumber
   , int2col
   , col2int
+  -- ** prisms
+  , _XlsxText
+  , _XlsxRichText
+  , _CellText
+  , _CellDouble
+  , _CellBool
+  , _CellRich
+  , _CellError
   ) where
 
 import GHC.Generics (Generic)
@@ -43,6 +55,15 @@ import Text.XML.Cursor
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.RichText
 import Codec.Xlsx.Writer.Internal
+#ifdef USE_MICROLENS
+import Lens.Micro
+import Lens.Micro.Internal
+import Lens.Micro.GHC ()
+import Data.Profunctor.Choice
+import Data.Profunctor(dimap)
+#else
+import Control.Lens(makePrisms)
+#endif
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
 int2col :: Int -> Text
@@ -169,6 +190,7 @@ data CellValue
   | CellRich [RichTextRun]
   | CellError ErrorType
   deriving (Eq, Ord, Show, Generic)
+
 
 instance NFData CellValue
 
@@ -408,3 +430,78 @@ instance ToAttrVal ErrorType where
   toAttrVal ErrorNum = "#NUM!"
   toAttrVal ErrorRef = "#REF!"
   toAttrVal ErrorValue = "#VALUE!"
+
+#ifdef USE_MICROLENS
+-- Since micro-lens denies the existence of prisms,
+-- I pasted the splice that's generated from makePrisms,
+-- then I copied over the definitions from Control.Lens for the prism
+-- function as well.
+-- Essentially this is doing the template haskell by hand.
+type Prism s t a b = forall p f. (Choice p, Applicative f) => p a (f b) -> p s (f t)
+type Prism' s a = Prism s s a a
+
+prism :: (b -> t) -> (s -> Either t a) -> Prism s t a b
+prism bt seta = dimap seta (either pure (fmap bt)) . right'
+
+_CellText :: Prism' CellValue Text
+_CellText
+  = (prism (\ x1_a1ZQv -> CellText x1_a1ZQv))
+      (\ x_a1ZQw
+         -> case x_a1ZQw of
+              CellText y1_a1ZQx -> Right y1_a1ZQx
+              _ -> Left x_a1ZQw)
+{-# INLINE _CellText #-}
+_CellDouble :: Prism' CellValue Double
+_CellDouble
+  = (prism (\ x1_a1ZQy -> CellDouble x1_a1ZQy))
+      (\ x_a1ZQz
+         -> case x_a1ZQz of
+              CellDouble y1_a1ZQA -> Right y1_a1ZQA
+              _ -> Left x_a1ZQz)
+{-# INLINE _CellDouble #-}
+_CellBool :: Prism' CellValue Bool
+_CellBool
+  = (prism (\ x1_a1ZQB -> CellBool x1_a1ZQB))
+      (\ x_a1ZQC
+         -> case x_a1ZQC of
+              CellBool y1_a1ZQD -> Right y1_a1ZQD
+              _ -> Left x_a1ZQC)
+{-# INLINE _CellBool #-}
+_CellRich :: Prism' CellValue [RichTextRun]
+_CellRich
+  = (prism (\ x1_a1ZQE -> CellRich x1_a1ZQE))
+      (\ x_a1ZQF
+         -> case x_a1ZQF of
+              CellRich y1_a1ZQG -> Right y1_a1ZQG
+              _ -> Left x_a1ZQF)
+{-# INLINE _CellRich #-}
+_CellError :: Prism' CellValue ErrorType
+_CellError
+  = (prism (\ x1_a1ZQH -> CellError x1_a1ZQH))
+      (\ x_a1ZQI
+         -> case x_a1ZQI of
+              CellError y1_a1ZQJ -> Right y1_a1ZQJ
+              _ -> Left x_a1ZQI)
+{-# INLINE _CellError #-}
+
+_XlsxText :: Prism' XlsxText Text
+_XlsxText
+  = (prism (\ x1_a1ZzU -> XlsxText x1_a1ZzU))
+      (\ x_a1ZzV
+         -> case x_a1ZzV of
+              XlsxText y1_a1ZzW -> Right y1_a1ZzW
+              _ -> Left x_a1ZzV)
+{-# INLINE _XlsxText #-}
+_XlsxRichText :: Prism' XlsxText [RichTextRun]
+_XlsxRichText
+  = (prism (\ x1_a1ZzX -> XlsxRichText x1_a1ZzX))
+      (\ x_a1ZzY
+         -> case x_a1ZzY of
+              XlsxRichText y1_a1ZzZ -> Right y1_a1ZzZ
+              _ -> Left x_a1ZzY)
+{-# INLINE _XlsxRichText #-}
+
+#else
+makePrisms ''XlsxText
+makePrisms ''CellValue
+#endif

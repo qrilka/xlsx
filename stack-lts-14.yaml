@@ -1,3 +1,6 @@
 resolver: lts-14.27
 packages:
 - '.'
+
+extra-deps:
+- indexed-traversable-0.1.1@sha256:e4602357513aa3b146546227732e6e5698392f4324ab690e109cc05676ba3b4f,2491

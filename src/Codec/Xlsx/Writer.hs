@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DeriveGeneric #-}
 -- | This module provides a function for serializing structured `Xlsx` into lazy bytestring
@@ -9,7 +10,7 @@ module Codec.Xlsx.Writer
   ( fromXlsx
   ) where
 
-import qualified Codec.Archive.Zip as Zip
+import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Control.Arrow (second)
 #ifdef USE_MICROLENS
 import Lens.Micro
