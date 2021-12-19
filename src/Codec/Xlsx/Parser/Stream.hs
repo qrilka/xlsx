@@ -265,7 +265,7 @@ runXlsxM :: MonadIO m => FilePath -> XlsxM a -> m a
 runXlsxM xlsxFile (XlsxM act) = liftIO $ do
   -- TODO: don't run the withArchive multiple times but use liftWith or runInIO instead
   _xs_workbook_info  <- memoizeRef (Zip.withArchive xlsxFile readWorkbookInfo)
-  _xs_relationships  <- memoizeRef (Zip.withArchive xlsxFile readWorkbookRelatinoships)
+  _xs_relationships  <- memoizeRef (Zip.withArchive xlsxFile readWorkbookRelationships)
   _xs_shared_strings <- memoizeRef (Zip.withArchive xlsxFile parseSharedStringss)
   Zip.withArchive xlsxFile $ runReaderT act $ MkXlsxMState{..}
 
@@ -314,8 +314,8 @@ lookupBy fields attrs = maybe (throwM $ LookupError attrs fields) pure $ lookup 
 getWorkbookInfo :: XlsxM WorkbookInfo
 getWorkbookInfo = runMemoized =<< asks _xs_workbook_info
 
-readWorkbookRelatinoships :: Zip.ZipArchive Relationships
-readWorkbookRelatinoships = do
+readWorkbookRelationships :: Zip.ZipArchive Relationships
+readWorkbookRelationships = do
    sel <- Zip.mkEntrySelector "xl/_rels/workbook.xml.rels"
    src <- Zip.getEntrySource sel
    liftIO $ fmap Relationships $ runExpat mempty src $ \evs -> forM_ evs $ \case
