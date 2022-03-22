@@ -1,5 +1,6 @@
-0.8.5
+1.0.0
 ------------
+* Add support for streaming xlsx files
 * dropped support for GHC 8.4.* and 8.6.* and added support for GHC 9.2.*
 * Treat 1900 as a leap year like Excel does
 
