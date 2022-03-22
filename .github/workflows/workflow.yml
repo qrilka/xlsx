@@ -13,19 +13,16 @@ jobs:
       matrix:
         include:
         - os: ubuntu-latest
-          stack-yaml: stack-lts-12.yaml
-          extra-args: ""
-        - os: ubuntu-latest
-          stack-yaml: stack-lts-14.yaml
-          extra-args: ""
-        - os: ubuntu-latest
-          stack-yaml: stack-lts-14.yaml
-          extra-args: "--flag xlsx:microlens"
-        - os: ubuntu-latest
           stack-yaml: stack-lts-16.yaml
           extra-args: ""
         - os: ubuntu-latest
+          stack-yaml: stack-lts-16.yaml
+          extra-args: "--flag xlsx:microlens"
+        - os: ubuntu-latest
           stack-yaml: stack-lts-17.yaml
+          extra-args: ""
+        - os: ubuntu-latest
+          stack-yaml: stack-lts-19.yaml
           extra-args: ""
         - os: ubuntu-latest
           stack-yaml: stack-nightly.yaml
