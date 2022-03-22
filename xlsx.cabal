@@ -128,7 +128,7 @@ Library
                      , indexed-traversable
     cpp-options: -DUSE_MICROLENS
   else
-    Build-depends:     lens         >= 3.8 && < 5.1
+    Build-depends:     lens         >= 3.8 && < 5.2
 
   Default-Language:     Haskell2010
   Other-Extensions:  DeriveDataTypeable
@@ -181,7 +181,7 @@ test-suite data-test
                      , microlens-th
     cpp-options: -DUSE_MICROLENS
   else
-    Build-depends:     lens         >= 3.8 && < 5.1
+    Build-depends:     lens         >= 3.8 && < 5.2
   Default-Language:     Haskell2010
 
 source-repository head
