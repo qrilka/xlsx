@@ -15,6 +15,7 @@ Description:
     4th edition of the standard with the transitional schema is used for this library.
 Extra-source-files:
                      CHANGELOG.markdown
+                     data/inline-strings.xlsx
 
 
 Homepage:            https://github.com/qrilka/xlsx
