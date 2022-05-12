@@ -688,7 +688,7 @@ parseStyle list =
 parseType :: SheetValues -> Either TypeError ExcelValueType
 parseType list =
   case findName "t" list of
-    Nothing -> pure Untyped
+    Nothing -> Right TN -- according to spec by default if `t` is missing then default value is `n` - number
     Just (_nm, valText)->
       case valText of
         "n"         -> Right TN

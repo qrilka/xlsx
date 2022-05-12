@@ -90,6 +90,10 @@ tests =
 
       testGroup "Reader/inline strings"
       [ testCase "Can parse row with inline strings" inlineStringsAreParsed
+      ],
+
+      testGroup "Reader/floats parsing"
+      [ testCase "Can parse untyped values as floats" untypedCellsAreParsedAsFloats
       ]
     ]
 
@@ -204,5 +208,24 @@ inlineStringsAreParsed = do
             ]
         ]
   expected @==? (items ^.. traversed . si_row . ri_cell_row)
+
+untypedCellsAreParsedAsFloats :: IO ()
+untypedCellsAreParsedAsFloats = do
+  -- values in that file are under `General` cell-type and are not marked
+  -- as numbers explicitly in `t` attribute.
+  items <- runXlsxM "data/floats.xlsx" $ collectItems $ makeIndex 1
+  let defCell v = def
+        { _cellValue = Just v
+        }
+      expected =
+        [ IM.fromList [ (1, def & cellValue ?~ CellDouble 12.0) ]
+        , IM.fromList [ (1, def & cellValue ?~ CellDouble 13.0) ]
+        -- cell below has explicit `Numeric` type, while others are all `General`,
+        -- but sometimes excel does not add a `t="n"` attr even to numeric cells
+        -- but it should be default as number in any cases if `t` is missing
+        , IM.fromList [ (1, def & cellValue ?~ CellDouble 14.0 & cellStyle ?~ 1 ) ]
+        , IM.fromList [ (1, def & cellValue ?~ CellDouble 15.0) ]
+        ]
+  expected @==? (_ri_cell_row . _si_row <$> items)
 
 #endif
