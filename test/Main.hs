@@ -101,7 +101,7 @@ floatsParsingTests :: (ByteString -> Xlsx) -> IO ()
 floatsParsingTests parser = do
   bs <- LB.readFile "data/floats.xlsx"
   let xlsx = parser bs
-      parsedCells = maybe mempty (view wsCells . snd) $ listToMaybe $ xlsx ^. xlSheets
+      parsedCells = maybe mempty ((^. wsCells) . snd) $ listToMaybe $ xlsx ^. xlSheets
       expectedCells = M.fromList
         [ ((1,1), def & cellValue ?~ CellDouble 12.0)
         , ((2,1), def & cellValue ?~ CellDouble 13.0)
