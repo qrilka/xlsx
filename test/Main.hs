@@ -85,17 +85,10 @@ main = defaultMain $
         Right testXlsx @==? toXlsxEither (fromXlsx testTime testXlsx)
     , testCase "toXlsxEither: invalid format" $
         Left (InvalidZipArchive "Did not find end of central directory signature") @==? toXlsxEither "this is not a valid XLSX file"
-    , testCase "correct floats parsing (typed and untyped cells are floats by default)" $ do
-        bs <- LB.readFile "data/floats.xlsx"
-        let xlsx = toXlsx bs
-            parsedCells = maybe mempty (view wsCells . snd) $ listToMaybe $ xlsx ^. xlSheets
-            expectedCells = M.fromList
-              [ ((1,1), def & cellValue ?~ CellDouble 12.0)
-              , ((2,1), def & cellValue ?~ CellDouble 13.0)
-              , ((3,1), def & cellValue ?~ CellDouble 14.0 & cellStyle ?~ 1)
-              , ((4,1), def & cellValue ?~ CellDouble 15.0)
-              ]
-        expectedCells @==? parsedCells
+    , testCase "toXlsx: correct floats parsing (typed and untyped cells are floats by default)"
+        $ floatsParsingTests toXlsx
+    , testCase "toXlsxFast: correct floats parsing (typed and untyped cells are floats by default)"
+        $ floatsParsingTests toXlsxFast
     , CommonTests.tests
     , CondFmtTests.tests
     , PivotTableTests.tests
@@ -103,3 +96,16 @@ main = defaultMain $
     , AutoFilterTests.tests
     , StreamTests.tests
     ]
+
+floatsParsingTests :: (ByteString -> Xlsx) -> IO ()
+floatsParsingTests parser = do
+  bs <- LB.readFile "data/floats.xlsx"
+  let xlsx = parser bs
+      parsedCells = maybe mempty (view wsCells . snd) $ listToMaybe $ xlsx ^. xlSheets
+      expectedCells = M.fromList
+        [ ((1,1), def & cellValue ?~ CellDouble 12.0)
+        , ((2,1), def & cellValue ?~ CellDouble 13.0)
+        , ((3,1), def & cellValue ?~ CellDouble 14.0 & cellStyle ?~ 1)
+        , ((4,1), def & cellValue ?~ CellDouble 15.0)
+        ]
+  expectedCells @==? parsedCells
