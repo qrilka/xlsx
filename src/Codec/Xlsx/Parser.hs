@@ -297,6 +297,15 @@ extractSheetFast ar sst contentTypes caches wf = do
             then Nothing
             else Just props
         , cells)
+
+    -- NB: According to format specification default value for cells without
+    -- `t` attribute is a `n` - number.
+    --
+    -- Schema part from spec (see the `CellValue` spec reference):
+    -- <xsd:complexType name="CT_Cell">
+    --  ..
+    --  <xsd:attribute name="t" type="ST_CellType" use="optional" default="n"/>
+    -- </xsd:complexType>
     parseCell ::
          Xeno.Node
       -> Either Text ( Int
@@ -399,6 +408,13 @@ extractSheet ar sst contentTypes caches wf = do
       parseCell cell = do
         ref <- fromAttribute "r" cell
         let s = listToMaybe $ cell $| attribute "s" >=> decimal
+            -- NB: According to format specification default value for cells without
+            -- `t` attribute is a `n` - number.
+            --
+            -- <xsd:complexType name="CT_Cell" from spec (see the `CellValue` spec reference)>
+            --  ..
+            --  <xsd:attribute name="t" type="ST_CellType" use="optional" default="n"/>
+            -- </xsd:complexType>
             t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
             d = listToMaybe $ extractCellValue sst t cell
             mFormulaData = listToMaybe $ cell $/ element (n_ "f") >=> formulaDataFromCursor

@@ -1,13 +1,20 @@
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 module Main
   ( main
   ) where
 
+#ifdef USE_MICROLENS
+import Lens.Micro
+#else
+import Control.Lens
+#endif
 import Control.Monad.State.Lazy
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
 import Data.Map (Map)
+import Data.Maybe (listToMaybe)
 import qualified Data.Map as M
 import Data.Time.Clock.POSIX (POSIXTime)
 import qualified Data.Vector as V
@@ -72,12 +79,16 @@ main = defaultMain $
         let fmtd = formatted testFormattedCells minimalStyleSheet
         testFormattedCells @==? toFormattedCells (formattedCellMap fmtd) (formattedMerges fmtd)
                                                  (formattedStyleSheet fmtd)
-    , testCase "proper results from `conditionalltyFormatted`" $
+    , testCase "proper results from `conditionallyFormatted`" $
         testCondFormattedResult @==? testRunCondFormatted
     , testCase "toXlsxEither: properly formatted" $
         Right testXlsx @==? toXlsxEither (fromXlsx testTime testXlsx)
     , testCase "toXlsxEither: invalid format" $
         Left (InvalidZipArchive "Did not find end of central directory signature") @==? toXlsxEither "this is not a valid XLSX file"
+    , testCase "toXlsx: correct floats parsing (typed and untyped cells are floats by default)"
+        $ floatsParsingTests toXlsx
+    , testCase "toXlsxFast: correct floats parsing (typed and untyped cells are floats by default)"
+        $ floatsParsingTests toXlsxFast
     , CommonTests.tests
     , CondFmtTests.tests
     , PivotTableTests.tests
@@ -85,3 +96,16 @@ main = defaultMain $
     , AutoFilterTests.tests
     , StreamTests.tests
     ]
+
+floatsParsingTests :: (ByteString -> Xlsx) -> IO ()
+floatsParsingTests parser = do
+  bs <- LB.readFile "data/floats.xlsx"
+  let xlsx = parser bs
+      parsedCells = maybe mempty ((^. wsCells) . snd) $ listToMaybe $ xlsx ^. xlSheets
+      expectedCells = M.fromList
+        [ ((1,1), def & cellValue ?~ CellDouble 12.0)
+        , ((2,1), def & cellValue ?~ CellDouble 13.0)
+        , ((3,1), def & cellValue ?~ CellDouble 14.0 & cellStyle ?~ 1)
+        , ((4,1), def & cellValue ?~ CellDouble 15.0)
+        ]
+  expectedCells @==? parsedCells

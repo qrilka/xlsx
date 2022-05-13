@@ -688,7 +688,14 @@ parseStyle list =
 parseType :: SheetValues -> Either TypeError ExcelValueType
 parseType list =
   case findName "t" list of
-    Nothing -> pure Untyped
+    -- NB: According to format specification default value for cells without
+    -- `t` attribute is a `n` - number.
+    --
+    -- <xsd:complexType name="CT_Cell" from spec (see the `CellValue` spec reference)>
+    --  ..
+    --  <xsd:attribute name="t" type="ST_CellType" use="optional" default="n"/>
+    -- </xsd:complexType>
+    Nothing -> Right TN
     Just (_nm, valText)->
       case valText of
         "n"         -> Right TN
