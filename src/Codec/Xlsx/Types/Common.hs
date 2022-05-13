@@ -183,6 +183,9 @@ instance NFData Formula
 -- standard includes date format also but actually dates
 -- are represented by numbers with a date format assigned
 -- to a cell containing it
+-- Specification (ECMA-376):
+-- - 18.3.1.4 c (Cell)
+-- - 18.18.11 ST_CellType (Cell Type)
 data CellValue
   = CellText Text
   | CellDouble Double
