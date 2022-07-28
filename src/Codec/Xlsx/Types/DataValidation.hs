@@ -4,20 +4,36 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Codec.Xlsx.Types.DataValidation where
+module Codec.Xlsx.Types.DataValidation
+  ( ValidationExpression(..)
+    , ValidationType(..)
+    , ErrorStyle(..)
+    , DataValidation(..)
+    , ListOrRangeExpression(..)
+    , ValidationList
+    , getPlainListValidator
+    , getCellRangeValidator
+    , readValidationType
+    , readListFormulas
+    , readOpExpression2
+    , readValidationTypeOpExp
+    , readValExpression
+    , viewValidationExpression
+  ) where
 
+import Control.Applicative ((<|>))
 import Control.DeepSeq (NFData)
 #ifdef USE_MICROLENS
 import Lens.Micro.TH (makeLenses)
 #else
 import Control.Lens.TH (makeLenses)
 #endif
-import Control.Monad ((>=>))
+import Control.Monad ((>=>), guard)
 import Data.ByteString (ByteString)
 import Data.Char (isSpace)
 import Data.Default
 import qualified Data.Map as M
-import Data.Maybe (catMaybes, maybeToList)
+import Data.Maybe (catMaybes, isNothing, maybe, maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -48,12 +64,19 @@ data ValidationType
     | ValidationTypeCustom     Formula
     | ValidationTypeDate       ValidationExpression
     | ValidationTypeDecimal    ValidationExpression
-    | ValidationTypeList       [Text]
+    | ValidationTypeList       ListOrRangeExpression
     | ValidationTypeTextLength ValidationExpression
     | ValidationTypeTime       ValidationExpression
     | ValidationTypeWhole      ValidationExpression
     deriving (Eq, Show, Generic)
 instance NFData ValidationType
+
+type ValidationList = [Text]
+
+data ListOrRangeExpression = ListExpression ValidationList | RangeExpression Range
+    deriving (Eq, Show, Generic)
+instance NFData ListOrRangeExpression
+
 
 -- See 18.18.18 "ST_DataValidationErrorStyle (Data Validation Error Styles)" (p. 2438/2448)
 data ErrorStyle
@@ -183,20 +206,38 @@ readValidationType op ty cur = do
     opExp <- readOpExpression2 op cur
     readValidationTypeOpExp ty opExp
 
-readListFormulas :: Formula -> Maybe [Text]
-readListFormulas (Formula f) = readQuotedList f
+-- | Attempt to obtain a range expression from the list of ValidationTypeList
+getCellRangeValidator :: ListOrRangeExpression -> Maybe Range
+getCellRangeValidator (RangeExpression re) = Just re
+getCellRangeValidator _ = Nothing
+
+-- | Attempt to obtain a plain list from the list of ValidationTypeList
+getPlainListValidator :: ListOrRangeExpression -> Maybe ValidationList
+getPlainListValidator (ListExpression le) = Just le
+getPlainListValidator _ = Nothing
+
+readListFormulas :: Formula -> Maybe ListOrRangeExpression
+readListFormulas (Formula f) = readQuotedList f <|> readUnquotedCellRange f
   where
     readQuotedList t
         | Just t'  <- T.stripPrefix "\"" (T.dropAround isSpace t)
         , Just t'' <- T.stripSuffix "\"" t'
-        = Just $ map (T.dropAround isSpace) $ T.splitOn "," t''
+        = Just . ListExpression $ map (T.dropAround isSpace) $ T.splitOn "," t''
         | otherwise = Nothing
+    readUnquotedCellRange t =
+      -- a single CellRef expression of a range (this is not validated beyond the absence of quotes)
+      let trimmed = T.dropAround isSpace t
+        in RangeExpression (CellRef trimmed) <$ guard (not (T.null trimmed))
   -- This parser expects a comma-separated list surrounded by quotation marks.
   -- Spaces around the quotation marks and commas are removed, but inner spaces
   -- are kept.
   --
   -- The parser seems to be consistent with how Excel treats list formulas, but
   -- I wasn't able to find a specification of the format.
+  --
+  -- Addendum: <dataValidation type="list" ...> undescriminately designates an actual list or a cell range.
+  -- For a cell range validation, instead of a quoted list, it's an unquoted CellRef-like contents of the form:
+  -- ActualSheetName!$C$2:$C$18
 
 readOpExpression2 :: Text -> Cursor -> [ValidationExpression]
 readOpExpression2 op cur
@@ -281,7 +322,14 @@ instance ToElement DataValidation where
           ValidationTypeTime f       -> opExp $ viewValidationExpression f
           ValidationTypeWhole f      -> opExp $ viewValidationExpression f
           ValidationTypeList as      ->
-            let f = Formula $ "\"" <> T.intercalate "," as <> "\""
+            let renderPlainList l =
+                  let csvFy xs = T.intercalate "," xs
+                      reQuote x = '"' `T.cons`  x `T.snoc` '"'
+                    in reQuote (csvFy l)
+                f = Formula $
+                      case as of
+                        RangeExpression re -> unCellRef re
+                        ListExpression le -> renderPlainList le
             in  (Nothing, Just f, Nothing)
 
 viewValidationExpression :: ValidationExpression -> (Text, Formula, Maybe Formula)
