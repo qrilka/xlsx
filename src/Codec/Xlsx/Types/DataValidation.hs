@@ -3,16 +3,30 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Codec.Xlsx.Types.DataValidation where
+module Codec.Xlsx.Types.DataValidation
+  ( ValidationExpression(..)
+    , ValidationType(..)
+    , ErrorStyle(..)
+    , DataValidation(..)
+    , getPlainListValidator
+    , getCellRangeValidator
+    , readValidationType
+    , readListFormulas
+    , readOpExpression2
+    , readValidationTypeOpExp
+    , readValExpression
+    , viewValidationExpression
+  ) where
 
+import Control.Applicative ((<|>))
 import Control.DeepSeq (NFData)
 import Control.Lens.TH (makeLenses)
-import Control.Monad ((>=>))
+import Control.Monad ((>=>), guard)
 import Data.ByteString (ByteString)
 import Data.Char (isSpace)
 import Data.Default
 import qualified Data.Map as M
-import Data.Maybe (catMaybes, maybeToList)
+import Data.Maybe (catMaybes, isNothing, maybe, maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -43,7 +57,7 @@ data ValidationType
     | ValidationTypeCustom     Formula
     | ValidationTypeDate       ValidationExpression
     | ValidationTypeDecimal    ValidationExpression
-    | ValidationTypeList       [Text]
+    | ValidationTypeList       [Text] -- ^ prefer discriminating the list using getPlainListValidator or getCellRangeValidator
     | ValidationTypeTextLength ValidationExpression
     | ValidationTypeTime       ValidationExpression
     | ValidationTypeWhole      ValidationExpression
@@ -178,20 +192,50 @@ readValidationType op ty cur = do
     opExp <- readOpExpression2 op cur
     readValidationTypeOpExp ty opExp
 
+-- | Attempt at late incremental support for Cell Range dataValidation
+-- while making the least breaking changes possible to the expectations over the contents
+-- of DataValidationTypeList, this is a bit of a kludge
+-- This header is added to the single cellrange expression from 'readListFormulas' in the case of detected cell range validation.
+-- The fork name and the GUID should make it ultimately impossible to be taken an accidental plain list element,
+-- whereas existing package users where not using cell range validators.
+-- TODOs: DataValidationTypeList should take a type distinguishing between List and Cell Range validations.
+extHeaderCellRangeValidation :: Text
+extHeaderCellRangeValidation =
+  "flhorizon/xlsx+cellrange_extension+4659df31-ee11-481f-b8a6-331648dfdcbc|"
+
+type ValidationList = [Text]
+
+-- | Attempt to obtain a range expression from the list of ValidationTypeList
+getCellRangeValidator :: ValidationList -> Maybe Range
+getCellRangeValidator [x] = CellRef <$> T.stripPrefix extHeaderCellRangeValidation x
+getCellRangeValidator _ = Nothing
+
+-- | Attempt to obtain a plain list from the list of ValidationTypeList
+getPlainListValidator :: ValidationList -> Maybe ValidationList
+getPlainListValidator vl = vl <$ guard (isNothing (getCellRangeValidator vl))
+
 readListFormulas :: Formula -> Maybe [Text]
-readListFormulas (Formula f) = readQuotedList f
+readListFormulas (Formula f) = readQuotedList f <|> readUnquotedCellRange f
   where
     readQuotedList t
         | Just t'  <- T.stripPrefix "\"" (T.dropAround isSpace t)
         , Just t'' <- T.stripSuffix "\"" t'
         = Just $ map (T.dropAround isSpace) $ T.splitOn "," t''
         | otherwise = Nothing
+    readUnquotedCellRange t =
+      -- a single CellRef expression of a range (this is not validated beyond the absence of quotes)
+      let trimmed = T.dropAround isSpace t
+        in [extHeaderCellRangeValidation <> trimmed] <$ guard (not (T.null trimmed))
   -- This parser expects a comma-separated list surrounded by quotation marks.
   -- Spaces around the quotation marks and commas are removed, but inner spaces
   -- are kept.
   --
   -- The parser seems to be consistent with how Excel treats list formulas, but
   -- I wasn't able to find a specification of the format.
+  --
+  -- Addendum: <dataValidation type="list" ...> undescriminately designates an actual list or a cell range.
+  -- For a cell range validation, instead of a quoted list, it's an unquoted CellRef-like contents of the form:
+  -- ActualSheetName!$C$2:$C$18
 
 readOpExpression2 :: Text -> Cursor -> [ValidationExpression]
 readOpExpression2 op cur
@@ -276,7 +320,11 @@ instance ToElement DataValidation where
           ValidationTypeTime f       -> opExp $ viewValidationExpression f
           ValidationTypeWhole f      -> opExp $ viewValidationExpression f
           ValidationTypeList as      ->
-            let f = Formula $ "\"" <> T.intercalate "," as <> "\""
+            let renderPlainList l =
+                  let csvFy xs = T.intercalate "," xs
+                      reQuote x = '"' `T.cons`  x `T.snoc` '"'
+                    in reQuote (csvFy l)
+                f = Formula $ maybe (renderPlainList as) unCellRef (getCellRangeValidator as)
             in  (Nothing, Just f, Nothing)
 
 viewValidationExpression :: ValidationExpression -> (Text, Formula, Maybe Formula)
