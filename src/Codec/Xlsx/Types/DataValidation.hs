@@ -7,6 +7,16 @@
 module Codec.Xlsx.Types.DataValidation
   ( ValidationExpression(..)
     , ValidationType(..)
+    , dvAllowBlank
+    , dvError
+    , dvErrorStyle
+    , dvErrorTitle
+    , dvPrompt
+    , dvPromptTitle
+    , dvShowDropDown
+    , dvShowErrorMessage
+    , dvShowInputMessage
+    , dvValidationType
     , ErrorStyle(..)
     , DataValidation(..)
     , ListOrRangeExpression(..)
@@ -33,7 +43,7 @@ import Data.ByteString (ByteString)
 import Data.Char (isSpace)
 import Data.Default
 import qualified Data.Map as M
-import Data.Maybe (catMaybes, isNothing, maybe, maybeToList)
+import Data.Maybe (catMaybes, maybeToList)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -225,9 +235,10 @@ readListFormulas (Formula f) = readQuotedList f <|> readUnquotedCellRange f
         = Just . ListExpression $ map (T.dropAround isSpace) $ T.splitOn "," t''
         | otherwise = Nothing
     readUnquotedCellRange t =
-      -- a single CellRef expression of a range (this is not validated beyond the absence of quotes)
-      let trimmed = T.dropAround isSpace t
-        in RangeExpression (CellRef trimmed) <$ guard (not (T.null trimmed))
+      -- a CellRef expression of a range (this is not validated beyond the absence of quotes)
+      -- note that the foreign sheet name can be 'single-quoted'
+      let stripped = T.dropAround isSpace t
+        in RangeExpression (CellRef stripped) <$ guard (not (T.null stripped))
   -- This parser expects a comma-separated list surrounded by quotation marks.
   -- Spaces around the quotation marks and commas are removed, but inner spaces
   -- are kept.

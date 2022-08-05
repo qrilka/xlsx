@@ -16,6 +16,7 @@ import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.Text (Text)
 import Data.Time.Clock.POSIX (POSIXTime)
 import qualified Data.Vector as V
 import Text.RawString.QQ
@@ -46,7 +47,12 @@ testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
   where
     sheets =
-      [("List1", sheet1), ("Another sheet", sheet2), ("with pivot table", pvSheet)]
+      [ ("List1", sheet1)
+      , ("Another sheet", sheet2)
+      , ("with pivot table", pvSheet)
+      , ("cellrange DV source", foreignDvSourceSheet) -- "foreign" sheet holding validation data
+      , ("cellrange DV test", foreignDvTestSheet) -- applies validation using foreign cell ranges
+      ]
     sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges
       sheetViews pageSetup cFormatting validations [] (Just autoFilter)
       tables (Just protection) sharedFormulas
@@ -76,6 +82,10 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
       , _sprLegacyPassword = Just $ legacyPassword "hard password"
       }
     sheet2 = def & wsCells .~ testCellMap2
+    foreignDvSourceSheet = def & wsCells .~ cellRangeDvSourceMap
+    foreignDvTestSheet = def &  wsDataValidations .~ foreignValidations &
+                                wsCells . at (1, 1) ?~
+                                    (def & cellValue ?~ CellText ("Hi! try " <> unCellRef testForeignDvRange))
     pvSheet = sheetWithPvCells & wsPivotTables .~ [testPivotTable]
     sheetWithPvCells = def & wsCells .~ testPivotSrcCells
     rowProps = M.fromList [(1, RowProps { rowHeight       = Just (CustomHeight 50)
@@ -163,6 +173,18 @@ testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5), ((1, 10), cd1_10)
     cd5_3 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 0)
     cd6_2 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 1)
     cd6_3 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 1)
+
+cellRangeDvSourceMap :: CellMap
+cellRangeDvSourceMap = M.fromList [ ((1, 1), def & cellValue ?~ CellText "A-A-A")
+                                    , ((2, 1), def & cellValue ?~ CellText "B-B-B")
+                                    , ((1, 2), def & cellValue ?~ CellText "C-C-C")
+                                    , ((2, 2), def & cellValue ?~ CellText "D-D-D")
+                                    , ((1, 3), def & cellValue ?~ CellDouble 6)
+                                    , ((2, 3), def & cellValue ?~ CellDouble 7)
+                                    , ((3, 1), def & cellValue ?~ CellDouble 5)
+                                    , ((3, 2), def & cellValue ?~ CellText "numbers!")
+                                    , ((3, 3), def & cellValue ?~ CellDouble 5)
+                                  ]
 
 testCellMap2 :: CellMap
 testCellMap2 = M.fromList [ ((1, 2), def & cellValue ?~ CellText "something here")
@@ -536,7 +558,7 @@ validations = M.fromList
         , _dvShowDropDown     = True
         , _dvShowErrorMessage = True
         , _dvShowInputMessage = True
-        , _dvValidationType   = ValidationTypeList ["aaaa","bbbb","cccc"]
+        , _dvValidationType   = ValidationTypeList $ ListExpression ["aaaa","bbbb","cccc"]
         }
       )
     , ( SqRef [CellRef "A6", CellRef "I2"], def
@@ -566,3 +588,23 @@ validations = M.fromList
         }
       )
     ]
+
+testForeignDvRange :: Range
+testForeignDvRange = CellRef "B2:B7"
+
+foreignValidations :: Map SqRef DataValidation
+foreignValidations = M.fromList
+  [ ( SqRef [testForeignDvRange], def
+        { _dvAllowBlank       = True
+        , _dvError            = Just "incorrect data"
+        , _dvErrorStyle       = ErrorStyleInformation
+        , _dvErrorTitle       = Just "error title"
+        , _dvPrompt           = Just "Input kebab string"
+        , _dvPromptTitle      = Just "I love kebab-case"
+        , _dvShowDropDown     = True
+        , _dvShowErrorMessage = True
+        , _dvShowInputMessage = True
+        , _dvValidationType   = ValidationTypeList $ RangeExpression $ CellRef "'cellrange DV source'!$A$1:$B$2"
+        }
+      )
+  ]
