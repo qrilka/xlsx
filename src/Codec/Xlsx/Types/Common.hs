@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TupleSections #-}
 module Codec.Xlsx.Types.Common
   ( CellRef(..)
   , singleCellRef
@@ -7,7 +8,9 @@ module Codec.Xlsx.Types.Common
   , fromSingleCellRefNoting
   , Range
   , mkRange
+  , mkForeignRange
   , fromRange
+  , fromForeignRange
   , SqRef(..)
   , XlsxText(..)
   , xlsxTextToCellValue
@@ -106,11 +109,27 @@ type Range = CellRef
 mkRange :: (Int, Int) -> (Int, Int) -> Range
 mkRange fr to = CellRef $ T.concat [singleCellRefRaw fr, T.pack ":", singleCellRefRaw to]
 
+-- | Render range existing in another worksheet:
+--
+-- > mkForeignRange "MyOtherSheet" (2, 4) (6, 8) == "MyOtherSheet!D2:H6"
+mkForeignRange :: Text -> (Int, Int) -> (Int, Int) -> Range
+mkForeignRange sheetName fr to =
+  case mkRange fr to of
+    CellRef cr -> CellRef $ T.concat [sheetName, "!", cr]
+
+
 -- | reverse to 'mkRange'
 fromRange :: Range -> Maybe ((Int, Int), (Int, Int))
 fromRange r =
   case T.split (== ':') (unCellRef r) of
     [from, to] -> (,) <$> fromSingleCellRefRaw from <*> fromSingleCellRefRaw to
+    _ -> Nothing
+
+-- | Converse function to 'mkForeignRange'
+fromForeignRange :: Range -> Maybe (Text, ((Int, Int), (Int, Int)))
+fromForeignRange  r =
+  case T.split (== '!') (unCellRef r) of
+    [sheetName, r' ] -> (sheetName,) <$> fromRange (CellRef r')
     _ -> Nothing
 
 -- | A sequence of cell references
