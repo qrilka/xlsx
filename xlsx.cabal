@@ -65,6 +65,7 @@ Library
                    , Codec.Xlsx.Types.PivotTable.Internal
                    , Codec.Xlsx.Types.Protection
                    , Codec.Xlsx.Types.RichText
+                   , Codec.Xlsx.Types.SheetState
                    , Codec.Xlsx.Types.SheetViews
                    , Codec.Xlsx.Types.StyleSheet
                    , Codec.Xlsx.Types.Table

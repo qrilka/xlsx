@@ -89,6 +89,7 @@ import Codec.Xlsx.Types.PageSetup as X
 import Codec.Xlsx.Types.PivotTable as X
 import Codec.Xlsx.Types.Protection as X
 import Codec.Xlsx.Types.RichText as X
+import Codec.Xlsx.Types.SheetState as X
 import Codec.Xlsx.Types.SheetViews as X
 import Codec.Xlsx.Types.StyleSheet as X
 import Codec.Xlsx.Types.Table as X
@@ -218,7 +219,7 @@ instance NFData Styles
 
 -- | Structured representation of Xlsx file (currently a subset of its contents)
 data Xlsx = Xlsx
-  { _xlSheets :: [(Text, Worksheet)]
+  { _xlSheets :: [(Text, SheetState, Worksheet)]
   , _xlStyles :: Styles
   , _xlDefinedNames :: DefinedNames
   , _xlCustomProperties :: Map Text Variant
