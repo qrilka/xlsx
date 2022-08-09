@@ -245,6 +245,7 @@ formatted cs styleSheet =
         , formattedMerges     = reverse (finalSt ^. formattingMerges)
         }
 
+-- | Build an 'Xlsx', render provided cells as per the 'StyleSheet'.
 formatWorkbook :: [(Text, Map (Int, Int) FormattedCell)] -> StyleSheet -> Xlsx
 formatWorkbook nfcss initStyle = extract go
   where
