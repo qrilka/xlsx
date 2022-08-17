@@ -52,10 +52,10 @@ tests =
        -- aren't inverses of each other in the range n E [60, 61[ for DateBase1900
        \b (n :: Pico) -> (n >= 60 && n < 61 && b == DateBase1900) || n == dateToNumber b (dateFromNumber b $ n)
     , testCase "building single CellRefs" $ do
-        singleCellRef' (both Rel (5, 25)) @?= CellRef "Y5"
+        singleCellRef' (mapBoth Rel (5, 25)) @?= CellRef "Y5"
         singleCellRef' (Rel 5, Abs 25) @?= CellRef "$Y5"
         singleCellRef' (Abs 5, Rel 25) @?= CellRef "Y$5"
-        singleCellRef' (both Abs (5, 25)) @?= CellRef "$Y$5"
+        singleCellRef' (mapBoth Abs (5, 25)) @?= CellRef "$Y$5"
         singleCellRef (5, 25) @?= CellRef "Y5"
     , testCase "parsing single CellRefs as abstract coordinates" $ do
         fromSingleCellRef (CellRef "Y5") @?= Just (5, 25)
@@ -63,17 +63,17 @@ tests =
         fromSingleCellRef (CellRef "Y$5") @?= Just (5, 25)
         fromSingleCellRef (CellRef "$Y$5") @?= Just (5, 25)
     , testCase "parsing single CellRefs as potentially absolute coordinates" $ do
-        fromSingleCellRef' (CellRef "Y5") @?= Just (both Rel (5, 25))
+        fromSingleCellRef' (CellRef "Y5") @?= Just (mapBoth Rel (5, 25))
         fromSingleCellRef' (CellRef "$Y5") @?= Just (Rel 5, Abs 25)
         fromSingleCellRef' (CellRef "Y$5") @?= Just (Abs 5, Rel 25)
-        fromSingleCellRef' (CellRef "$Y$5") @?= Just (both Abs (5, 25))
-        fromSingleCellRef' (CellRef "$Y$50") @?= Just (both Abs (50, 25))
+        fromSingleCellRef' (CellRef "$Y$5") @?= Just (mapBoth Abs (5, 25))
+        fromSingleCellRef' (CellRef "$Y$50") @?= Just (mapBoth Abs (50, 25))
         fromSingleCellRef' (CellRef "$Y$5$0") @?= Nothing
         fromSingleCellRef' (CellRef "Y5:Z10") @?= Nothing
     , testCase "building ranges" $ do
         mkRange (5, 25) (10, 26) @?= CellRef "Y5:Z10"
-        mkRange' (both Rel (5, 25)) (both Rel (10, 26)) @?= CellRef "Y5:Z10"
-        mkRange' (both Abs (5, 25)) (both Abs (10, 26)) @?= CellRef "$Y$5:$Z$10"
+        mkRange' (mapBoth Rel (5, 25)) (mapBoth Rel (10, 26)) @?= CellRef "Y5:Z10"
+        mkRange' (mapBoth Abs (5, 25)) (mapBoth Abs (10, 26)) @?= CellRef "$Y$5:$Z$10"
         mkRange' (Rel 5, Abs 25) (Abs 10, Rel 26) @?= CellRef "$Y5:Z$10"
         mkForeignRange "myWorksheet" (Rel 5, Abs 25) (Abs 10, Rel 26) @?= CellRef "'myWorksheet'!$Y5:Z$10"
         mkForeignRange "my sheet" (Rel 5, Abs 25) (Abs 10, Rel 26) @?= CellRef "'my sheet'!$Y5:Z$10"
@@ -82,12 +82,12 @@ tests =
         fromRange (CellRef "$Y$5:$Z$10") @?= Just ((5, 25), (10, 26))
         fromRange (CellRef "myWorksheet!$Y5:Z$10") @?= Just ((5, 25), (10, 26))
     , testCase "parsing ranges CellRefs as potentially absolute coordinates" $ do
-        fromRange' (CellRef "Y5:Z10") @?= Just (both (both Rel) ((5, 25), (10, 26)))
-        fromRange' (CellRef "$Y$5:$Z$10") @?= Just (both (both Abs) ((5, 25), (10, 26)))
+        fromRange' (CellRef "Y5:Z10") @?= Just (mapBoth (mapBoth Rel) ((5, 25), (10, 26)))
+        fromRange' (CellRef "$Y$5:$Z$10") @?= Just (mapBoth (mapBoth Abs) ((5, 25), (10, 26)))
         fromRange' (CellRef "myWorksheet!$Y5:Z$10") @?= Just ((Rel 5, Abs 25), (Abs 10, Rel 26))
         fromForeignRange (CellRef "myWorksheet!$Y5:Z$10") @?= Just ("myWorksheet", ((Rel 5, Abs 25), (Abs 10, Rel 26)))
-        fromForeignRange (CellRef "'myWorksheet'!Y5:Z10") @?= Just ("myWorksheet", both (both Rel) ((5, 25), (10, 26)))
-        fromForeignRange (CellRef "'my sheet'!Y5:Z10") @?= Just ("my sheet", both (both Rel) ((5, 25), (10, 26)))
+        fromForeignRange (CellRef "'myWorksheet'!Y5:Z10") @?= Just ("myWorksheet", mapBoth (mapBoth Rel) ((5, 25), (10, 26)))
+        fromForeignRange (CellRef "'my sheet'!Y5:Z10") @?= Just ("my sheet", mapBoth (mapBoth Rel) ((5, 25), (10, 26)))
         fromForeignRange (CellRef "$Y5:Z$10") @?= Nothing
     ]
 

@@ -9,7 +9,7 @@ module Codec.Xlsx.Types.Common
   ( CellRef(..)
   , Coord(..)
   , unCoord
-  , both
+  , mapBoth
   , singleCellRef
   , singleCellRef'
   , fromSingleCellRef
@@ -116,9 +116,9 @@ unCoord (Rel i) = i
 
 -- | Helper function to apply the same transformation to both members of a tuple
 --
--- > both Abs (1, 2) == (Abs 1, Abs 2s)
-both :: (a -> b) -> (a, a) -> (b, b)
-both f = bimap f f
+-- > mapBoth Abs (1, 2) == (Abs 1, Abs 2s)
+mapBoth :: (a -> b) -> (a, a) -> (b, b)
+mapBoth f = bimap f f
 
 -- | Render position in @(row, col)@ format to an Excel reference.
 --
@@ -133,7 +133,7 @@ singleCellRef' :: (Coord, Coord) -> CellRef
 singleCellRef' = CellRef . singleCellRefRaw'
 
 singleCellRefRaw :: (Int, Int) -> Text
-singleCellRefRaw = singleCellRefRaw' . both Rel
+singleCellRefRaw = singleCellRefRaw' . mapBoth Rel
 
 singleCellRefRaw' :: (Coord, Coord) -> Text
 singleCellRefRaw' (row, col) =
@@ -151,7 +151,7 @@ fromSingleCellRef' :: CellRef -> Maybe (Coord, Coord)
 fromSingleCellRef' = fromSingleCellRefRaw' . unCellRef
 
 fromSingleCellRefRaw :: Text -> Maybe (Int, Int)
-fromSingleCellRefRaw = fmap (both unCoord) . fromSingleCellRefRaw'
+fromSingleCellRefRaw = fmap (mapBoth unCoord) . fromSingleCellRefRaw'
 
 fromSingleCellRefRaw' :: Text -> Maybe (Coord, Coord)
 fromSingleCellRefRaw' t = do
@@ -209,7 +209,7 @@ mkForeignRange sheetName fr to =
 -- | reverse to 'mkRange'
 fromRange :: Range -> Maybe ((Int, Int), (Int, Int))
 fromRange r =
-  both (both unCoord) <$> fromRange' r
+  mapBoth (mapBoth unCoord) <$> fromRange' r
 
 -- | Converse function to 'mkRange\'' to handle possibly absolute coordinates.
 -- Ignores a potential foreign sheet prefix.
