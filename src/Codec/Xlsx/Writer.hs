@@ -164,7 +164,7 @@ nextRefId r = do
 
 sheetDataXml ::
      Cells
-  -> Map Int RowProperties
+  -> Map RowIndex RowProperties
   -> Map SharedFormulaIndex SharedFormulaOptions
   -> [Element]
 sheetDataXml rows rh sharedFormulas =
@@ -398,7 +398,7 @@ refFileDataToRel :: FilePath -> ReferencedFileData -> (RefId, Relationship)
 refFileDataToRel basePath (i, FileData {..}) =
     relEntry i fdRelType (fdPath `relFrom` basePath)
 
-type Cells = [(Int, [(Int, XlsxCell)])]
+type Cells = [(RowIndex, [(ColumnIndex, XlsxCell)])]
 
 coreXml :: UTCTime -> Text -> L.ByteString
 coreXml created creator =

@@ -134,7 +134,7 @@ data SheetItem = MkSheetItem
     deriving anyclass NFData
 
 data Row = MkRow
-  { _ri_row_index   :: Int       -- ^ Row number
+  { _ri_row_index   :: RowIndex  -- ^ Row number
   , _ri_cell_row    :: ~CellRow  -- ^ Row itself
   } deriving stock (Generic, Show)
     deriving anyclass NFData
@@ -162,8 +162,8 @@ data ExcelValueType
 data SheetState = MkSheetState
   { _ps_row             :: ~CellRow        -- ^ Current row
   , _ps_sheet_index     :: Int             -- ^ Current sheet ID (AKA 'sheetInfoSheetId')
-  , _ps_cell_row_index  :: Int             -- ^ Current row number
-  , _ps_cell_col_index  :: Int             -- ^ Current column number
+  , _ps_cell_row_index  :: RowIndex        -- ^ Current row number
+  , _ps_cell_col_index  :: ColumnIndex     -- ^ Current column number
   , _ps_cell_style      :: Maybe Int
   , _ps_is_in_val       :: Bool            -- ^ Flag for indexing wheter the parser is in value or not
   , _ps_shared_strings  :: SharedStringsMap -- ^ Shared string map
@@ -549,7 +549,7 @@ addCellToRow txt = do
   style <- use ps_cell_style
   when (_ps_is_in_val st) $ do
     val <- liftEither $ first ParseCellError $ parseValue (_ps_shared_strings st) txt (_ps_type st)
-    put $ st { _ps_row = IntMap.insert (_ps_cell_col_index st)
+    put $ st { _ps_row = IntMap.insert (unColumnIndex $ _ps_cell_col_index st)
                          (Cell { _cellStyle   = style
                                , _cellValue   = Just val
                                , _cellComment = Nothing
@@ -709,7 +709,7 @@ parseType list =
 
 -- | Parse coordinates from a list of xml elements if such were found on "r" key
 {-# SCC parseCoordinates #-}
-parseCoordinates :: SheetValues -> Either CoordinateErrors (Int, Int)
+parseCoordinates :: SheetValues -> Either CoordinateErrors (RowIndex, ColumnIndex)
 parseCoordinates list = do
   (_nm, valText) <- maybe (Left $ CoordinateNotFound list) Right $ findName "r" list
   maybe (Left $ DecodeFailure valText list) Right $ fromSingleCellRef $ CellRef valText

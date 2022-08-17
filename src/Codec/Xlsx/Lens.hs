@@ -74,43 +74,43 @@ atSheet s = xlSheets . \f -> fmap unSheetList . at s f . SheetList
 -- | lens giving access to a cell in some worksheet
 -- by its position, by default row+column index is used
 -- so this lens is a synonym of 'ixCellRC'
-ixCell :: (Int, Int) -> Traversal' Worksheet Cell
+ixCell :: (RowIndex, ColumnIndex) -> Traversal' Worksheet Cell
 ixCell = ixCellRC
 
 -- | lens to access cell in a worksheet
-ixCellRC :: (Int, Int) -> Traversal' Worksheet Cell
+ixCellRC :: (RowIndex, ColumnIndex) -> Traversal' Worksheet Cell
 ixCellRC i = wsCells . ix i
 
 -- | lens to access cell in a worksheet using more traditional
 -- x+y coordinates
-ixCellXY :: (Int, Int) -> Traversal' Worksheet Cell
+ixCellXY :: (ColumnIndex, RowIndex) -> Traversal' Worksheet Cell
 ixCellXY i = ixCellRC $ swap i
 
 -- | accessor that can read, write or delete cell in a worksheet
 -- synonym of 'atCellRC' so uses row+column index
-atCell :: (Int, Int) -> Lens' Worksheet (Maybe Cell)
+atCell :: (RowIndex, ColumnIndex) -> Lens' Worksheet (Maybe Cell)
 atCell = atCellRC
 
 -- | lens to read, write or delete cell in a worksheet
-atCellRC :: (Int, Int) -> Lens' Worksheet (Maybe Cell)
+atCellRC :: (RowIndex, ColumnIndex) -> Lens' Worksheet (Maybe Cell)
 atCellRC i = wsCells . at i
 
 -- | lens to read, write or delete cell in a worksheet
 -- using more traditional x+y or row+column index
-atCellXY :: (Int, Int) -> Lens' Worksheet (Maybe Cell)
+atCellXY :: (ColumnIndex, RowIndex) -> Lens' Worksheet (Maybe Cell)
 atCellXY i = atCellRC $ swap i
 
 -- | lens to read, write or delete cell value in a worksheet
 -- with row+column coordinates, synonym for 'cellValueRC'
-cellValueAt :: (Int, Int) -> Lens' Worksheet (Maybe CellValue)
+cellValueAt :: (RowIndex, ColumnIndex) -> Lens' Worksheet (Maybe CellValue)
 cellValueAt = cellValueAtRC
 
 -- | lens to read, write or delete cell value in a worksheet
 -- using row+column coordinates of that cell
-cellValueAtRC :: (Int, Int) -> Lens' Worksheet (Maybe CellValue)
+cellValueAtRC :: (RowIndex, ColumnIndex) -> Lens' Worksheet (Maybe CellValue)
 cellValueAtRC i = atCell i . non def . cellValue
 
 -- | lens to read, write or delete cell value in a worksheet
 -- using traditional x+y coordinates
-cellValueAtXY :: (Int, Int) -> Lens' Worksheet (Maybe CellValue)
+cellValueAtXY :: (ColumnIndex, RowIndex) -> Lens' Worksheet (Maybe CellValue)
 cellValueAtXY i = cellValueAtRC $ swap i
