@@ -8,13 +8,24 @@
 module Codec.Xlsx.Types.Common
   ( CellRef(..)
   , Coord(..)
+  , CellCoord
+  , RangeCoord
+  , mkCoord
   , unCoord
   , mapBoth
+  , col2coord
+  , coord2col
+  , row2coord
+  , coord2row
   , singleCellRef
   , singleCellRef'
   , fromSingleCellRef
   , fromSingleCellRef'
   , fromSingleCellRefNoting
+  , escapeRefSheetName
+  , unEscapeRefSheetName
+  , mkForeignSingleCellRef
+  , fromForeignSingleCellRef
   , Range
   , mkRange
   , mkRange'
@@ -95,8 +106,11 @@ col2int = T.foldl' (\i c -> i * 26 + let2int c) 0
     where
         let2int c = 1 + ord c - ord 'A'
 
--- | Excel cell or cell range reference (e.g. @E3@)
+-- | Excel cell or cell range reference (e.g. @E3@), possibly absolute.
 -- See 18.18.62 @ST_Ref@ (p. 2482)
+--
+-- Note: The @ST_Ref@ type can point to another sheet (supported)
+-- or a sheet in another workbook (separate .xlsx file, not implemented).
 newtype CellRef = CellRef
   { unCellRef :: Text
   } deriving (Eq, Ord, Show, Generic)
@@ -105,9 +119,36 @@ instance NFData CellRef
 -- | A helper type for coordinates to carry the intent of them being relative or absolute (preceded by '$'):
 --
 -- > singleCellRefRaw' (Rel 5, Abs 1) == "$A5"
-data Coord = Abs !Int | Rel !Int
+data Coord
+  = Abs !Int
+  | Rel !Int
   deriving (Eq, Ord, Show, Read, Generic)
 instance NFData Coord
+
+type CellCoord = (Coord, Coord)
+
+type RangeCoord = (CellCoord, CellCoord)
+
+mkCoord :: Bool -> Int -> Coord
+mkCoord isAbs = if isAbs then Abs else Rel
+
+coord2col :: Coord -> Text
+coord2col (Abs c) = "$" <> coord2col (Rel c)
+coord2col (Rel c) = int2col c
+
+col2coord :: Text -> Coord
+col2coord t =
+  let t' = T.stripPrefix "$" t
+    in mkCoord (isJust t') (col2int (fromMaybe t t'))
+
+coord2row :: Coord -> Text
+coord2row (Abs c) = "$" <> coord2row (Rel c)
+coord2row (Rel c) = T.pack $ show c
+
+row2coord :: Text -> Coord
+row2coord t =
+  let t' = T.stripPrefix "$" t
+    in mkCoord (isJust t') . read . T.unpack $ fromMaybe t t'
 
 -- | Unwrap a Coord into an abstract Int coordinate
 unCoord :: Coord -> Int
@@ -129,32 +170,31 @@ singleCellRef = CellRef . singleCellRefRaw
 -- | Allow specifying whether a coordinate parameter is relative or absolute.
 --
 -- > singleCellRef' (Rel 5, Abs 1) == CellRef "$A5"
-singleCellRef' :: (Coord, Coord) -> CellRef
+singleCellRef' :: CellCoord -> CellRef
 singleCellRef' = CellRef . singleCellRefRaw'
 
 singleCellRefRaw :: (Int, Int) -> Text
 singleCellRefRaw = singleCellRefRaw' . mapBoth Rel
 
-singleCellRefRaw' :: (Coord, Coord) -> Text
+singleCellRefRaw' :: CellCoord -> Text
 singleCellRefRaw' (row, col) =
-    T.concat [viewAbs col, int2col (unCoord col), viewAbs row, T.pack (show (unCoord row))]
-  where
-    viewAbs Abs{} = "$"
-    viewAbs Rel{} = ""
+    coord2col col <> coord2row row
 
 -- | Converse function to 'singleCellRef'
+-- Ignores a potential foreign sheet prefix.
 fromSingleCellRef :: CellRef -> Maybe (Int, Int)
 fromSingleCellRef = fromSingleCellRefRaw . unCellRef
 
 -- | Converse function to 'singleCellRef\''
-fromSingleCellRef' :: CellRef -> Maybe (Coord, Coord)
+-- Ignores a potential foreign sheet prefix.
+fromSingleCellRef' :: CellRef -> Maybe CellCoord
 fromSingleCellRef' = fromSingleCellRefRaw' . unCellRef
 
 fromSingleCellRefRaw :: Text -> Maybe (Int, Int)
 fromSingleCellRefRaw = fmap (mapBoth unCoord) . fromSingleCellRefRaw'
 
-fromSingleCellRefRaw' :: Text -> Maybe (Coord, Coord)
-fromSingleCellRefRaw' t = do
+fromSingleCellRefRaw' :: Text -> Maybe CellCoord
+fromSingleCellRefRaw' t' = ignoreRefSheetName t' >>= \t -> do
     let (isColAbsolute, remT) =
           T.stripPrefix "$" t
           & \remT' -> (isJust remT', fromMaybe t remT')
@@ -169,16 +209,57 @@ fromSingleCellRefRaw' t = do
       (mkCoord isRowAbsolute)
       (mkCoord isColAbsolute)
       (row, col2int colT)
-  where
-    mkCoord isAbs = if isAbs then Abs else Rel
 
--- | reverse to 'singleCellRef' expecting valid reference and failig with
+-- | Converse function to 'singleCellRef' expecting valid reference and failig with
 -- a standard error message like /"Bad cell reference 'XXX'"/
 fromSingleCellRefNoting :: CellRef -> (Int, Int)
 fromSingleCellRefNoting ref = fromJustNote errMsg $ fromSingleCellRefRaw txt
   where
     txt = unCellRef ref
     errMsg = "Bad cell reference '" ++ T.unpack txt ++ "'"
+
+-- | Frame and escape the referenced sheet name in single quotes (apostrophe).
+--
+-- Sheet name in ST_Ref can be single-quoted when it contains non-alphanum class, non-ASCII range characters.
+-- Intermediate squote characters are escaped in a doubled fashion:
+-- "My ' Sheet" -> 'My '' Sheet'
+escapeRefSheetName :: Text -> Text
+escapeRefSheetName sheetName =
+   T.concat ["'", escape sheetName, "'"]
+  where
+    escape sn = T.splitOn "'" sn & T.intercalate "''"
+
+-- | Unframe and unescape the referenced sheet name.
+unEscapeRefSheetName :: Text -> Text
+unEscapeRefSheetName = unescape . unFrame
+      where
+        unescape  = T.intercalate "'" . T.splitOn "''"
+        unFrame sn = fromMaybe sn $ T.stripPrefix "'" sn >>= T.stripSuffix "'"
+
+ignoreRefSheetName :: Text -> Maybe Text
+ignoreRefSheetName t =
+  case T.split (== '!') t of
+    [_, r] -> Just r
+    [r] -> Just r
+    _ -> Nothing
+
+-- | Render a single cell existing in another worksheet.
+-- This function always renders the sheet name single-quoted regardless the presence of spaces.
+-- A sheet name shouldn't contain @"[]*:?/\"@ chars and apostrophe @"'"@ should not happen at extremities.
+--
+-- > mkForeignRange "MyOtherSheet" (Rel 2, Rel 4) (Abs 6, Abs 8) == "'MyOtherSheet'!D2:$H$6"
+mkForeignSingleCellRef :: Text -> CellCoord -> CellRef
+mkForeignSingleCellRef sheetName coord =
+    let cr = singleCellRefRaw' coord
+      in CellRef $ T.concat [escapeRefSheetName sheetName, "!", cr]
+
+-- | Converse function to 'mkForeignSingleCellRef'.
+-- The provided CellRef must be a foreign range.
+fromForeignSingleCellRef :: CellRef -> Maybe (Text, CellCoord)
+fromForeignSingleCellRef r =
+    case T.split (== '!') (unCellRef r) of
+      [sheetName, ref] -> (unEscapeRefSheetName sheetName,) <$> fromSingleCellRefRaw' ref
+      _ -> Nothing
 
 -- | Excel range (e.g. @D13:H14@), actually store as as 'CellRef' in
 -- xlsx
@@ -188,7 +269,7 @@ type Range = CellRef
 --
 -- > mkRange (2, 4) (6, 8) == CellRef "D2:H6"
 mkRange :: (Int, Int) -> (Int, Int) -> Range
-mkRange fr to = CellRef $ T.concat [singleCellRefRaw fr, T.pack ":", singleCellRefRaw to]
+mkRange fr to = CellRef $ T.concat [singleCellRefRaw fr, ":", singleCellRefRaw to]
 
 -- | Render range with possibly absolute coordinates
 --
@@ -197,30 +278,27 @@ mkRange' :: (Coord,Coord) -> (Coord,Coord) -> Range
 mkRange' fr to =
   CellRef $ T.concat [singleCellRefRaw' fr, ":", singleCellRefRaw' to]
 
--- | Render range existing in another worksheet.
+-- | Render a cell range existing in another worksheet.
 -- This function always renders the sheet name single-quoted regardless the presence of spaces.
+-- A sheet name shouldn't contain @"[]*:?/\"@ chars and apostrophe @"'"@ should not happen at extremities.
 --
 -- > mkForeignRange "MyOtherSheet" (Rel 2, Rel 4) (Abs 6, Abs 8) == "'MyOtherSheet'!D2:$H$6"
-mkForeignRange :: Text -> (Coord, Coord) -> (Coord, Coord) -> Range
+mkForeignRange :: Text -> CellCoord -> CellCoord -> Range
 mkForeignRange sheetName fr to =
     case mkRange' fr to of
-      CellRef cr -> CellRef $ T.concat ["'", sheetName, "'", "!", cr]
+      CellRef cr -> CellRef $ T.concat [escapeRefSheetName sheetName, "!", cr]
 
--- | reverse to 'mkRange'
+-- | Converse function to 'mkRange' ignoring absolute coordinates.
+-- Ignores a potential foreign sheet prefix.
 fromRange :: Range -> Maybe ((Int, Int), (Int, Int))
 fromRange r =
   mapBoth (mapBoth unCoord) <$> fromRange' r
 
 -- | Converse function to 'mkRange\'' to handle possibly absolute coordinates.
 -- Ignores a potential foreign sheet prefix.
-fromRange' :: Range -> Maybe ((Coord, Coord), (Coord, Coord))
-fromRange' t' = parseRange =<< ignoreForeignSheet (unCellRef t')
+fromRange' :: Range -> Maybe RangeCoord
+fromRange' t' = parseRange =<< ignoreRefSheetName (unCellRef t')
   where
-    ignoreForeignSheet t =
-        case T.split (== '!') t of
-          [_, r] -> Just r
-          [r] -> Just r
-          _ -> Nothing
     parseRange t =
       case T.split (== ':') t of
         [from, to] -> liftA2 (,) (fromSingleCellRefRaw' from) (fromSingleCellRefRaw' to)
@@ -228,15 +306,11 @@ fromRange' t' = parseRange =<< ignoreForeignSheet (unCellRef t')
 
 -- | Converse function to 'mkForeignRange'.
 -- The provided Range must be a foreign range.
-fromForeignRange :: Range -> Maybe (Text, ((Coord, Coord), (Coord, Coord)))
+fromForeignRange :: Range -> Maybe (Text, RangeCoord)
 fromForeignRange r =
     case T.split (== '!') (unCellRef r) of
-      [sheetName, ref] -> (unsquote sheetName,) <$> fromRange' (CellRef ref)
+      [sheetName, ref] -> (unEscapeRefSheetName sheetName,) <$> fromRange' (CellRef ref)
       _ -> Nothing
-  where
-    unsquote n' = n & T.stripPrefix "'" >>= T.stripSuffix "'" & fromMaybe n
-      where
-        n = T.strip n'
 
 -- | A sequence of cell references
 --
