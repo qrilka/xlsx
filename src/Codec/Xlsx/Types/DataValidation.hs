@@ -21,8 +21,8 @@ module Codec.Xlsx.Types.DataValidation
     , DataValidation(..)
     , ListOrRangeExpression(..)
     , ValidationList
-    , getPlainListValidator
-    , getCellRangeValidator
+    , maybePlainValidationList
+    , maybeValidationRange
     , readValidationType
     , readListFormulas
     , readOpExpression2
@@ -83,10 +83,11 @@ instance NFData ValidationType
 
 type ValidationList = [Text]
 
-data ListOrRangeExpression = ListExpression ValidationList | RangeExpression Range
-    deriving (Eq, Show, Generic)
+data ListOrRangeExpression
+  = ListExpression ValidationList -- ^ a plain list of elements
+  | RangeExpression Range -- ^ a cell or range reference
+  deriving (Eq, Show, Generic)
 instance NFData ListOrRangeExpression
-
 
 -- See 18.18.18 "ST_DataValidationErrorStyle (Data Validation Error Styles)" (p. 2438/2448)
 data ErrorStyle
@@ -216,15 +217,15 @@ readValidationType op ty cur = do
     opExp <- readOpExpression2 op cur
     readValidationTypeOpExp ty opExp
 
--- | Attempt to obtain a range expression from the list of ValidationTypeList
-getCellRangeValidator :: ListOrRangeExpression -> Maybe Range
-getCellRangeValidator (RangeExpression re) = Just re
-getCellRangeValidator _ = Nothing
+-- | Attempt to obtain a plain list expression
+maybePlainValidationList :: ValidationType -> Maybe ValidationList
+maybePlainValidationList (ValidationTypeList (ListExpression le)) = Just le
+maybePlainValidationList _ = Nothing
 
--- | Attempt to obtain a plain list from the list of ValidationTypeList
-getPlainListValidator :: ListOrRangeExpression -> Maybe ValidationList
-getPlainListValidator (ListExpression le) = Just le
-getPlainListValidator _ = Nothing
+-- | Attempt to obtain a range expression
+maybeValidationRange :: ValidationType -> Maybe Range
+maybeValidationRange (ValidationTypeList (RangeExpression re)) = Just re
+maybeValidationRange _ = Nothing
 
 readListFormulas :: Formula -> Maybe ListOrRangeExpression
 readListFormulas (Formula f) = readQuotedList f <|> readUnquotedCellRange f
