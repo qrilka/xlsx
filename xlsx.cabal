@@ -148,6 +148,7 @@ test-suite data-test
   other-modules: AutoFilterTests
                , Common
                , CommonTests
+               , CommonTests.CellRefTests
                , CondFmtTests
                , Diff
                , DrawingTests
