@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module CommonTests
   ( tests
@@ -10,20 +12,25 @@ import Data.Fixed (Pico, Fixed(..), E12)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime(..))
 import Test.Tasty.SmallCheck (testProperty)
-import Test.SmallCheck.Series
-       (Positive(..), Serial(..), newtypeCons, cons0, (\/))
+import Test.SmallCheck.Series as Series
+  ( Positive(..)
+  , Serial(..)
+  , newtypeCons
+  , cons0
+  , (\/)
+  )
 import Test.Tasty (testGroup, TestTree)
 import Test.Tasty.HUnit (testCase, (@?=))
 
 import Codec.Xlsx.Types.Common
 
+import qualified CommonTests.CellRefTests as CellRefTests
+
 tests :: TestTree
 tests =
   testGroup
     "Types.Common tests"
-    [ testProperty "col2int . int2col == id" $
-        \(Positive i) -> i == col2int (int2col i)
-    , testCase "date conversions" $ do
+    [ testCase "date conversions" $ do
         dateFromNumber DateBase1900 (- 2338.0) @?= read "1893-08-06 00:00:00 UTC"
         dateFromNumber DateBase1900 2.0 @?= read "1900-01-02 00:00:00 UTC"
         dateFromNumber DateBase1900 3687.0 @?= read "1910-02-03 00:00:00 UTC"
@@ -49,6 +56,7 @@ tests =
        -- Because excel treats 1900 as a leap year, dateToNumber and dateFromNumber
        -- aren't inverses of each other in the range n E [60, 61[ for DateBase1900
        \b (n :: Pico) -> (n >= 60 && n < 61 && b == DateBase1900) || n == dateToNumber b (dateFromNumber b $ n)
+     , CellRefTests.tests
     ]
 
 instance Monad m => Serial m (Fixed E12) where
