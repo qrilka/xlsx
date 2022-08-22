@@ -112,9 +112,10 @@ import qualified Data.Text.Read as Read
 import Data.Traversable (for)
 import Data.XML.Types
 import GHC.Generics
+import GHC.Stack
 import Control.DeepSeq
 import Codec.Xlsx.Parser.Internal.Memoize
-import qualified Data.ByteString.Lazy as BL
+import Control.Lens.Extras(is)
 
 import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
 import Control.Monad.Base
@@ -390,17 +391,23 @@ getSheetConduit :: (MonadIO m, PrimMonad m, MonadThrow m, C.MonadResource m)
 getSheetConduit (MkSheetIndex sheetId) = do
   msource <- getSheetXmlSource sheetId
   initState <- makeInitialSheetState (MkSheetIndex sheetId)
-  pure $ msource <&> \source ->
-    C.evalStateC initState $ source
-                        .| expatConduit
-                        .| saxRowConduit
+  (parseChunk, _getLoc) <- liftIO $ Hexpat.hexpatNewParser Nothing Nothing False
+  pure $ msource <&> \source -> source
+                        .| expatConduit parseChunk
+                        .| C.evalStateC initState saxRowConduit
                         .| CC.map (MkSheetItem sheetId)
 
 expatConduit ::
-  (GenericXMLString tag, GenericXMLString text, Monad m) =>
+  forall tag text m .
+  (GenericXMLString tag, GenericXMLString text, MonadIO m, HasCallStack) =>
+  HParser ->
   ConduitT ByteString (SAXEvent tag text) m ()
-expatConduit =
-  CC.concatMap (Hexpat.parse (ParseOptions Nothing Nothing) . BL.fromStrict)
+expatConduit parseChunk = do
+  mUpstream <- C.await
+  res <- liftIO $ case mUpstream of
+    Just upstreamBs -> processChunk @tag @text parseChunk False upstreamBs
+    Nothing -> processChunk @tag @text parseChunk True BS.empty
+  traverse_ C.yield res
 
 saxRowConduit ::
   (MonadIO m, HasSheetState m) =>
@@ -425,26 +432,36 @@ runCallbackExpat initialState byteSource handler = do
   ref <- newIORef initialState
   -- Set up parser and callbacks
   (parseChunk, _getLoc) <- Hexpat.hexpatNewParser Nothing Nothing False
-  let noExtra _ offset = pure ((), offset)
-      {-# SCC processChunk #-}
-      {-# INLINE processChunk #-}
-      processChunk isFinalChunk chunk = do
+  let callHandlerState hexpat = do
+            -- you'd say you could factor this out completly
+            -- dealing with state shouldn't be part at all of this function
+            state0 <- readIORef ref
+            state1 <- execStateT (handler hexpat) state0
+            writeIORef ref state1
+
+  C.runConduitRes $
+    byteSource .|
+    C.awaitForever (\x -> liftIO $ do
+                       callHandlerState =<< processChunk @tag @text parseChunk False x
+
+                   )
+  callHandlerState =<< processChunk @tag @text parseChunk True BS.empty
+  readIORef ref
+
+{-# SCC processChunk #-}
+{-# INLINE processChunk #-}
+processChunk :: forall tag text.
+  (GenericXMLString tag, GenericXMLString text, HasCallStack) =>
+  HParser -> Bool -> ByteString -> IO [SAXEvent tag text]
+processChunk parseChunk isFinalChunk chunk = do
         (buf, len, mError) <- parseChunk chunk isFinalChunk
         saxen <- HexpatInternal.parseBuf buf len noExtra
         case mError of
           Just err -> error $ "expat error: " <> show err
           Nothing -> do
-            state0 <- liftIO $ readIORef ref
-            state1 <-
-              {-# SCC "runExpat_runStateT_call" #-}
-              execStateT (handler $ map fst saxen) state0
-            writeIORef ref state1
-  C.runConduitRes $
-    byteSource .|
-    C.awaitForever (liftIO . processChunk False)
-  processChunk True BS.empty
-  readIORef ref
-
+            pure $ map fst saxen
+        where
+          noExtra _ offset = pure ((), offset)
 runExpatForSheet ::
   SheetState ->
   ConduitT () ByteString (C.ResourceT IO) () ->

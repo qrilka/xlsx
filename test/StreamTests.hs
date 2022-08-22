@@ -25,6 +25,8 @@ import Codec.Xlsx
 import Codec.Xlsx.Parser.Stream
 import Conduit ((.|))
 import qualified Conduit as C
+import qualified Data.Conduit.Combinators as CC
+import Control.Exception (bracket)
 import Control.Lens hiding (indexed)
 import Control.Monad (void)
 import Data.Set.Lens
@@ -69,6 +71,9 @@ tests =
       testGroup "Reader/Writer"
       [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbook
       , testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbookRow
+      , testCase "Write as stream, using conduit parser (simpleWorkbook)" $ readWriteConduit simpleWorkbook
+      , testCase "Write as stream, using conduit parser (simpleWorkbookRow)" $ readWriteConduit simpleWorkbookRow
+      , testCase "Write as stream, using conduit parser (bigWorkbook)" $ readWriteConduit bigWorkbook
       , testCase "Test a small workbook which has a fullblown sqaure" $ readWrite smallWorkbook
       , testCase "Test a big workbook as a full square which caused issues with zipstream \
                  The buffer of zipstream maybe 1kb, this workbook is big enough \
@@ -100,6 +105,20 @@ readWrite input = do
     Left x -> do
       throwIO x
 
+readWriteConduit :: Xlsx -> IO ()
+readWriteConduit input = do
+  BS.writeFile "testinput.xlsx" (toBs input)
+  bs <- runXlsxM "testinput.xlsx" $ do
+    mConduit <- getSheetConduit $ makeIndex 1
+    case mConduit of
+      Nothing -> error "sheet should exist"
+      Just conduit -> liftIO $ runConduitRes $ void (SW.writeXlsx SW.defaultSettings (conduit .| CC.map (view si_row))) .| C.foldC
+
+  case toXlsxEither $ LB.fromStrict bs of
+    Right result  ->
+      input @==?  result
+    Left x -> do
+      throwIO x
 -- test if the input text is also the result (a property we use for convenience)
 sharedStringInputSameAsOutput :: Text -> Either String String
 sharedStringInputSameAsOutput someText =
