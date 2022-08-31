@@ -9,6 +9,8 @@
 
 module Codec.Xlsx.Types.Common
   ( CellRef(..)
+  , RowCoord(..)
+  , ColumnCoord(..)
   , CellCoord
   , RangeCoord
   , mapBoth

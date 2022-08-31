@@ -31,14 +31,14 @@ tests :: TestTree
 tests =
   testGroup
     "Types.Common CellRef tests"
-  [ testProperty "col2int . int2col == id" $
-        \(Positive i) -> i == col2int (int2col i)
+  [ testProperty "textToColumnIndex . columnIndexToText == id" $
+        \(Positive i) -> i == textToColumnIndex (columnIndexToText i)
 
     , testProperty "row2coord . coord2row = id" $
-        \(r :: Coord) -> r == row2coord (coord2row r)
+        \(r :: RowCoord) -> r == row2coord (coord2row r)
 
     , testProperty "col2coord . coord2col = id" $
-        \(c :: Coord) -> c == col2coord (coord2col c)
+        \(c :: ColumnCoord) -> c == col2coord (coord2col c)
 
     , testProperty "fromSingleCellRef' . singleCellRef' = pure" $
         \(cellCoord :: CellCoord) -> pure cellCoord == fromSingleCellRef' (singleCellRef' cellCoord)
@@ -71,10 +71,10 @@ tests =
             Alt.empty == fromForeignRange (uncurry mkRange' range)
 
     , testCase "building single CellRefs" $ do
-        singleCellRef' (mapBoth Rel (5, 25)) @?= CellRef "Y5"
-        singleCellRef' (Rel 5, Abs 25) @?= CellRef "$Y5"
-        singleCellRef' (Abs 5, Rel 25) @?= CellRef "Y$5"
-        singleCellRef' (mapBoth Abs (5, 25)) @?= CellRef "$Y$5"
+        singleCellRef' (RowRel 5, ColumnRel 25) @?= CellRef "Y5"
+        singleCellRef' (RowRel 5, ColumnAbs 25) @?= CellRef "$Y5"
+        singleCellRef' (RowAbs 5, ColumnRel 25) @?= CellRef "Y$5"
+        singleCellRef' (RowAbs 5, ColumnAbs 25) @?= CellRef "$Y$5"
         singleCellRef (5, 25) @?= CellRef "Y5"
     , testCase "parsing single CellRefs as abstract coordinates" $ do
         fromSingleCellRef (CellRef "Y5") @?= Just (5, 25)
@@ -82,37 +82,45 @@ tests =
         fromSingleCellRef (CellRef "Y$5") @?= Just (5, 25)
         fromSingleCellRef (CellRef "$Y$5") @?= Just (5, 25)
     , testCase "parsing single CellRefs as potentially absolute coordinates" $ do
-        fromSingleCellRef' (CellRef "Y5") @?= Just (mapBoth Rel (5, 25))
-        fromSingleCellRef' (CellRef "$Y5") @?= Just (Rel 5, Abs 25)
-        fromSingleCellRef' (CellRef "Y$5") @?= Just (Abs 5, Rel 25)
-        fromSingleCellRef' (CellRef "$Y$5") @?= Just (mapBoth Abs (5, 25))
-        fromSingleCellRef' (CellRef "$Y$50") @?= Just (mapBoth Abs (50, 25))
+        fromSingleCellRef' (CellRef "Y5") @?= Just (RowRel 5, ColumnRel 25)
+        fromSingleCellRef' (CellRef "$Y5") @?= Just (RowRel 5, ColumnAbs 25)
+        fromSingleCellRef' (CellRef "Y$5") @?= Just (RowAbs 5, ColumnRel 25)
+        fromSingleCellRef' (CellRef "$Y$5") @?= Just (RowAbs 5, ColumnAbs 25)
+        fromSingleCellRef' (CellRef "$Y$50") @?= Just (RowAbs 50, ColumnAbs 25)
         fromSingleCellRef' (CellRef "$Y$5$0") @?= Nothing
         fromSingleCellRef' (CellRef "Y5:Z10") @?= Nothing
     , testCase "building ranges" $ do
         mkRange (5, 25) (10, 26) @?= CellRef "Y5:Z10"
-        mkRange' (mapBoth Rel (5, 25)) (mapBoth Rel (10, 26)) @?= CellRef "Y5:Z10"
-        mkRange' (mapBoth Abs (5, 25)) (mapBoth Abs (10, 26)) @?= CellRef "$Y$5:$Z$10"
-        mkRange' (Rel 5, Abs 25) (Abs 10, Rel 26) @?= CellRef "$Y5:Z$10"
-        mkForeignRange "myWorksheet" (Rel 5, Abs 25) (Abs 10, Rel 26) @?= CellRef "'myWorksheet'!$Y5:Z$10"
-        mkForeignRange "my sheet" (Rel 5, Abs 25) (Abs 10, Rel 26) @?= CellRef "'my sheet'!$Y5:Z$10"
+        mkRange' (RowRel 5, ColumnRel 25) (RowRel 10, ColumnRel 26) @?= CellRef "Y5:Z10"
+        mkRange' (RowAbs 5, ColumnAbs 25) (RowAbs 10, ColumnAbs 26) @?= CellRef "$Y$5:$Z$10"
+        mkRange' (RowRel 5, ColumnAbs 25) (RowAbs 10, ColumnRel 26) @?= CellRef "$Y5:Z$10"
+        mkForeignRange "myWorksheet" (RowRel 5, ColumnAbs 25) (RowAbs 10, ColumnRel 26) @?= CellRef "'myWorksheet'!$Y5:Z$10"
+        mkForeignRange "my sheet" (RowRel 5, ColumnAbs 25) (RowAbs 10, ColumnRel 26) @?= CellRef "'my sheet'!$Y5:Z$10"
     , testCase "parsing ranges CellRefs as abstract coordinates" $ do
         fromRange (CellRef "Y5:Z10") @?= Just ((5, 25), (10, 26))
         fromRange (CellRef "$Y$5:$Z$10") @?= Just ((5, 25), (10, 26))
         fromRange (CellRef "myWorksheet!$Y5:Z$10") @?= Just ((5, 25), (10, 26))
     , testCase "parsing ranges CellRefs as potentially absolute coordinates" $ do
-        fromRange' (CellRef "Y5:Z10") @?= Just (mapBoth (mapBoth Rel) ((5, 25), (10, 26)))
-        fromRange' (CellRef "$Y$5:$Z$10") @?= Just (mapBoth (mapBoth Abs) ((5, 25), (10, 26)))
-        fromRange' (CellRef "myWorksheet!$Y5:Z$10") @?= Just ((Rel 5, Abs 25), (Abs 10, Rel 26))
-        fromForeignRange (CellRef "myWorksheet!$Y5:Z$10") @?= Just ("myWorksheet", ((Rel 5, Abs 25), (Abs 10, Rel 26)))
-        fromForeignRange (CellRef "'myWorksheet'!Y5:Z10") @?= Just ("myWorksheet", mapBoth (mapBoth Rel) ((5, 25), (10, 26)))
-        fromForeignRange (CellRef "'my sheet'!Y5:Z10") @?= Just ("my sheet", mapBoth (mapBoth Rel) ((5, 25), (10, 26)))
+        fromRange' (CellRef "Y5:Z10") @?= Just ((RowRel 5, ColumnRel 25), (RowRel 10, ColumnRel 26))
+        fromRange' (CellRef "$Y$5:$Z$10") @?= Just ((RowAbs 5, ColumnAbs 25), (RowAbs 10, ColumnAbs 26))
+        fromRange' (CellRef "myWorksheet!$Y5:Z$10") @?= Just ((RowRel 5, ColumnAbs 25), (RowAbs 10, ColumnRel 26))
+        fromForeignRange (CellRef "myWorksheet!$Y5:Z$10") @?= Just ("myWorksheet", ((RowRel 5, ColumnAbs 25), (RowAbs 10, ColumnRel 26)))
+        fromForeignRange (CellRef "'myWorksheet'!Y5:Z10") @?= Just ("myWorksheet", ((RowRel 5, ColumnRel 25), (RowRel 10, ColumnRel 26)))
+        fromForeignRange (CellRef "'my sheet'!Y5:Z10") @?= Just ("my sheet", ((RowRel 5, ColumnRel 25), (RowRel 10, ColumnRel 26)))
         fromForeignRange (CellRef "$Y5:Z$10") @?= Nothing
   ]
 
+instance Monad m => Serial m RowIndex where
+  series = cons1 (RowIndex . getPositive)
 
-instance Monad m => Serial m Coord where
-  series = cons1 (Abs . getPositive) \/ cons1 (Rel . getPositive)
+instance Monad m => Serial m ColumnIndex where
+  series = cons1 (ColumnIndex . getPositive)
+
+instance Monad m => Serial m RowCoord where
+  series = cons1 (RowAbs . getPositive) \/ cons1 (RowRel . getPositive)
+
+instance Monad m => Serial m ColumnCoord where
+  series = cons1 (ColumnAbs . getPositive) \/ cons1 (ColumnRel . getPositive)
 
 -- | Allow defining an instance to generate valid foreign range params
 data MkForeignRangeRef =
