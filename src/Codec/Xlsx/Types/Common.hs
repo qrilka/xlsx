@@ -122,6 +122,9 @@ textToColumnIndex = ColumnIndex . T.foldl' (\i c -> i * 26 + let2int c) 0
     where
         let2int c = 1 + ord c - ord 'A'
 
+textToRowIndex :: Text -> RowIndex
+textToRowIndex = RowIndex . read . T.unpack
+
 -- | Excel cell or cell range reference (e.g. @E3@), possibly absolute.
 -- See 18.18.62 @ST_Ref@ (p. 2482)
 --
@@ -173,7 +176,7 @@ coord2row (RowRel c) = rowIndexToText c
 row2coord :: Text -> RowCoord
 row2coord t =
   let t' = T.stripPrefix "$" t
-    in mkRowCoord (isJust t') . read . T.unpack $ fromMaybe t t'
+    in mkRowCoord (isJust t') (textToRowIndex (fromMaybe t t'))
 
 -- | Unwrap a Coord into an abstract Int coordinate
 unRowCoord :: RowCoord -> RowIndex
@@ -204,7 +207,7 @@ singleCellRef' :: CellCoord -> CellRef
 singleCellRef' = CellRef . singleCellRefRaw'
 
 singleCellRefRaw :: (RowIndex, ColumnIndex) -> Text
-singleCellRefRaw (row, col) = T.concat [columnIndexToText col, T.pack (show row)]
+singleCellRefRaw (row, col) = T.concat [columnIndexToText col, rowIndexToText row]
 
 singleCellRefRaw' :: CellCoord -> Text
 singleCellRefRaw' (row, col) =

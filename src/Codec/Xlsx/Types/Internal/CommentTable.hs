@@ -102,7 +102,8 @@ renderShapes (CommentTable m) = LB.concat
         , "<v:path gradientshapeok=\"t\" o:connecttype=\"rect\"></v:path>"
         , "</v:shapetype>"
         ]
-    fromRef = fromJustNote "Invalid comment ref" . fromSingleCellRef
+    fromRef cr =
+      fromJustNote ("Invalid comment ref: " <> show cr) $ fromSingleCellRef cr
     commentShapes = [ commentShape (fromRef ref) (_commentVisible cmnt)
                     | (ref, cmnt) <- M.toList m ]
     commentShape (r, c) v = LB.concat
