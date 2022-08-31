@@ -23,45 +23,32 @@ tests = testGroup
 import Control.Exception
 import Codec.Xlsx
 import Codec.Xlsx.Parser.Stream
-import Codec.Xlsx.Types.Common
-import Codec.Xlsx.Types.Internal.SharedStringTable
 import Conduit ((.|))
 import qualified Conduit as C
-import Control.Exception (bracket)
 import Control.Lens hiding (indexed)
 import Data.Set.Lens
-import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString as BS
 import Data.Map (Map)
 import qualified Data.Map as M
-import qualified Data.Map as Map
 import qualified Data.IntMap.Strict as IM
-import Data.Maybe (mapMaybe)
 import Data.Text (Text)
-import qualified Data.Text as T
 import qualified Data.Text as Text
-import Data.Vector (Vector, indexed, toList)
 import Diff
-import System.Directory (getTemporaryDirectory)
-import System.FilePath.Posix
-import Test.Tasty (TestName, TestTree, testGroup)
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import TestXlsx
-import Text.RawString.QQ
-import Text.XML
 import qualified Codec.Xlsx.Writer.Stream as SW
 import qualified Codec.Xlsx.Writer.Internal.Stream as SW
 import Control.Monad.State.Lazy
 import Test.Tasty.SmallCheck
+import Test.SmallCheck.Series.Instances ()
 import qualified Data.Set as Set
 import Data.Set (Set)
 import Text.Printf
-import Debug.Trace
-import Control.DeepSeq
 import Data.Conduit
-import Codec.Xlsx.Formatted
 
+toBs :: Xlsx -> BS.ByteString
 toBs = LB.toStrict . fromXlsx testTime
 
 tests :: TestTree
@@ -138,9 +125,9 @@ sharedStringInputTextsIsSameAsValueSetLength someTexts =
 
 -- can we do xx
 simpleWorkbook :: Xlsx
-simpleWorkbook = set xlSheets sheets def
+simpleWorkbook = def & atSheet "Sheet1" ?~ sheet
   where
-    sheets = [("Sheet1" , toWs [((1,1), a1), ((1,2), cellValue ?~ CellText "text at B1 Sheet1" $ def)])]
+    sheet = toWs [((1,1), a1), ((1,2), cellValue ?~ CellText "text at B1 Sheet1" $ def)]
 
 a1 :: Cell
 a1 = cellValue ?~ CellText "text at A1 Sheet1" $ cellStyle ?~ 1 $ def
@@ -148,9 +135,9 @@ a1 = cellValue ?~ CellText "text at A1 Sheet1" $ cellStyle ?~ 1 $ def
 -- can we do x
 --           x
 simpleWorkbookRow :: Xlsx
-simpleWorkbookRow = set xlSheets sheets def
+simpleWorkbookRow = def & atSheet "Sheet1" ?~ sheet
   where
-    sheets = [("Sheet1" , toWs [((1,1), a1), ((2,1), cellValue ?~ CellText "text at A2 Sheet1" $ def)])]
+    sheet = toWs [((1,1), a1), ((2,1), cellValue ?~ CellText "text at A2 Sheet1" $ def)]
 
 
 tshow :: Show a => a -> Text
@@ -164,25 +151,25 @@ toWs x = set wsCells (M.fromList x) def
 --           .
 --           .
 smallWorkbook :: Xlsx
-smallWorkbook = set xlSheets sheets def
+smallWorkbook = def & atSheet "Sheet1" ?~ sheet
   where
-    sheets = [("Sheet1" , toWs $ [1..2] >>= \row ->
+    sheet = toWs $ [1..2] >>= \row ->
                   [((row,1), a1)
                   , ((row,2), def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
                   , ((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
                   , ((row,4), def & cellValue ?~ CellDouble (0.2 + 0.1))
                   , ((row,5), def & cellValue ?~ CellBool False)
                   ]
-              )]
+
 bigWorkbook :: Xlsx
-bigWorkbook = set xlSheets sheets def
+bigWorkbook = def & atSheet "Sheet1" ?~ sheet
   where
-    sheets = [("Sheet1" , toWs $ [1..512] >>= \row ->
+    sheet = toWs $ [1..512] >>= \row ->
                   [((row,1), a1)
                   ,((row,2), def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
                   ,((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
                   ]
-              )]
+
 
 inlineStringsAreParsed :: IO ()
 inlineStringsAreParsed = do
@@ -214,10 +201,7 @@ untypedCellsAreParsedAsFloats = do
   -- values in that file are under `General` cell-type and are not marked
   -- as numbers explicitly in `t` attribute.
   items <- runXlsxM "data/floats.xlsx" $ collectItems $ makeIndex 1
-  let defCell v = def
-        { _cellValue = Just v
-        }
-      expected =
+  let expected =
         [ IM.fromList [ (1, def & cellValue ?~ CellDouble 12.0) ]
         , IM.fromList [ (1, def & cellValue ?~ CellDouble 13.0) ]
         -- cell below has explicit `Numeric` type, while others are all `General`,

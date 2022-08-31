@@ -89,7 +89,7 @@ fromXlsx pt xlsx =
                     (customPropsXml (CustomProperties customProps)) ],
                   [ ("custom-properties", "docProps/custom.xml") ])
     workbookFiles = bookFiles xlsx
-    sheetNames = xlsx ^. xlSheets . to (map fst)
+    sheetNames = xlsx ^. xlSheets & mapped %~ fst
 
 singleSheetFiles :: Int
                  -> Cells
@@ -489,7 +489,7 @@ bookFiles :: Xlsx -> [FileData]
 bookFiles xlsx = runST $ do
   ref <- newSTRef 1
   ssRId <- nextRefId ref
-  let sheets = xlsx ^. xlSheets . to (map snd)
+  let sheets = xlsx ^. xlSheets & mapped %~ snd
       shared = sstConstruct sheets
       sharedStrings =
         (ssRId, FileData "xl/sharedStrings.xml" (smlCT "sharedStrings") "sharedStrings" $
@@ -514,7 +514,10 @@ bookFiles xlsx = runST $ do
     (sheetFile, others) <- singleSheetFiles i cells pvTables sheet tblIdRef
     return ((rId, sheetFile), others)
   let sheetFiles = map fst allSheetFiles
-      sheetNameByRId = zip (map fst sheetFiles) (xlsx ^. xlSheets . to (map fst))
+      sheetAttrsByRId =
+        zipWith (\(rId, _) (name, sheet) -> (rId, name, sheet ^. wsState))
+          sheetFiles
+          (xlsx ^. xlSheets)
       sheetOthers = concatMap snd allSheetFiles
   cacheRefFDsById <- forM cacheIdFiles $ \(cacheId, fd) -> do
       refId <- nextRefId ref
@@ -522,7 +525,7 @@ bookFiles xlsx = runST $ do
   let cacheRefsById = [ (cId, rId) | (cId, (rId, _)) <- cacheRefFDsById ]
       cacheRefs = map snd cacheRefFDsById
       bookFile = FileData "xl/workbook.xml" (smlCT "sheet.main") "officeDocument" $
-                 bookXml sheetNameByRId (xlsx ^. xlDefinedNames) cacheRefsById (xlsx ^. xlDateBase)
+                 bookXml sheetAttrsByRId (xlsx ^. xlDefinedNames) cacheRefsById (xlsx ^. xlDateBase)
       rels = FileData "xl/_rels/workbook.xml.rels"
              "application/vnd.openxmlformats-package.relationships+xml"
              "relationships" relsXml
@@ -533,12 +536,12 @@ bookFiles xlsx = runST $ do
       otherFiles = concat [rels:(map snd referenced), pivotOtherFiles, sheetOthers]
   return $ bookFile:otherFiles
 
-bookXml :: [(RefId, Text)]
+bookXml :: [(RefId, Text, SheetState)]
         -> DefinedNames
         -> [(CacheId, RefId)]
         -> DateBase
         -> L.ByteString
-bookXml rIdNames (DefinedNames names) cacheIdRefs dateBase =
+bookXml rIdAttrs (DefinedNames names) cacheIdRefs dateBase =
   renderLBS def {rsNamespaces = nss} $ Document (Prologue [] Nothing []) root []
   where
     nss = [ ("r", "http://schemas.openxmlformats.org/officeDocument/2006/relationships") ]
@@ -557,8 +560,8 @@ bookXml rIdNames (DefinedNames names) cacheIdRefs dateBase =
             "sheets"
             [ leafElement
               "sheet"
-              ["name" .= name, "sheetId" .= i, (odr "id") .= rId]
-            | (i, (rId, name)) <- zip [(1 :: Int) ..] rIdNames
+              ["name" .= name, "sheetId" .= i, "state" .= state, (odr "id") .= rId]
+            | (i, (rId, name, state)) <- zip [(1 :: Int) ..] rIdAttrs
             ]
           , elementListSimple
             "definedNames"

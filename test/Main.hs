@@ -1,6 +1,6 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 module Main
   ( main
   ) where
@@ -10,30 +10,22 @@ import Lens.Micro
 #else
 import Control.Lens
 #endif
-import Control.Monad.State.Lazy
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
-import Data.Map (Map)
-import Data.Maybe (listToMaybe)
 import qualified Data.Map as M
-import Data.Time.Clock.POSIX (POSIXTime)
-import qualified Data.Vector as V
+import Data.Maybe (listToMaybe)
+import Data.Text (Text)
 import qualified StreamTests
-import Text.RawString.QQ
 import Text.XML
 
 import Test.Tasty (defaultMain, testGroup)
-import Test.Tasty.HUnit (testCase)
+import Test.Tasty.HUnit (testCase, (@=?))
+import Test.Tasty.SmallCheck (testProperty)
 
-import Test.Tasty.HUnit ((@=?))
 import TestXlsx
 
 import Codec.Xlsx
 import Codec.Xlsx.Formatted
-import Codec.Xlsx.Types.Internal
-import Codec.Xlsx.Types.Internal.CommentTable
-import Codec.Xlsx.Types.Internal.CustomProperties as CustomProperties
-import Codec.Xlsx.Types.Internal.SharedStringTable
 
 import AutoFilterTests
 import Common
@@ -89,6 +81,28 @@ main = defaultMain $
         $ floatsParsingTests toXlsx
     , testCase "toXlsxFast: correct floats parsing (typed and untyped cells are floats by default)"
         $ floatsParsingTests toXlsxFast
+    , testGroup "Codec: sheet state visibility"
+        [ testGroup "toXlsxEitherFast"
+            [ testProperty "pure state == toXlsxEitherFast (fromXlsx (defXlsxWithState state))" $
+                \state ->
+                    (Right (Just state) ==) $
+                    fmap sheetStateOfDefXlsx $
+                    toXlsxEitherFast . fromXlsx testTime $
+                    defXlsxWithState state
+            , testCase "should otherwise infer visible state by default" $
+                Right (Just Visible) @=? (fmap sheetStateOfDefXlsx . toXlsxEitherFast) (fromXlsx testTime defXlsx)
+            ]
+        , testGroup "toXlsxEither"
+            [ testProperty "pure state == toXlsxEither (fromXlsx (defXlsxWithState state))" $
+                \state ->
+                    (Right (Just state) ==) $
+                    fmap sheetStateOfDefXlsx $
+                    toXlsxEither . fromXlsx testTime $
+                    defXlsxWithState state
+            , testCase "should otherwise infer visible state by default" $
+                Right (Just Visible) @=? (fmap sheetStateOfDefXlsx . toXlsxEither) (fromXlsx testTime defXlsx)
+            ]
+        ]
     , CommonTests.tests
     , CondFmtTests.tests
     , PivotTableTests.tests
@@ -101,7 +115,7 @@ floatsParsingTests :: (ByteString -> Xlsx) -> IO ()
 floatsParsingTests parser = do
   bs <- LB.readFile "data/floats.xlsx"
   let xlsx = parser bs
-      parsedCells = maybe mempty ((^. wsCells) . snd) $ listToMaybe $ xlsx ^. xlSheets
+      parsedCells = maybe mempty (_wsCells . snd) $ listToMaybe $ xlsx ^. xlSheets
       expectedCells = M.fromList
         [ ((1,1), def & cellValue ?~ CellDouble 12.0)
         , ((2,1), def & cellValue ?~ CellDouble 13.0)
@@ -109,3 +123,17 @@ floatsParsingTests parser = do
         , ((4,1), def & cellValue ?~ CellDouble 15.0)
         ]
   expectedCells @==? parsedCells
+
+constSheetName :: Text
+constSheetName = "sheet1"
+
+defXlsx :: Xlsx
+defXlsx = def & atSheet constSheetName ?~ def
+
+defXlsxWithState :: SheetState -> Xlsx
+defXlsxWithState state =
+    def & atSheet constSheetName ?~ (wsState .~ state $ def)
+
+sheetStateOfDefXlsx :: Xlsx -> Maybe SheetState
+sheetStateOfDefXlsx xlsx =
+  xlsx ^. atSheet constSheetName & mapped %~ _wsState
