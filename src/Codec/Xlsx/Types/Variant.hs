@@ -1,5 +1,5 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Variant where
 
 import Control.DeepSeq (NFData)

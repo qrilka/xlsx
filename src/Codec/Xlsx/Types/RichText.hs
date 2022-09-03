@@ -1,8 +1,8 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE TemplateHaskell    #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Codec.Xlsx.Types.RichText (
     -- * Main types
     RichTextRun(..)
@@ -37,14 +37,14 @@ import Lens.Micro.TH (makeLenses)
 #else
 import Control.Lens hiding (element)
 #endif
-import Control.Monad
 import Control.DeepSeq (NFData)
+import Control.Monad
 import Data.Default
+import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import Text.XML
 import Text.XML.Cursor
-import qualified Data.Map as Map
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.StyleSheet
@@ -67,7 +67,7 @@ data RichTextRun = RichTextRun {
     -- an error when opening the file in Excel.
     --
     -- Section 18.4.12, "t (Text)" (p. 1727)
-  , _richTextRunText :: Text
+  , _richTextRunText       :: Text
   }
   deriving (Eq, Ord, Show, Generic)
 
@@ -80,24 +80,24 @@ data RunProperties = RunProperties {
     -- | Displays characters in bold face font style.
     --
     -- Section 18.8.2, "b (Bold)" (p. 1757)
-    _runPropertiesBold :: Maybe Bool
+    _runPropertiesBold          :: Maybe Bool
 
     -- | This element defines the font character set of this font.
     --
     -- Section 18.4.1, "charset (Character Set)" (p. 1721)
-  , _runPropertiesCharset :: Maybe Int
+  , _runPropertiesCharset       :: Maybe Int
 
     -- | One of the colors associated with the data bar or color scale.
     --
     -- Section 18.3.1.15, "color (Data Bar Color)" (p. 1608)
-  , _runPropertiesColor :: Maybe Color
+  , _runPropertiesColor         :: Maybe Color
 
     -- | Macintosh compatibility setting. Represents special word/character
     -- rendering on Macintosh, when this flag is set. The effect is to condense
     -- the text (squeeze it together).
     --
     -- Section 18.8.12, "condense (Condense)" (p. 1764)
-  , _runPropertiesCondense :: Maybe Bool
+  , _runPropertiesCondense      :: Maybe Bool
 
     -- | This element specifies a compatibility setting used for previous
     -- spreadsheet applications, resulting in special word/character rendering
@@ -105,7 +105,7 @@ data RunProperties = RunProperties {
     -- or stretches out the text.
     --
     -- Section 18.8.17, "extend (Extend)" (p. 1766)
-  , _runPropertiesExtend :: Maybe Bool
+  , _runPropertiesExtend        :: Maybe Bool
 
     -- | The font family this font belongs to. A font family is a set of fonts
     -- having common stroke width and serif characteristics. This is system
@@ -113,25 +113,25 @@ data RunProperties = RunProperties {
     -- conflicting values.
     --
     -- Section 18.8.18, "family (Font Family)" (p. 1766)
-  , _runPropertiesFontFamily :: Maybe FontFamily
+  , _runPropertiesFontFamily    :: Maybe FontFamily
 
     -- | Displays characters in italic font style. The italic style is defined
     -- by the font at a system level and is not specified by ECMA-376.
     --
     -- Section 18.8.26, "i (Italic)" (p. 1773)
-  , _runPropertiesItalic :: Maybe Bool
+  , _runPropertiesItalic        :: Maybe Bool
 
     -- | This element displays only the inner and outer borders of each
     -- character. This is very similar to Bold in behavior.
     --
     -- Section 18.4.2, "outline (Outline)" (p. 1722)
-  , _runPropertiesOutline :: Maybe Bool
+  , _runPropertiesOutline       :: Maybe Bool
 
     -- | This element is a string representing the name of the font assigned to
     -- display this run.
     --
     -- Section 18.4.5, "rFont (Font)" (p. 1724)
-  , _runPropertiesFont :: Maybe Text
+  , _runPropertiesFont          :: Maybe Text
 
     -- | Defines the font scheme, if any, to which this font belongs. When a
     -- font definition is part of a theme definition, then the font is
@@ -142,14 +142,14 @@ data RunProperties = RunProperties {
     -- for body and paragraph text.
     --
     -- Section 18.8.35, "scheme (Scheme)" (p. 1794)
-  , _runPropertiesScheme :: Maybe FontScheme
+  , _runPropertiesScheme        :: Maybe FontScheme
 
     -- | Macintosh compatibility setting. Represents special word/character
     -- rendering on Macintosh, when this flag is set. The effect is to render a
     -- shadow behind, beneath and to the right of the text.
     --
     -- Section 18.8.36, "shadow (Shadow)" (p. 1795)
-  , _runPropertiesShadow :: Maybe Bool
+  , _runPropertiesShadow        :: Maybe Bool
 
     -- | This element draws a strikethrough line through the horizontal middle
     -- of the text.
@@ -161,12 +161,12 @@ data RunProperties = RunProperties {
     -- and East Asian text.
     --
     -- Section 18.4.11, "sz (Font Size)" (p. 1727)
-  , _runPropertiesSize :: Maybe Double
+  , _runPropertiesSize          :: Maybe Double
 
     -- | This element represents the underline formatting style.
     --
     -- Section 18.4.13, "u (Underline)" (p. 1728)
-  , _runPropertiesUnderline :: Maybe FontUnderline
+  , _runPropertiesUnderline     :: Maybe FontUnderline
 
     -- | This element adjusts the vertical position of the text relative to the
     -- text's default appearance for this run. It is used to get 'superscript'
@@ -174,7 +174,7 @@ data RunProperties = RunProperties {
     -- is available) accordingly.
     --
     -- Section 18.4.14, "vertAlign (Vertical Alignment)" (p. 1728)
-  , _runPropertiesVertAlign :: Maybe FontVerticalAlignment
+  , _runPropertiesVertAlign     :: Maybe FontVerticalAlignment
   }
   deriving (Eq, Ord, Show, Generic)
 

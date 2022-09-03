@@ -1,8 +1,8 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Codec.Xlsx.Types.Drawing.Chart where
 
 import GHC.Generics (Generic)
@@ -28,10 +28,10 @@ import Codec.Xlsx.Writer.Internal
 -- TODO: title, autoTitleDeleted, pivotFmts
 --  view3D, floor, sideWall, backWall, showDLblsOverMax, extLst
 data ChartSpace = ChartSpace
-  { _chspTitle :: Maybe ChartTitle
-  , _chspCharts :: [Chart]
-  , _chspLegend :: Maybe Legend
-  , _chspPlotVisOnly :: Maybe Bool
+  { _chspTitle        :: Maybe ChartTitle
+  , _chspCharts       :: [Chart]
+  , _chspLegend       :: Maybe Legend
+  , _chspPlotVisOnly  :: Maybe Bool
   , _chspDispBlanksAs :: Maybe DispBlanksAs
   } deriving (Eq, Show, Generic)
 instance NFData ChartSpace
@@ -91,23 +91,23 @@ instance NFData LegendPos
 --   surfaceChart, surface3DChart, bubbleChart
 data Chart
   = LineChart { _lnchGrouping :: ChartGrouping
-              , _lnchSeries :: [LineSeries]
-              , _lnchMarker :: Maybe Bool
+              , _lnchSeries   :: [LineSeries]
+              , _lnchMarker   :: Maybe Bool
                 -- ^ specifies that the marker shall be shown
-              , _lnchSmooth :: Maybe Bool
+              , _lnchSmooth   :: Maybe Bool
                 -- ^ specifies the line connecting the points on the chart shall be
                 -- smoothed using Catmull-Rom splines
               }
   | AreaChart { _archGrouping :: Maybe ChartGrouping
-              , _archSeries :: [AreaSeries]
+              , _archSeries   :: [AreaSeries]
               }
   | BarChart { _brchDirection :: BarDirection
-             , _brchGrouping :: Maybe BarChartGrouping
-             , _brchSeries :: [BarSeries]
+             , _brchGrouping  :: Maybe BarChartGrouping
+             , _brchSeries    :: [BarSeries]
              }
   | PieChart { _pichSeries :: [PieSeries]
              }
-  | ScatterChart { _scchStyle :: ScatterStyle
+  | ScatterChart { _scchStyle  :: ScatterStyle
                  , _scchSeries :: [ScatterSeries]
                  }
   deriving (Eq, Show, Generic)
@@ -180,7 +180,7 @@ instance NFData ScatterStyle
 --
 -- See 21.2.2.52 "dPt (Data Point)" (p. 3384)
 data DataPoint = DataPoint
-  { _dpMarker :: Maybe DataMarker
+  { _dpMarker          :: Maybe DataMarker
   , _dpShapeProperties :: Maybe ShapeProperties
   } deriving (Eq, Show, Generic)
 instance NFData DataPoint
@@ -190,7 +190,7 @@ instance NFData DataPoint
 --
 -- See @EG_SerShared@ (p. 4063)
 data Series = Series
-  { _serTx :: Maybe Formula
+  { _serTx              :: Maybe Formula
     -- ^ specifies text for a series name, without rich text formatting
     -- currently only reference formula is supported
   , _serShapeProperties :: Maybe ShapeProperties
@@ -203,12 +203,12 @@ instance NFData Series
 --
 -- See @CT_LineSer@ (p. 4064)
 data LineSeries = LineSeries
-  { _lnserShared :: Series
-  , _lnserMarker :: Maybe DataMarker
+  { _lnserShared       :: Series
+  , _lnserMarker       :: Maybe DataMarker
   , _lnserDataLblProps :: Maybe DataLblProps
-  , _lnserVal :: Maybe Formula
+  , _lnserVal          :: Maybe Formula
     -- ^ currently only reference formula is supported
-  , _lnserSmooth :: Maybe Bool
+  , _lnserSmooth       :: Maybe Bool
   } deriving (Eq, Show, Generic)
 instance NFData LineSeries
 
@@ -218,9 +218,9 @@ instance NFData LineSeries
 --
 -- See @CT_AreaSer@ (p. 4065)
 data AreaSeries = AreaSeries
-  { _arserShared :: Series
+  { _arserShared       :: Series
   , _arserDataLblProps :: Maybe DataLblProps
-  , _arserVal :: Maybe Formula
+  , _arserVal          :: Maybe Formula
   } deriving (Eq, Show, Generic)
 instance NFData AreaSeries
 
@@ -231,9 +231,9 @@ instance NFData AreaSeries
 --
 -- See @CT_BarSer@ (p. 4064)
 data BarSeries = BarSeries
-  { _brserShared :: Series
+  { _brserShared       :: Series
   , _brserDataLblProps :: Maybe DataLblProps
-  , _brserVal :: Maybe Formula
+  , _brserVal          :: Maybe Formula
   } deriving (Eq, Show, Generic)
 instance NFData BarSeries
 
@@ -243,12 +243,12 @@ instance NFData BarSeries
 --
 -- See @CT_PieSer@ (p. 4065)
 data PieSeries = PieSeries
-  { _piserShared :: Series
-  , _piserDataPoints :: [DataPoint]
+  { _piserShared       :: Series
+  , _piserDataPoints   :: [DataPoint]
   -- ^ normally you should set fill for chart datapoints to make them
   -- properly colored
   , _piserDataLblProps :: Maybe DataLblProps
-  , _piserVal :: Maybe Formula
+  , _piserVal          :: Maybe Formula
   } deriving (Eq, Show, Generic)
 instance NFData PieSeries
 
@@ -258,19 +258,19 @@ instance NFData PieSeries
 --
 -- See @CT_ScatterSer@ (p. 4064)
 data ScatterSeries = ScatterSeries
-  { _scserShared :: Series
-  , _scserMarker :: Maybe DataMarker
+  { _scserShared       :: Series
+  , _scserMarker       :: Maybe DataMarker
   , _scserDataLblProps :: Maybe DataLblProps
-  , _scserXVal :: Maybe Formula
-  , _scserYVal :: Maybe Formula
-  , _scserSmooth :: Maybe Bool
+  , _scserXVal         :: Maybe Formula
+  , _scserYVal         :: Maybe Formula
+  , _scserSmooth       :: Maybe Bool
   } deriving (Eq, Show, Generic)
 instance NFData ScatterSeries
 
 -- See @CT_Marker@ (p. 4061)
 data DataMarker = DataMarker
   { _dmrkSymbol :: Maybe DataMarkerSymbol
-  , _dmrkSize :: Maybe Int
+  , _dmrkSize   :: Maybe Int
     -- ^ integer between 2 and 72, specifying a size in points
   } deriving (Eq, Show, Generic)
 instance NFData DataMarker
@@ -299,10 +299,10 @@ instance NFData DataMarkerSymbol
 -- See 21.2.2.49 "dLbls (Data Labels)" (p. 3384)
 data DataLblProps = DataLblProps
   { _dlblShowLegendKey :: Maybe Bool
-  , _dlblShowVal :: Maybe Bool
-  , _dlblShowCatName :: Maybe Bool
-  , _dlblShowSerName :: Maybe Bool
-  , _dlblShowPercent :: Maybe Bool
+  , _dlblShowVal       :: Maybe Bool
+  , _dlblShowCatName   :: Maybe Bool
+  , _dlblShowSerName   :: Maybe Bool
+  , _dlblShowPercent   :: Maybe Bool
   } deriving (Eq, Show, Generic)
 instance NFData DataLblProps
 
@@ -449,33 +449,33 @@ instance FromCursor DataPoint where
     return DataPoint {..}
 
 instance FromAttrVal DataMarkerSymbol where
-  fromAttrVal "circle" = readSuccess DataMarkerCircle
-  fromAttrVal "dash" = readSuccess DataMarkerDash
-  fromAttrVal "diamond" = readSuccess DataMarkerDiamond
-  fromAttrVal "dot" = readSuccess DataMarkerDot
-  fromAttrVal "none" = readSuccess DataMarkerNone
-  fromAttrVal "picture" = readSuccess DataMarkerPicture
-  fromAttrVal "plus" = readSuccess DataMarkerPlus
-  fromAttrVal "square" = readSuccess DataMarkerSquare
-  fromAttrVal "star" = readSuccess DataMarkerStar
+  fromAttrVal "circle"   = readSuccess DataMarkerCircle
+  fromAttrVal "dash"     = readSuccess DataMarkerDash
+  fromAttrVal "diamond"  = readSuccess DataMarkerDiamond
+  fromAttrVal "dot"      = readSuccess DataMarkerDot
+  fromAttrVal "none"     = readSuccess DataMarkerNone
+  fromAttrVal "picture"  = readSuccess DataMarkerPicture
+  fromAttrVal "plus"     = readSuccess DataMarkerPlus
+  fromAttrVal "square"   = readSuccess DataMarkerSquare
+  fromAttrVal "star"     = readSuccess DataMarkerStar
   fromAttrVal "triangle" = readSuccess DataMarkerTriangle
-  fromAttrVal "x" = readSuccess DataMarkerX
-  fromAttrVal "auto" = readSuccess DataMarkerAuto
-  fromAttrVal t = invalidText "DataMarkerSymbol" t
+  fromAttrVal "x"        = readSuccess DataMarkerX
+  fromAttrVal "auto"     = readSuccess DataMarkerAuto
+  fromAttrVal t          = invalidText "DataMarkerSymbol" t
 
 instance FromAttrVal BarDirection where
   fromAttrVal "bar" = readSuccess DirectionBar
   fromAttrVal "col" = readSuccess DirectionColumn
-  fromAttrVal t = invalidText "BarDirection" t
+  fromAttrVal t     = invalidText "BarDirection" t
 
 instance FromAttrVal ScatterStyle where
-  fromAttrVal "none" = readSuccess ScatterNone
-  fromAttrVal "line" = readSuccess ScatterLine
-  fromAttrVal "lineMarker" = readSuccess ScatterLineMarker
-  fromAttrVal "marker" = readSuccess ScatterMarker
-  fromAttrVal "smooth" = readSuccess ScatterSmooth
+  fromAttrVal "none"         = readSuccess ScatterNone
+  fromAttrVal "line"         = readSuccess ScatterLine
+  fromAttrVal "lineMarker"   = readSuccess ScatterLineMarker
+  fromAttrVal "marker"       = readSuccess ScatterMarker
+  fromAttrVal "smooth"       = readSuccess ScatterSmooth
   fromAttrVal "smoothMarker" = readSuccess ScatterSmoothMarker
-  fromAttrVal t = invalidText "ScatterStyle" t
+  fromAttrVal t              = invalidText "ScatterStyle" t
 
 instance FromCursor DataLblProps where
   fromCursor cur = do
@@ -488,16 +488,16 @@ instance FromCursor DataLblProps where
 
 instance FromAttrVal ChartGrouping where
   fromAttrVal "percentStacked" = readSuccess PercentStackedGrouping
-  fromAttrVal "standard" = readSuccess StandardGrouping
-  fromAttrVal "stacked" = readSuccess StackedGrouping
-  fromAttrVal t = invalidText "ChartGrouping" t
+  fromAttrVal "standard"       = readSuccess StandardGrouping
+  fromAttrVal "stacked"        = readSuccess StackedGrouping
+  fromAttrVal t                = invalidText "ChartGrouping" t
 
 instance FromAttrVal BarChartGrouping where
-  fromAttrVal "clustered" = readSuccess BarClusteredGrouping
+  fromAttrVal "clustered"      = readSuccess BarClusteredGrouping
   fromAttrVal "percentStacked" = readSuccess BarPercentStackedGrouping
-  fromAttrVal "standard" = readSuccess BarStandardGrouping
-  fromAttrVal "stacked" = readSuccess BarStackedGrouping
-  fromAttrVal t = invalidText "BarChartGrouping" t
+  fromAttrVal "standard"       = readSuccess BarStandardGrouping
+  fromAttrVal "stacked"        = readSuccess BarStackedGrouping
+  fromAttrVal t                = invalidText "BarChartGrouping" t
 
 instance FromCursor ChartTitle where
   fromCursor cur = do
@@ -512,18 +512,18 @@ instance FromCursor Legend where
     return Legend {..}
 
 instance FromAttrVal LegendPos where
-  fromAttrVal "b" = readSuccess LegendBottom
-  fromAttrVal "l" = readSuccess LegendLeft
-  fromAttrVal "r" = readSuccess LegendRight
-  fromAttrVal "t" = readSuccess LegendTop
+  fromAttrVal "b"  = readSuccess LegendBottom
+  fromAttrVal "l"  = readSuccess LegendLeft
+  fromAttrVal "r"  = readSuccess LegendRight
+  fromAttrVal "t"  = readSuccess LegendTop
   fromAttrVal "tr" = readSuccess LegendTopRight
-  fromAttrVal t = invalidText "LegendPos" t
+  fromAttrVal t    = invalidText "LegendPos" t
 
 instance FromAttrVal DispBlanksAs where
-  fromAttrVal "gap" = readSuccess DispBlanksAsGap
+  fromAttrVal "gap"  = readSuccess DispBlanksAsGap
   fromAttrVal "span" = readSuccess DispBlanksAsSpan
   fromAttrVal "zero" = readSuccess DispBlanksAsZero
-  fromAttrVal t = invalidText "DispBlanksAs" t
+  fromAttrVal t      = invalidText "DispBlanksAs" t
 
 {-------------------------------------------------------------------------------
   Default instances
@@ -661,25 +661,25 @@ chartToElements chart axId =
 
 instance ToAttrVal ChartGrouping where
   toAttrVal PercentStackedGrouping = "percentStacked"
-  toAttrVal StandardGrouping = "standard"
-  toAttrVal StackedGrouping = "stacked"
+  toAttrVal StandardGrouping       = "standard"
+  toAttrVal StackedGrouping        = "stacked"
 
 instance ToAttrVal BarChartGrouping where
-  toAttrVal BarClusteredGrouping = "clustered"
+  toAttrVal BarClusteredGrouping      = "clustered"
   toAttrVal BarPercentStackedGrouping = "percentStacked"
-  toAttrVal BarStandardGrouping = "standard"
-  toAttrVal BarStackedGrouping = "stacked"
+  toAttrVal BarStandardGrouping       = "standard"
+  toAttrVal BarStackedGrouping        = "stacked"
 
 instance ToAttrVal BarDirection where
-  toAttrVal DirectionBar = "bar"
+  toAttrVal DirectionBar    = "bar"
   toAttrVal DirectionColumn = "col"
 
 instance ToAttrVal ScatterStyle where
-  toAttrVal ScatterNone = "none"
-  toAttrVal ScatterLine = "line"
-  toAttrVal ScatterLineMarker = "lineMarker"
-  toAttrVal ScatterMarker = "marker"
-  toAttrVal ScatterSmooth = "smooth"
+  toAttrVal ScatterNone         = "none"
+  toAttrVal ScatterLine         = "line"
+  toAttrVal ScatterLineMarker   = "lineMarker"
+  toAttrVal ScatterMarker       = "marker"
+  toAttrVal ScatterSmooth       = "smooth"
   toAttrVal ScatterSmoothMarker = "smoothMarker"
 
 instance ToElement LineSeries where
@@ -718,18 +718,18 @@ instance ToElement DataMarker where
           ]
 
 instance ToAttrVal DataMarkerSymbol where
-  toAttrVal DataMarkerCircle = "circle"
-  toAttrVal DataMarkerDash = "dash"
-  toAttrVal DataMarkerDiamond = "diamond"
-  toAttrVal DataMarkerDot = "dot"
-  toAttrVal DataMarkerNone = "none"
-  toAttrVal DataMarkerPicture = "picture"
-  toAttrVal DataMarkerPlus = "plus"
-  toAttrVal DataMarkerSquare = "square"
-  toAttrVal DataMarkerStar = "star"
+  toAttrVal DataMarkerCircle   = "circle"
+  toAttrVal DataMarkerDash     = "dash"
+  toAttrVal DataMarkerDiamond  = "diamond"
+  toAttrVal DataMarkerDot      = "dot"
+  toAttrVal DataMarkerNone     = "none"
+  toAttrVal DataMarkerPicture  = "picture"
+  toAttrVal DataMarkerPlus     = "plus"
+  toAttrVal DataMarkerSquare   = "square"
+  toAttrVal DataMarkerStar     = "star"
   toAttrVal DataMarkerTriangle = "triangle"
-  toAttrVal DataMarkerX = "x"
-  toAttrVal DataMarkerAuto = "auto"
+  toAttrVal DataMarkerX        = "x"
+  toAttrVal DataMarkerAuto     = "auto"
 
 instance ToElement DataLblProps where
   toElement nm DataLblProps {..} = elementListSimple nm elements
@@ -820,9 +820,9 @@ instance ToAttrVal DispBlanksAs where
 
 instance ToAttrVal TickMark where
   toAttrVal TickMarkCross = "cross"
-  toAttrVal TickMarkIn = "in"
-  toAttrVal TickMarkNone = "none"
-  toAttrVal TickMarkOut = "out"
+  toAttrVal TickMarkIn    = "in"
+  toAttrVal TickMarkNone  = "none"
+  toAttrVal TickMarkOut   = "out"
 
 -- | Add chart namespace to name
 c_ :: Text -> Name

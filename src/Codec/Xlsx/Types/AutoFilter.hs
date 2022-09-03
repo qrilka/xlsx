@@ -1,10 +1,10 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell     #-}
 module Codec.Xlsx.Types.AutoFilter where
 
 import Control.Arrow (first)
@@ -87,7 +87,7 @@ instance NFData DateGroup
 
 data CustomFilter = CustomFilter
   { cfltOperator :: CustomFilterOperator
-  , cfltValue :: Text
+  , cfltValue    :: Text
   } deriving (Eq, Show, Generic)
 instance NFData CustomFilter
 
@@ -111,10 +111,10 @@ data EdgeFilterOptions = EdgeFilterOptions
   { _efoUsePercents :: Bool
   -- ^ Flag indicating whether or not to filter by percent value of
   -- the column. A false value filters by number of items.
-  , _efoVal :: Double
+  , _efoVal         :: Double
   -- ^ Top or bottom value to use as the filter criteria.
   -- Example: "Filter by Top 10 Percent" or "Filter by Top 5 Items"
-  , _efoFilterVal :: Maybe Double
+  , _efoFilterVal   :: Maybe Double
   -- ^ The actual cell value in the range which is used to perform the
   -- comparison for this filter.
   } deriving (Eq, Show, Generic)
@@ -134,7 +134,7 @@ data ColorFilterOptions = ColorFilterOptions
   --
   -- For rich text in cells, if the color specified appears in the
   -- cell at all, it shall be included in the filter.
-  , _cfoDxfId :: Maybe Int
+  , _cfoDxfId     :: Maybe Int
   -- ^ Id of differential format record (dxf) in the Styles Part (see
   -- '_styleSheetDxfs') which expresses the color value to filter by.
   } deriving (Eq, Show, Generic)
@@ -180,8 +180,8 @@ instance NFData ColorFilterOptions
 --
 -- See 18.3.2.5 "dynamicFilter (Dynamic Filter)" (p. 1715)
 data DynFilterOptions = DynFilterOptions
-  { _dfoType :: DynFilterType
-  , _dfoVal :: Maybe Double
+  { _dfoType   :: DynFilterType
+  , _dfoVal    :: Maybe Double
   -- ^ A minimum numeric value for dynamic filter.
   , _dfoMaxVal :: Maybe Double
   -- ^ A maximum value for dynamic filter.
@@ -277,7 +277,7 @@ instance NFData DynFilterType
 --
 -- See 18.3.1.2 "autoFilter (AutoFilter Settings)" (p. 1596)
 data AutoFilter = AutoFilter
-  { _afRef :: Maybe CellRef
+  { _afRef           :: Maybe CellRef
   , _afFilterColumns :: Map Int FilterColumn
   } deriving (Eq, Show, Generic)
 instance NFData AutoFilter
@@ -490,22 +490,22 @@ filterCriterionFromNode n
     cur = fromNode n
 
 instance FromAttrVal CustomFilterOperator where
-  fromAttrVal "equal" = readSuccess FltrEqual
-  fromAttrVal "greaterThan" = readSuccess FltrGreaterThan
+  fromAttrVal "equal"              = readSuccess FltrEqual
+  fromAttrVal "greaterThan"        = readSuccess FltrGreaterThan
   fromAttrVal "greaterThanOrEqual" = readSuccess FltrGreaterThanOrEqual
-  fromAttrVal "lessThan" = readSuccess FltrLessThan
-  fromAttrVal "lessThanOrEqual" = readSuccess FltrLessThanOrEqual
-  fromAttrVal "notEqual" = readSuccess FltrNotEqual
-  fromAttrVal t = invalidText "CustomFilterOperator" t
+  fromAttrVal "lessThan"           = readSuccess FltrLessThan
+  fromAttrVal "lessThanOrEqual"    = readSuccess FltrLessThanOrEqual
+  fromAttrVal "notEqual"           = readSuccess FltrNotEqual
+  fromAttrVal t                    = invalidText "CustomFilterOperator" t
 
 instance FromAttrBs CustomFilterOperator where
-  fromAttrBs "equal" = return FltrEqual
-  fromAttrBs "greaterThan" = return FltrGreaterThan
+  fromAttrBs "equal"              = return FltrEqual
+  fromAttrBs "greaterThan"        = return FltrGreaterThan
   fromAttrBs "greaterThanOrEqual" = return FltrGreaterThanOrEqual
-  fromAttrBs "lessThan" = return FltrLessThan
-  fromAttrBs "lessThanOrEqual" = return FltrLessThanOrEqual
-  fromAttrBs "notEqual" = return FltrNotEqual
-  fromAttrBs x = unexpectedAttrBs "CustomFilterOperator" x
+  fromAttrBs "lessThan"           = return FltrLessThan
+  fromAttrBs "lessThanOrEqual"    = return FltrLessThanOrEqual
+  fromAttrBs "notEqual"           = return FltrNotEqual
+  fromAttrBs x                    = unexpectedAttrBs "CustomFilterOperator" x
 
 instance FromAttrVal FilterByBlank where
   fromAttrVal =
@@ -517,78 +517,78 @@ instance FromAttrBs FilterByBlank where
 instance FromAttrVal DynFilterType where
   fromAttrVal "aboveAverage" = readSuccess DynFilterAboveAverage
   fromAttrVal "belowAverage" = readSuccess DynFilterBelowAverage
-  fromAttrVal "lastMonth" = readSuccess DynFilterLastMonth
-  fromAttrVal "lastQuarter" = readSuccess DynFilterLastQuarter
-  fromAttrVal "lastWeek" = readSuccess DynFilterLastWeek
-  fromAttrVal "lastYear" = readSuccess DynFilterLastYear
-  fromAttrVal "M1" = readSuccess DynFilterM1
-  fromAttrVal "M10" = readSuccess DynFilterM10
-  fromAttrVal "M11" = readSuccess DynFilterM11
-  fromAttrVal "M12" = readSuccess DynFilterM12
-  fromAttrVal "M2" = readSuccess DynFilterM2
-  fromAttrVal "M3" = readSuccess DynFilterM3
-  fromAttrVal "M4" = readSuccess DynFilterM4
-  fromAttrVal "M5" = readSuccess DynFilterM5
-  fromAttrVal "M6" = readSuccess DynFilterM6
-  fromAttrVal "M7" = readSuccess DynFilterM7
-  fromAttrVal "M8" = readSuccess DynFilterM8
-  fromAttrVal "M9" = readSuccess DynFilterM9
-  fromAttrVal "nextMonth" = readSuccess DynFilterNextMonth
-  fromAttrVal "nextQuarter" = readSuccess DynFilterNextQuarter
-  fromAttrVal "nextWeek" = readSuccess DynFilterNextWeek
-  fromAttrVal "nextYear" = readSuccess DynFilterNextYear
-  fromAttrVal "null" = readSuccess DynFilterNull
-  fromAttrVal "Q1" = readSuccess DynFilterQ1
-  fromAttrVal "Q2" = readSuccess DynFilterQ2
-  fromAttrVal "Q3" = readSuccess DynFilterQ3
-  fromAttrVal "Q4" = readSuccess DynFilterQ4
-  fromAttrVal "thisMonth" = readSuccess DynFilterThisMonth
-  fromAttrVal "thisQuarter" = readSuccess DynFilterThisQuarter
-  fromAttrVal "thisWeek" = readSuccess DynFilterThisWeek
-  fromAttrVal "thisYear" = readSuccess DynFilterThisYear
-  fromAttrVal "today" = readSuccess DynFilterToday
-  fromAttrVal "tomorrow" = readSuccess DynFilterTomorrow
-  fromAttrVal "yearToDate" = readSuccess DynFilterYearToDate
-  fromAttrVal "yesterday" = readSuccess DynFilterYesterday
-  fromAttrVal t = invalidText "DynFilterType" t
+  fromAttrVal "lastMonth"    = readSuccess DynFilterLastMonth
+  fromAttrVal "lastQuarter"  = readSuccess DynFilterLastQuarter
+  fromAttrVal "lastWeek"     = readSuccess DynFilterLastWeek
+  fromAttrVal "lastYear"     = readSuccess DynFilterLastYear
+  fromAttrVal "M1"           = readSuccess DynFilterM1
+  fromAttrVal "M10"          = readSuccess DynFilterM10
+  fromAttrVal "M11"          = readSuccess DynFilterM11
+  fromAttrVal "M12"          = readSuccess DynFilterM12
+  fromAttrVal "M2"           = readSuccess DynFilterM2
+  fromAttrVal "M3"           = readSuccess DynFilterM3
+  fromAttrVal "M4"           = readSuccess DynFilterM4
+  fromAttrVal "M5"           = readSuccess DynFilterM5
+  fromAttrVal "M6"           = readSuccess DynFilterM6
+  fromAttrVal "M7"           = readSuccess DynFilterM7
+  fromAttrVal "M8"           = readSuccess DynFilterM8
+  fromAttrVal "M9"           = readSuccess DynFilterM9
+  fromAttrVal "nextMonth"    = readSuccess DynFilterNextMonth
+  fromAttrVal "nextQuarter"  = readSuccess DynFilterNextQuarter
+  fromAttrVal "nextWeek"     = readSuccess DynFilterNextWeek
+  fromAttrVal "nextYear"     = readSuccess DynFilterNextYear
+  fromAttrVal "null"         = readSuccess DynFilterNull
+  fromAttrVal "Q1"           = readSuccess DynFilterQ1
+  fromAttrVal "Q2"           = readSuccess DynFilterQ2
+  fromAttrVal "Q3"           = readSuccess DynFilterQ3
+  fromAttrVal "Q4"           = readSuccess DynFilterQ4
+  fromAttrVal "thisMonth"    = readSuccess DynFilterThisMonth
+  fromAttrVal "thisQuarter"  = readSuccess DynFilterThisQuarter
+  fromAttrVal "thisWeek"     = readSuccess DynFilterThisWeek
+  fromAttrVal "thisYear"     = readSuccess DynFilterThisYear
+  fromAttrVal "today"        = readSuccess DynFilterToday
+  fromAttrVal "tomorrow"     = readSuccess DynFilterTomorrow
+  fromAttrVal "yearToDate"   = readSuccess DynFilterYearToDate
+  fromAttrVal "yesterday"    = readSuccess DynFilterYesterday
+  fromAttrVal t              = invalidText "DynFilterType" t
 
 instance FromAttrBs DynFilterType where
   fromAttrBs "aboveAverage" = return DynFilterAboveAverage
   fromAttrBs "belowAverage" = return DynFilterBelowAverage
-  fromAttrBs "lastMonth" = return DynFilterLastMonth
-  fromAttrBs "lastQuarter" = return DynFilterLastQuarter
-  fromAttrBs "lastWeek" = return DynFilterLastWeek
-  fromAttrBs "lastYear" = return DynFilterLastYear
-  fromAttrBs "M1" = return DynFilterM1
-  fromAttrBs "M10" = return DynFilterM10
-  fromAttrBs "M11" = return DynFilterM11
-  fromAttrBs "M12" = return DynFilterM12
-  fromAttrBs "M2" = return DynFilterM2
-  fromAttrBs "M3" = return DynFilterM3
-  fromAttrBs "M4" = return DynFilterM4
-  fromAttrBs "M5" = return DynFilterM5
-  fromAttrBs "M6" = return DynFilterM6
-  fromAttrBs "M7" = return DynFilterM7
-  fromAttrBs "M8" = return DynFilterM8
-  fromAttrBs "M9" = return DynFilterM9
-  fromAttrBs "nextMonth" = return DynFilterNextMonth
-  fromAttrBs "nextQuarter" = return DynFilterNextQuarter
-  fromAttrBs "nextWeek" = return DynFilterNextWeek
-  fromAttrBs "nextYear" = return DynFilterNextYear
-  fromAttrBs "null" = return DynFilterNull
-  fromAttrBs "Q1" = return DynFilterQ1
-  fromAttrBs "Q2" = return DynFilterQ2
-  fromAttrBs "Q3" = return DynFilterQ3
-  fromAttrBs "Q4" = return DynFilterQ4
-  fromAttrBs "thisMonth" = return DynFilterThisMonth
-  fromAttrBs "thisQuarter" = return DynFilterThisQuarter
-  fromAttrBs "thisWeek" = return DynFilterThisWeek
-  fromAttrBs "thisYear" = return DynFilterThisYear
-  fromAttrBs "today" = return DynFilterToday
-  fromAttrBs "tomorrow" = return DynFilterTomorrow
-  fromAttrBs "yearToDate" = return DynFilterYearToDate
-  fromAttrBs "yesterday" = return DynFilterYesterday
-  fromAttrBs x = unexpectedAttrBs "DynFilterType" x
+  fromAttrBs "lastMonth"    = return DynFilterLastMonth
+  fromAttrBs "lastQuarter"  = return DynFilterLastQuarter
+  fromAttrBs "lastWeek"     = return DynFilterLastWeek
+  fromAttrBs "lastYear"     = return DynFilterLastYear
+  fromAttrBs "M1"           = return DynFilterM1
+  fromAttrBs "M10"          = return DynFilterM10
+  fromAttrBs "M11"          = return DynFilterM11
+  fromAttrBs "M12"          = return DynFilterM12
+  fromAttrBs "M2"           = return DynFilterM2
+  fromAttrBs "M3"           = return DynFilterM3
+  fromAttrBs "M4"           = return DynFilterM4
+  fromAttrBs "M5"           = return DynFilterM5
+  fromAttrBs "M6"           = return DynFilterM6
+  fromAttrBs "M7"           = return DynFilterM7
+  fromAttrBs "M8"           = return DynFilterM8
+  fromAttrBs "M9"           = return DynFilterM9
+  fromAttrBs "nextMonth"    = return DynFilterNextMonth
+  fromAttrBs "nextQuarter"  = return DynFilterNextQuarter
+  fromAttrBs "nextWeek"     = return DynFilterNextWeek
+  fromAttrBs "nextYear"     = return DynFilterNextYear
+  fromAttrBs "null"         = return DynFilterNull
+  fromAttrBs "Q1"           = return DynFilterQ1
+  fromAttrBs "Q2"           = return DynFilterQ2
+  fromAttrBs "Q3"           = return DynFilterQ3
+  fromAttrBs "Q4"           = return DynFilterQ4
+  fromAttrBs "thisMonth"    = return DynFilterThisMonth
+  fromAttrBs "thisQuarter"  = return DynFilterThisQuarter
+  fromAttrBs "thisWeek"     = return DynFilterThisWeek
+  fromAttrBs "thisYear"     = return DynFilterThisYear
+  fromAttrBs "today"        = return DynFilterToday
+  fromAttrBs "tomorrow"     = return DynFilterTomorrow
+  fromAttrBs "yearToDate"   = return DynFilterYearToDate
+  fromAttrBs "yesterday"    = return DynFilterYesterday
+  fromAttrBs x              = unexpectedAttrBs "DynFilterType" x
 
 {-------------------------------------------------------------------------------
   Rendering
@@ -687,15 +687,15 @@ instance ToElement CustomFilter where
     leafElement nm ["operator" .= cfltOperator, "val" .= cfltValue]
 
 instance ToAttrVal CustomFilterOperator where
-  toAttrVal FltrEqual = "equal"
-  toAttrVal FltrGreaterThan = "greaterThan"
+  toAttrVal FltrEqual              = "equal"
+  toAttrVal FltrGreaterThan        = "greaterThan"
   toAttrVal FltrGreaterThanOrEqual = "greaterThanOrEqual"
-  toAttrVal FltrLessThan = "lessThan"
-  toAttrVal FltrLessThanOrEqual = "lessThanOrEqual"
-  toAttrVal FltrNotEqual = "notEqual"
+  toAttrVal FltrLessThan           = "lessThan"
+  toAttrVal FltrLessThanOrEqual    = "lessThanOrEqual"
+  toAttrVal FltrNotEqual           = "notEqual"
 
 instance ToAttrVal FilterByBlank where
-  toAttrVal FilterByBlank = toAttrVal True
+  toAttrVal FilterByBlank     = toAttrVal True
   toAttrVal DontFilterByBlank = toAttrVal False
 
 instance ToElement ColorFilterOptions where
@@ -712,36 +712,36 @@ instance ToElement DynFilterOptions where
 instance ToAttrVal DynFilterType where
   toAttrVal DynFilterAboveAverage = "aboveAverage"
   toAttrVal DynFilterBelowAverage = "belowAverage"
-  toAttrVal DynFilterLastMonth = "lastMonth"
-  toAttrVal DynFilterLastQuarter = "lastQuarter"
-  toAttrVal DynFilterLastWeek = "lastWeek"
-  toAttrVal DynFilterLastYear = "lastYear"
-  toAttrVal DynFilterM1 = "M1"
-  toAttrVal DynFilterM10 = "M10"
-  toAttrVal DynFilterM11 = "M11"
-  toAttrVal DynFilterM12 = "M12"
-  toAttrVal DynFilterM2 = "M2"
-  toAttrVal DynFilterM3 = "M3"
-  toAttrVal DynFilterM4 = "M4"
-  toAttrVal DynFilterM5 = "M5"
-  toAttrVal DynFilterM6 = "M6"
-  toAttrVal DynFilterM7 = "M7"
-  toAttrVal DynFilterM8 = "M8"
-  toAttrVal DynFilterM9 = "M9"
-  toAttrVal DynFilterNextMonth = "nextMonth"
-  toAttrVal DynFilterNextQuarter = "nextQuarter"
-  toAttrVal DynFilterNextWeek = "nextWeek"
-  toAttrVal DynFilterNextYear = "nextYear"
-  toAttrVal DynFilterNull = "null"
-  toAttrVal DynFilterQ1 = "Q1"
-  toAttrVal DynFilterQ2 = "Q2"
-  toAttrVal DynFilterQ3 = "Q3"
-  toAttrVal DynFilterQ4 = "Q4"
-  toAttrVal DynFilterThisMonth = "thisMonth"
-  toAttrVal DynFilterThisQuarter = "thisQuarter"
-  toAttrVal DynFilterThisWeek = "thisWeek"
-  toAttrVal DynFilterThisYear = "thisYear"
-  toAttrVal DynFilterToday = "today"
-  toAttrVal DynFilterTomorrow = "tomorrow"
-  toAttrVal DynFilterYearToDate = "yearToDate"
-  toAttrVal DynFilterYesterday = "yesterday"
+  toAttrVal DynFilterLastMonth    = "lastMonth"
+  toAttrVal DynFilterLastQuarter  = "lastQuarter"
+  toAttrVal DynFilterLastWeek     = "lastWeek"
+  toAttrVal DynFilterLastYear     = "lastYear"
+  toAttrVal DynFilterM1           = "M1"
+  toAttrVal DynFilterM10          = "M10"
+  toAttrVal DynFilterM11          = "M11"
+  toAttrVal DynFilterM12          = "M12"
+  toAttrVal DynFilterM2           = "M2"
+  toAttrVal DynFilterM3           = "M3"
+  toAttrVal DynFilterM4           = "M4"
+  toAttrVal DynFilterM5           = "M5"
+  toAttrVal DynFilterM6           = "M6"
+  toAttrVal DynFilterM7           = "M7"
+  toAttrVal DynFilterM8           = "M8"
+  toAttrVal DynFilterM9           = "M9"
+  toAttrVal DynFilterNextMonth    = "nextMonth"
+  toAttrVal DynFilterNextQuarter  = "nextQuarter"
+  toAttrVal DynFilterNextWeek     = "nextWeek"
+  toAttrVal DynFilterNextYear     = "nextYear"
+  toAttrVal DynFilterNull         = "null"
+  toAttrVal DynFilterQ1           = "Q1"
+  toAttrVal DynFilterQ2           = "Q2"
+  toAttrVal DynFilterQ3           = "Q3"
+  toAttrVal DynFilterQ4           = "Q4"
+  toAttrVal DynFilterThisMonth    = "thisMonth"
+  toAttrVal DynFilterThisQuarter  = "thisQuarter"
+  toAttrVal DynFilterThisWeek     = "thisWeek"
+  toAttrVal DynFilterThisYear     = "thisYear"
+  toAttrVal DynFilterToday        = "today"
+  toAttrVal DynFilterTomorrow     = "tomorrow"
+  toAttrVal DynFilterYearToDate   = "yearToDate"
+  toAttrVal DynFilterYesterday    = "yesterday"

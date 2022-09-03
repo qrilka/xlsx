@@ -1,8 +1,8 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Codec.Xlsx.Types.Drawing.Common where
 
 import GHC.Generics (Generic)
@@ -13,9 +13,9 @@ import Lens.Micro.TH (makeLenses)
 #else
 import Control.Lens.TH
 #endif
+import Control.DeepSeq (NFData)
 import Control.Monad (join)
 import Control.Monad.Fail (MonadFail)
-import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Maybe (catMaybes, listToMaybe)
 import Data.Monoid ((<>))
@@ -44,25 +44,25 @@ instance NFData Angle
 --
 -- See @CT_TextBody@ (p. 4034)
 data TextBody = TextBody
-  { _txbdRotation :: Angle
+  { _txbdRotation         :: Angle
     -- ^ Specifies the rotation that is being applied to the text within the bounding box.
   , _txbdSpcFirstLastPara :: Bool
     -- ^ Specifies whether the before and after paragraph spacing defined by the user is
     -- to be respected.
-  , _txbdVertOverflow :: TextVertOverflow
+  , _txbdVertOverflow     :: TextVertOverflow
     -- ^ Determines whether the text can flow out of the bounding box vertically.
-  , _txbdVertical :: TextVertical
+  , _txbdVertical         :: TextVertical
     -- ^ Determines if the text within the given text body should be displayed vertically.
-  , _txbdWrap :: TextWrap
+  , _txbdWrap             :: TextWrap
     -- ^ Specifies the wrapping options to be used for this text body.
-  , _txbdAnchor :: TextAnchoring
+  , _txbdAnchor           :: TextAnchoring
     -- ^ Specifies the anchoring position of the txBody within the shape.
-  , _txbdAnchorCenter :: Bool
+  , _txbdAnchorCenter     :: Bool
     -- ^ Specifies the centering of the text box. The way it works fundamentally is
     -- to determine the smallest possible "bounds box" for the text and then to center
     -- that "bounds box" accordingly. This is different than paragraph alignment, which
     -- aligns the text within the "bounds box" for the text.
-  , _txbdParagraphs :: [TextParagraph]
+  , _txbdParagraphs       :: [TextParagraph]
     -- ^ Paragraphs of text within the containing text body
   } deriving (Eq, Show, Generic)
 instance NFData TextBody
@@ -154,7 +154,7 @@ instance NFData TextAnchoring
 -- See 21.1.2.2.6 "p (Text Paragraphs)" (p. 3211)
 data TextParagraph = TextParagraph
   { _txpaDefCharProps :: Maybe TextCharacterProperties
-  , _txpaRuns :: [TextRun]
+  , _txpaRuns         :: [TextRun]
   } deriving (Eq, Show, Generic)
 instance NFData TextParagraph
 
@@ -168,8 +168,8 @@ instance NFData TextParagraph
 --
 -- See @CT_TextCharacterProperties@ (p. 4039)
 data TextCharacterProperties = TextCharacterProperties
-  { _txchBold :: Bool
-  , _txchItalic :: Bool
+  { _txchBold      :: Bool
+  , _txchItalic    :: Bool
   , _txchUnderline :: Bool
   } deriving (Eq, Show, Generic)
 instance NFData TextCharacterProperties
@@ -179,7 +179,7 @@ instance NFData TextCharacterProperties
 -- TODO: br, fld
 data TextRun = RegularRun
   { _txrCharProps :: Maybe TextCharacterProperties
-  , _txrText :: Text
+  , _txrText      :: Text
   } deriving (Eq, Show, Generic)
 instance NFData TextRun
 
@@ -242,15 +242,15 @@ cm2emu cm = 360000 * cm
 
 -- See 20.1.7.6 "xfrm (2D Transform for Individual Objects)" (p. 2849)
 data Transform2D = Transform2D
-  { _trRot :: Angle
+  { _trRot     :: Angle
     -- ^ Specifies the rotation of the Graphic Frame.
-  , _trFlipH :: Bool
+  , _trFlipH   :: Bool
     -- ^ Specifies a horizontal flip. When true, this attribute defines
     -- that the shape is flipped horizontally about the center of its bounding box.
-  , _trFlipV :: Bool
+  , _trFlipV   :: Bool
     -- ^ Specifies a vertical flip. When true, this attribute defines
     -- that the shape is flipped vetically about the center of its bounding box.
-  , _trOffset :: Maybe Point2D
+  , _trOffset  :: Maybe Point2D
     -- ^ See 20.1.7.4 "off (Offset)" (p. 2847)
   , _trExtents :: Maybe PositiveSize2D
     -- ^ See 20.1.7.3 "ext (Extents)" (p. 2846) or
@@ -268,10 +268,10 @@ instance NFData Geometry
 
 -- See 20.1.2.2.35 "spPr (Shape Properties)" (p. 2751)
 data ShapeProperties = ShapeProperties
-  { _spXfrm :: Maybe Transform2D
+  { _spXfrm     :: Maybe Transform2D
   , _spGeometry :: Maybe Geometry
-  , _spFill :: Maybe FillProperties
-  , _spOutline :: Maybe LineProperties
+  , _spFill     :: Maybe FillProperties
+  , _spOutline  :: Maybe LineProperties
     -- TODO: bwMode, a_EG_EffectProperties, scene3d, sp3d, extLst
   } deriving (Eq, Show, Generic)
 instance NFData ShapeProperties
@@ -284,7 +284,7 @@ instance NFData ShapeProperties
 --
 -- See 20.1.2.2.24 "ln (Outline)" (p. 2744)
 data LineProperties = LineProperties
-  { _lnFill :: Maybe FillProperties
+  { _lnFill  :: Maybe FillProperties
   , _lnWidth :: Int
   -- ^ Specifies the width to be used for the underline stroke.  The
   -- value is in EMU, is greater of equal to 0 and maximum value is
@@ -379,32 +379,32 @@ instance FromAttrVal Angle where
 instance FromAttrVal TextVertOverflow where
   fromAttrVal "overflow" = readSuccess TextVertOverflow
   fromAttrVal "ellipsis" = readSuccess TextVertOverflowEllipsis
-  fromAttrVal "clip" = readSuccess TextVertOverflowClip
-  fromAttrVal t = invalidText "TextVertOverflow" t
+  fromAttrVal "clip"     = readSuccess TextVertOverflowClip
+  fromAttrVal t          = invalidText "TextVertOverflow" t
 
 instance FromAttrVal TextVertical where
-  fromAttrVal "horz" = readSuccess TextVerticalHorz
-  fromAttrVal "vert" = readSuccess TextVertical
-  fromAttrVal "vert270" = readSuccess TextVertical270
-  fromAttrVal "wordArtVert" = readSuccess TextVerticalWordArt
-  fromAttrVal "eaVert" = readSuccess TextVerticalEA
-  fromAttrVal "mongolianVert" = readSuccess TextVerticalMongolian
+  fromAttrVal "horz"           = readSuccess TextVerticalHorz
+  fromAttrVal "vert"           = readSuccess TextVertical
+  fromAttrVal "vert270"        = readSuccess TextVertical270
+  fromAttrVal "wordArtVert"    = readSuccess TextVerticalWordArt
+  fromAttrVal "eaVert"         = readSuccess TextVerticalEA
+  fromAttrVal "mongolianVert"  = readSuccess TextVerticalMongolian
   fromAttrVal "wordArtVertRtl" = readSuccess TextVerticalWordArtRtl
-  fromAttrVal t = invalidText "TextVertical" t
+  fromAttrVal t                = invalidText "TextVertical" t
 
 instance FromAttrVal TextWrap where
-  fromAttrVal "none" = readSuccess TextWrapNone
+  fromAttrVal "none"   = readSuccess TextWrapNone
   fromAttrVal "square" = readSuccess TextWrapSquare
-  fromAttrVal t = invalidText "TextWrap" t
+  fromAttrVal t        = invalidText "TextWrap" t
 
 -- See 20.1.10.59 "ST_TextAnchoringType (Text Anchoring Types)" (p. 3058)
 instance FromAttrVal TextAnchoring where
-  fromAttrVal "t" = readSuccess TextAnchoringTop
-  fromAttrVal "ctr" = readSuccess TextAnchoringCenter
-  fromAttrVal "b" = readSuccess TextAnchoringBottom
+  fromAttrVal "t"    = readSuccess TextAnchoringTop
+  fromAttrVal "ctr"  = readSuccess TextAnchoringCenter
+  fromAttrVal "b"    = readSuccess TextAnchoringBottom
   fromAttrVal "just" = readSuccess TextAnchoringJustified
   fromAttrVal "dist" = readSuccess TextAnchoringDistributed
-  fromAttrVal t = invalidText "TextAnchoring" t
+  fromAttrVal t      = invalidText "TextAnchoring" t
 
 instance FromCursor ShapeProperties where
   fromCursor cur = do
@@ -508,7 +508,7 @@ instance ToElement TextParagraph where
       elements =
         case _txpaDefCharProps of
           Just props -> (defRPr props) : runs
-          Nothing -> runs
+          Nothing    -> runs
       defRPr props =
         elementListSimple (a_ "pPr") [toElement (a_ "defRPr") props]
       runs = map (toElement (a_ "r")) _txpaRuns
@@ -528,29 +528,29 @@ instance ToElement TextRun where
           ]
 
 instance ToAttrVal TextVertOverflow where
-  toAttrVal TextVertOverflow = "overflow"
+  toAttrVal TextVertOverflow         = "overflow"
   toAttrVal TextVertOverflowEllipsis = "ellipsis"
-  toAttrVal TextVertOverflowClip = "clip"
+  toAttrVal TextVertOverflowClip     = "clip"
 
 instance ToAttrVal TextVertical where
-  toAttrVal TextVerticalHorz = "horz"
-  toAttrVal TextVertical = "vert"
-  toAttrVal TextVertical270 = "vert270"
-  toAttrVal TextVerticalWordArt = "wordArtVert"
-  toAttrVal TextVerticalEA = "eaVert"
-  toAttrVal TextVerticalMongolian = "mongolianVert"
+  toAttrVal TextVerticalHorz       = "horz"
+  toAttrVal TextVertical           = "vert"
+  toAttrVal TextVertical270        = "vert270"
+  toAttrVal TextVerticalWordArt    = "wordArtVert"
+  toAttrVal TextVerticalEA         = "eaVert"
+  toAttrVal TextVerticalMongolian  = "mongolianVert"
   toAttrVal TextVerticalWordArtRtl = "wordArtVertRtl"
 
 instance ToAttrVal TextWrap where
-  toAttrVal TextWrapNone = "none"
+  toAttrVal TextWrapNone   = "none"
   toAttrVal TextWrapSquare = "square"
 
 -- See 20.1.10.59 "ST_TextAnchoringType (Text Anchoring Types)" (p. 3058)
 instance ToAttrVal TextAnchoring where
-  toAttrVal TextAnchoringTop = "t"
-  toAttrVal TextAnchoringCenter = "ctr"
-  toAttrVal TextAnchoringBottom = "b"
-  toAttrVal TextAnchoringJustified = "just"
+  toAttrVal TextAnchoringTop         = "t"
+  toAttrVal TextAnchoringCenter      = "ctr"
+  toAttrVal TextAnchoringBottom      = "b"
+  toAttrVal TextAnchoringJustified   = "just"
   toAttrVal TextAnchoringDistributed = "dist"
 
 instance ToAttrVal Angle where

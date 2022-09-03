@@ -1,6 +1,6 @@
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications           #-}
 
 -- | I rewrote: https://hackage.haskell.org/package/unliftio-0.2.20/docs/src/UnliftIO.Memoize.html#Memoized
 -- for monad trans basecontrol
@@ -12,10 +12,10 @@ module Codec.Xlsx.Parser.Internal.Memoize
   ) where
 
 import Control.Applicative as A
+import Control.Exception
 import Control.Monad (join)
 import Control.Monad.IO.Class
 import Data.IORef
-import Control.Exception
 
 -- | A \"run once\" value, with results saved. Extract the value with
 -- 'runMemoized'. For single-threaded usage, you can use 'memoizeRef' to

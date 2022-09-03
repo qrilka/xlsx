@@ -1,52 +1,59 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module StreamTests
   ( tests
   ) where
 
+import Data.List (unwords)
 #ifdef USE_MICROLENS
-
 import Test.Tasty (TestName, TestTree, testGroup)
-tests :: TestTree
-tests = testGroup
-  "I stubbed out the tests module for microlens \
-   because it doesn't understand setOf. \
-   Volunteers are welcome to fix this!"
-    []
 #else
-
-import Control.Exception
 import Codec.Xlsx
 import Codec.Xlsx.Parser.Stream
+import qualified Codec.Xlsx.Writer.Internal.Stream as SW
+import qualified Codec.Xlsx.Writer.Stream as SW
 import Conduit ((.|))
 import qualified Conduit as C
+import Control.Exception
 import Control.Lens hiding (indexed)
-import Data.Set.Lens
-import qualified Data.ByteString.Lazy as LB
+import Control.Monad.State.Lazy
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LB
+import Data.Conduit
+import qualified Data.IntMap.Strict as IM
 import Data.Map (Map)
 import qualified Data.Map as M
-import qualified Data.IntMap.Strict as IM
+import Data.Set (Set)
+import qualified Data.Set as Set
+import Data.Set.Lens
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Diff
+import Test.SmallCheck.Series.Instances ()
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
-import TestXlsx
-import qualified Codec.Xlsx.Writer.Stream as SW
-import qualified Codec.Xlsx.Writer.Internal.Stream as SW
-import Control.Monad.State.Lazy
 import Test.Tasty.SmallCheck
-import Test.SmallCheck.Series.Instances ()
-import qualified Data.Set as Set
-import Data.Set (Set)
+import TestXlsx
 import Text.Printf
-import Data.Conduit
+#endif
+
+#ifdef USE_MICROLENS
+
+tests :: TestTree
+tests = testGroup
+  (unwords [ "I stubbed out the tests module for microlens"
+    , "because it doesn't understand setOf."
+    , "Volunteers are welcome to fix this!"
+    ]
+  )
+  -- various versions of GHC and stylish-haskell do not handle multiline strings the same
+  []
+#else
 
 toBs :: Xlsx -> BS.ByteString
 toBs = LB.toStrict . fromXlsx testTime
@@ -65,12 +72,13 @@ tests =
       [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbook
       , testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbookRow
       , testCase "Test a small workbook which has a fullblown sqaure" $ readWrite smallWorkbook
-      , testCase "Test a big workbook as a full square which caused issues with zipstream \
-                 The buffer of zipstream maybe 1kb, this workbook is big enough \
-                 to be more than that. \
-                 So if this encodes/decodes we know we can handle those sizes. \
-                 In some older version the bytestring got cut off resulting in a corrupt xlsx file"
-                  $ readWrite bigWorkbook
+      , testCase (unwords [ "Test a big workbook as a full square which caused issues with zipstream"
+                            , "The buffer of zipstream maybe 1kb, this workbook is big enough"
+                            , "to be more than that."
+                            , "So if this encodes/decodes we know we can handle those sizes."
+                            , "In some older version the bytestring got cut off resulting in a corrupt xlsx file"
+                          ]
+                ) $ readWrite bigWorkbook
       -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
       -- TODO forall SheetItem write that can be read
       ],

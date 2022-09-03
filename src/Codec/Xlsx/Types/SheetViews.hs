@@ -1,8 +1,8 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.SheetViews (
     -- * Structured type to construct 'SheetViews'
     SheetView(..)
@@ -56,13 +56,13 @@ import Control.Lens (makeLenses)
 #endif
 import Control.DeepSeq (NFData)
 import Data.Default
-import Data.Maybe (catMaybes, maybeToList, listToMaybe)
+import qualified Data.Map as Map
+import Data.Maybe (catMaybes, listToMaybe, maybeToList)
 import Text.XML
 import Text.XML.Cursor
-import qualified Data.Map  as Map
 
-import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Writer.Internal
 
 {-------------------------------------------------------------------------------
@@ -85,45 +85,45 @@ import Codec.Xlsx.Writer.Internal
 data SheetView = SheetView {
     -- | Index to the color value for row/column text headings and gridlines.
     -- This is an 'index color value' (ICV) rather than rgb value.
-    _sheetViewColorId :: Maybe Int
+    _sheetViewColorId                  :: Maybe Int
 
     -- | Flag indicating that the consuming application should use the default
     -- grid lines color (system dependent). Overrides any color specified in
     -- colorId.
-  , _sheetViewDefaultGridColor :: Maybe Bool
+  , _sheetViewDefaultGridColor         :: Maybe Bool
 
     -- | Flag indicating whether the sheet is in 'right to left' display mode.
     -- When in this mode, Column A is on the far right, Column B ;is one column
     -- left of Column A, and so on. Also, information in cells is displayed in
     -- the Right to Left format.
-  , _sheetViewRightToLeft :: Maybe Bool
+  , _sheetViewRightToLeft              :: Maybe Bool
 
     -- | Flag indicating whether this sheet should display formulas.
-  , _sheetViewShowFormulas :: Maybe Bool
+  , _sheetViewShowFormulas             :: Maybe Bool
 
     -- | Flag indicating whether this sheet should display gridlines.
-  , _sheetViewShowGridLines :: Maybe Bool
+  , _sheetViewShowGridLines            :: Maybe Bool
 
     -- | Flag indicating whether the sheet has outline symbols visible. This
     -- flag shall always override SheetPr element's outlinePr child element
     -- whose attribute is named showOutlineSymbols when there is a conflict.
-  , _sheetViewShowOutlineSymbols :: Maybe Bool
+  , _sheetViewShowOutlineSymbols       :: Maybe Bool
 
     -- | Flag indicating whether the sheet should display row and column headings.
-  , _sheetViewShowRowColHeaders :: Maybe Bool
+  , _sheetViewShowRowColHeaders        :: Maybe Bool
 
     -- | Show the ruler in Page Layout View.
-  , _sheetViewShowRuler :: Maybe Bool
+  , _sheetViewShowRuler                :: Maybe Bool
 
     -- | Flag indicating whether page layout view shall display margins. False
     -- means do not display left, right, top (header), and bottom (footer)
     -- margins (even when there is data in the header or footer).
-  , _sheetViewShowWhiteSpace :: Maybe Bool
+  , _sheetViewShowWhiteSpace           :: Maybe Bool
 
     -- | Flag indicating whether the window should show 0 (zero) in cells
     -- containing zero value. When false, cells with zero value appear blank
     -- instead of showing the number zero.
-  , _sheetViewShowZeros :: Maybe Bool
+  , _sheetViewShowZeros                :: Maybe Bool
 
     -- | Flag indicating whether this sheet is selected. When only 1 sheet is
     -- selected and active, this value should be in synch with the activeTab
@@ -132,40 +132,40 @@ data SheetView = SheetView {
     --
     -- Multiple sheets can be selected, but only one sheet shall be active at
     -- one time.
-  , _sheetViewTabSelected :: Maybe Bool
+  , _sheetViewTabSelected              :: Maybe Bool
 
     -- | Location of the top left visible cell Location of the top left visible
     -- cell in the bottom right pane (when in Left-to-Right mode).
-  , _sheetViewTopLeftCell :: Maybe CellRef
+  , _sheetViewTopLeftCell              :: Maybe CellRef
 
     -- | Indicates the view type.
-  , _sheetViewType :: Maybe SheetViewType
+  , _sheetViewType                     :: Maybe SheetViewType
 
     -- | Flag indicating whether the panes in the window are locked due to
     -- workbook protection. This is an option when the workbook structure is
     -- protected.
-  , _sheetViewWindowProtection :: Maybe Bool
+  , _sheetViewWindowProtection         :: Maybe Bool
 
     -- | Zero-based index of this workbook view, pointing to a workbookView
     -- element in the bookViews collection.
     --
     -- NOTE: This attribute is required.
-  , _sheetViewWorkbookViewId :: Int
+  , _sheetViewWorkbookViewId           :: Int
 
     -- | Window zoom magnification for current view representing percent values.
     -- This attribute is restricted to values ranging from 10 to 400. Horizontal &
     -- Vertical scale together.
-  , _sheetViewZoomScale :: Maybe Int
+  , _sheetViewZoomScale                :: Maybe Int
 
     -- | Zoom magnification to use when in normal view, representing percent
     -- values. This attribute is restricted to values ranging from 10 to 400.
     -- Horizontal & Vertical scale together.
-  , _sheetViewZoomScaleNormal :: Maybe Int
+  , _sheetViewZoomScaleNormal          :: Maybe Int
 
     -- | Zoom magnification to use when in page layout view, representing
     -- percent values. This attribute is restricted to values ranging from 10 to
     -- 400. Horizontal & Vertical scale together.
-  , _sheetViewZoomScalePageLayoutView :: Maybe Int
+  , _sheetViewZoomScalePageLayoutView  :: Maybe Int
 
     -- | Zoom magnification to use when in page break preview, representing
     -- percent values. This attribute is restricted to values ranging from 10 to
@@ -173,12 +173,12 @@ data SheetView = SheetView {
   , _sheetViewZoomScaleSheetLayoutView :: Maybe Int
 
     -- | Worksheet view pane
-  , _sheetViewPane :: Maybe Pane
+  , _sheetViewPane                     :: Maybe Pane
 
     -- | Worksheet view selection
     --
     -- Minimum of 0, maximum of 4 elements
-  , _sheetViewSelection :: [Selection]
+  , _sheetViewSelection                :: [Selection]
   }
   deriving (Eq, Ord, Show, Generic)
 instance NFData SheetView
@@ -188,7 +188,7 @@ instance NFData SheetView
 -- Section 18.3.1.78 "selection (Selection)" (p. 1864)
 data Selection = Selection {
     -- | Location of the active cell
-    _selectionActiveCell :: Maybe CellRef
+    _selectionActiveCell   :: Maybe CellRef
 
     -- | 0-based index of the range reference (in the array of references listed
     -- in sqref) containing the active cell. Only used when the selection in
@@ -199,10 +199,10 @@ data Selection = Selection {
   , _selectionActiveCellId :: Maybe Int
 
     -- | The pane to which this selection belongs.
-  , _selectionPane :: Maybe PaneType
+  , _selectionPane         :: Maybe PaneType
 
     -- | Range of the selection. Can be non-contiguous set of ranges.
-  , _selectionSqref :: Maybe SqRef
+  , _selectionSqref        :: Maybe SqRef
   }
   deriving (Eq, Ord, Show, Generic)
 instance NFData Selection
@@ -212,11 +212,11 @@ instance NFData Selection
 -- Section 18.3.1.66 "pane (View Pane)" (p. 1843)
 data Pane = Pane {
     -- | The pane that is active.
-    _paneActivePane :: Maybe PaneType
+    _paneActivePane  :: Maybe PaneType
 
     -- | Indicates whether the pane has horizontal / vertical splits, and
     -- whether those splits are frozen.
-  , _paneState :: Maybe PaneState
+  , _paneState       :: Maybe PaneState
 
     -- | Location of the top left visible cell in the bottom right pane (when in
     -- Left-To-Right mode).
@@ -225,12 +225,12 @@ data Pane = Pane {
     -- | Horizontal position of the split, in 1/20th of a point; 0 (zero) if
     -- none. If the pane is frozen, this value indicates the number of columns
     -- visible in the top pane.
-  , _paneXSplit :: Maybe Double
+  , _paneXSplit      :: Maybe Double
 
     -- | Vertical position of the split, in 1/20th of a point; 0 (zero) if none.
     -- If the pane is frozen, this value indicates the number of rows visible in
     -- the left pane.
-  , _paneYSplit :: Maybe Double
+  , _paneYSplit      :: Maybe Double
   }
   deriving (Eq, Ord, Show, Generic)
 instance NFData Pane

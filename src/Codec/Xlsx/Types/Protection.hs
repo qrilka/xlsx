@@ -1,8 +1,8 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Codec.Xlsx.Types.Protection
   ( SheetProtection(..)
   , fullSheetProtection
@@ -11,21 +11,21 @@ module Codec.Xlsx.Types.Protection
   , legacyPassword
   -- * Lenses
   , sprLegacyPassword
-  , sprSheet              
-  , sprObjects            
-  , sprScenarios          
-  , sprFormatCells        
-  , sprFormatColumns      
-  , sprFormatRows         
-  , sprInsertColumns      
-  , sprInsertRows         
-  , sprInsertHyperlinks   
-  , sprDeleteColumns      
-  , sprDeleteRows         
-  , sprSelectLockedCells  
-  , sprSort               
-  , sprAutoFilter         
-  , sprPivotTables        
+  , sprSheet
+  , sprObjects
+  , sprScenarios
+  , sprFormatCells
+  , sprFormatColumns
+  , sprFormatRows
+  , sprInsertColumns
+  , sprInsertRows
+  , sprInsertHyperlinks
+  , sprDeleteColumns
+  , sprDeleteRows
+  , sprSelectLockedCells
+  , sprSort
+  , sprAutoFilter
+  , sprPivotTables
   , sprSelectUnlockedCells
   ) where
 
@@ -83,57 +83,57 @@ legacyPassword = LegacyPassword . hex . legacyHash . map ord . T.unpack
 --
 -- See 18.3.1.85 "sheetProtection (Sheet Protection Options)" (p. 1694)
 data SheetProtection = SheetProtection
-  { _sprLegacyPassword :: Maybe LegacyPassword
+  { _sprLegacyPassword      :: Maybe LegacyPassword
     -- ^ Specifies the legacy hash of the password required for editing
     -- this worksheet.
     --
     -- See Part 4, 15.3.1.6 "Additional attribute for sheetProtection
     -- element (Part 1, §18.3.1.85)" (p. 229)
-  , _sprSheet :: Bool
+  , _sprSheet               :: Bool
     -- ^ the value of this attribute dictates whether the other
     -- attributes of 'SheetProtection' should be applied
-  , _sprAutoFilter :: Bool
+  , _sprAutoFilter          :: Bool
     -- ^ AutoFilters should not be allowed to operate when the sheet
     -- is protected
-  , _sprDeleteColumns :: Bool
+  , _sprDeleteColumns       :: Bool
     -- ^ deleting columns should not be allowed when the sheet is
     -- protected
-  , _sprDeleteRows :: Bool
+  , _sprDeleteRows          :: Bool
     -- ^ deleting rows should not be allowed when the sheet is
     -- protected
-  , _sprFormatCells :: Bool
+  , _sprFormatCells         :: Bool
     -- ^ formatting cells should not be allowed when the sheet is
     -- protected
-  , _sprFormatColumns :: Bool
+  , _sprFormatColumns       :: Bool
     -- ^ formatting columns should not be allowed when the sheet is
     -- protected
-  , _sprFormatRows :: Bool
+  , _sprFormatRows          :: Bool
     -- ^ formatting rows should not be allowed when the sheet is
     -- protected
-  , _sprInsertColumns :: Bool
+  , _sprInsertColumns       :: Bool
     -- ^ inserting columns should not be allowed when the sheet is
     -- protected
-  , _sprInsertHyperlinks :: Bool
+  , _sprInsertHyperlinks    :: Bool
     -- ^ inserting hyperlinks should not be allowed when the sheet is
     -- protected
-  , _sprInsertRows :: Bool
+  , _sprInsertRows          :: Bool
     -- ^ inserting rows should not be allowed when the sheet is
     -- protected
-  , _sprObjects :: Bool
+  , _sprObjects             :: Bool
     -- ^ editing of objects should not be allowed when the sheet is
     -- protected
-  , _sprPivotTables :: Bool
+  , _sprPivotTables         :: Bool
     -- ^ PivotTables should not be allowed to operate when the sheet
     -- is protected
-  , _sprScenarios :: Bool
+  , _sprScenarios           :: Bool
     -- ^ Scenarios should not be edited when the sheet is protected
-  , _sprSelectLockedCells :: Bool
+  , _sprSelectLockedCells   :: Bool
     -- ^ selection of locked cells should not be allowed when the
     -- sheet is protected
   , _sprSelectUnlockedCells :: Bool
     -- ^ selection of unlocked cells should not be allowed when the
     -- sheet is protected
-  , _sprSort :: Bool
+  , _sprSort                :: Bool
     -- ^ sorting should not be allowed when the sheet is protected
   } deriving (Eq, Show, Generic)
 instance NFData SheetProtection
@@ -212,7 +212,7 @@ instance FromCursor SheetProtection where
     _sprScenarios  <- fromAttributeDef "scenarios" False cur
     _sprSelectLockedCells  <- fromAttributeDef "selectLockedCells" False cur
     _sprSelectUnlockedCells  <- fromAttributeDef "selectUnlockedCells" False cur
-    _sprSort  <- fromAttributeDef "sort" True cur    
+    _sprSort  <- fromAttributeDef "sort" True cur
     return SheetProtection {..}
 
 instance FromXenoNode SheetProtection where

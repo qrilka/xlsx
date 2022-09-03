@@ -1,14 +1,14 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TupleSections        #-}
+{-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Drawing where
 
 import Control.Arrow (first)
@@ -84,16 +84,16 @@ data Anchoring
 instance NFData Anchoring
 
 data DrawingObject p g
-  = Picture { _picMacro :: Maybe Text
-           ,  _picPublished :: Bool
-           ,  _picNonVisual :: PicNonVisual
-           ,  _picBlipFill :: BlipFillProperties p
+  = Picture { _picMacro           :: Maybe Text
+           ,  _picPublished       :: Bool
+           ,  _picNonVisual       :: PicNonVisual
+           ,  _picBlipFill        :: BlipFillProperties p
            ,  _picShapeProperties :: ShapeProperties
               -- TODO: style
             }
-  | Graphic { _grNonVisual :: GraphNonVisual
+  | Graphic { _grNonVisual  :: GraphNonVisual
            ,  _grChartSpace :: g
-           ,  _grTransform :: Transform2D}
+           ,  _grTransform  :: Transform2D}
     -- TODO: sp, grpSp, graphicFrame, cxnSp, contentPart
   deriving (Eq, Show, Generic)
 instance (NFData p, NFData g) => NFData (DrawingObject p g)
@@ -142,7 +142,7 @@ extractPictures dr = mapMaybe maybePictureInfo $ _xdrAnchors dr
     maybePictureInfo Anchor {..} =
       case _anchObject of
         Picture {..} -> (_anchAnchoring,) <$> _bfpImageInfo _picBlipFill
-        _ -> Nothing
+        _            -> Nothing
 
 -- | This element is used to set certain properties related to a drawing
 -- element on the client spreadsheet application.

@@ -1,6 +1,6 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.ContentTypes where
 
 import Control.Arrow

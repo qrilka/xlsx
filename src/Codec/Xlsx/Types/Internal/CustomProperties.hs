@@ -1,5 +1,5 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.CustomProperties where
 
 import Data.Map (Map)

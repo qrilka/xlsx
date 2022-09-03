@@ -1,26 +1,21 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module CommonTests
   ( tests
   ) where
 
-import Data.Fixed (Pico, Fixed(..), E12)
+import Data.Fixed (E12, Fixed (..), Pico)
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (UTCTime(..))
-import Test.Tasty.SmallCheck (testProperty)
-import Test.SmallCheck.Series as Series
-  ( Positive(..)
-  , Serial(..)
-  , newtypeCons
-  , cons0
-  , (\/)
-  )
-import Test.Tasty (testGroup, TestTree)
+import Data.Time.Clock (UTCTime (..))
+import Test.SmallCheck.Series as Series (Positive (..), Serial (..), cons0,
+                                         newtypeCons, (\/))
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.SmallCheck (testProperty)
 
 import Codec.Xlsx.Types.Common
 

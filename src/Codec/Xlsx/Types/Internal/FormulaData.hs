@@ -1,6 +1,6 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Codec.Xlsx.Types.Internal.FormulaData where
 
 import Data.Monoid ((<>))
@@ -14,7 +14,7 @@ import Codec.Xlsx.Types.Common
 
 data FormulaData = FormulaData
   { frmdFormula :: CellFormula
-  , frmdShared :: Maybe (SharedFormulaIndex, SharedFormulaOptions)
+  , frmdShared  :: Maybe (SharedFormulaIndex, SharedFormulaOptions)
   } deriving Generic
 
 defaultFormulaType :: Text

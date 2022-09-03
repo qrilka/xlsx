@@ -1,8 +1,8 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Codec.Xlsx.Types.Table where
 
 #ifdef USE_MICROLENS
@@ -46,7 +46,7 @@ data Table = Table
     -- it, and it shall be unique amongst all other displayNames and
     -- definedNames in the workbook. The character lengths and
     -- restrictions are the same as for definedNames .
-  , tblName :: Maybe Text
+  , tblName        :: Maybe Text
     -- ^ A string representing the name of the table that is used to
     -- reference the table programmatically through the spreadsheet
     -- applications object model. This string shall be unique per table
@@ -55,13 +55,13 @@ data Table = Table
     -- table's 'tblDisplayName' . This name should also be kept in synch with
     -- the displayName when the displayName is updated in the UI by the
     -- spreadsheet user.
-  , tblRef :: CellRef
+  , tblRef         :: CellRef
     -- ^ The range on the relevant sheet that the table occupies
     -- expressed using A1 style referencing.
-  , tblColumns :: [TableColumn]
+  , tblColumns     :: [TableColumn]
     -- ^ columns of this table, specification requires any table to
     -- include at least 1 column
-  , tblAutoFilter :: Maybe AutoFilter
+  , tblAutoFilter  :: Maybe AutoFilter
   } deriving (Eq, Show, Generic)
 instance NFData Table
 

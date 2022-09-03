@@ -1,8 +1,8 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Codec.Xlsx.Types.PageSetup (
     -- * Main types
     PageSetup(..)
@@ -48,8 +48,8 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Text.XML
 
-import Codec.Xlsx.Writer.Internal
 import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Writer.Internal
 
 {-------------------------------------------------------------------------------
   Main types
@@ -57,45 +57,45 @@ import Codec.Xlsx.Parser.Internal
 
 data PageSetup = PageSetup {
     -- | Print black and white.
-    _pageSetupBlackAndWhite :: Maybe Bool
+    _pageSetupBlackAndWhite      :: Maybe Bool
 
     -- | This attribute specifies how to print cell comments.
-  , _pageSetupCellComments :: Maybe CellComments
+  , _pageSetupCellComments       :: Maybe CellComments
 
     -- | Number of copies to print.
-  , _pageSetupCopies :: Maybe Int
+  , _pageSetupCopies             :: Maybe Int
 
     -- | Print without graphics.
-  , _pageSetupDraft :: Maybe Bool
+  , _pageSetupDraft              :: Maybe Bool
 
      -- | Specifies how to print cell values for cells with errors.
-  , _pageSetupErrors :: Maybe PrintErrors
+  , _pageSetupErrors             :: Maybe PrintErrors
 
      -- | Page number for first printed page. If no value is specified, then
      -- 'automatic' is assumed.
-  , _pageSetupFirstPageNumber :: Maybe Int
+  , _pageSetupFirstPageNumber    :: Maybe Int
 
      -- | Number of vertical pages to fit on.
-  , _pageSetupFitToHeight :: Maybe Int
+  , _pageSetupFitToHeight        :: Maybe Int
 
      -- | Number of horizontal pages to fit on.
-  , _pageSetupFitToWidth :: Maybe Int
+  , _pageSetupFitToWidth         :: Maybe Int
 
      -- | Horizontal print resolution of the device.
-  , _pageSetupHorizontalDpi :: Maybe Int
+  , _pageSetupHorizontalDpi      :: Maybe Int
 
      -- | Relationship Id of the devMode printer settings part.
      --
      -- (Explicit reference to a parent XML element.)
      --
      -- See 22.8.2.1 "ST_RelationshipId (Explicit Relationship ID)" (p. 3784)
-  , _pageSetupId :: Maybe Text
+  , _pageSetupId                 :: Maybe Text
 
      -- | Orientation of the page.
-  , _pageSetupOrientation :: Maybe Orientation
+  , _pageSetupOrientation        :: Maybe Orientation
 
      -- | Order of printed pages
-  , _pageSetupPageOrder :: Maybe PageOrder
+  , _pageSetupPageOrder          :: Maybe PageOrder
 
      -- | Height of custom paper as a number followed by a unit identifier.
      --
@@ -103,13 +103,13 @@ data PageSetup = PageSetup {
      -- Examples: @"297mm"@, @"11in"@.
      --
      -- See 22.9.2.12 "ST_PositiveUniversalMeasure (Positive Universal Measurement)" (p. 3792)
-  , _pageSetupPaperHeight :: Maybe Text
+  , _pageSetupPaperHeight        :: Maybe Text
 
      -- | Pager size
      --
      -- When paperHeight, paperWidth, and paperUnits are specified, paperSize
      -- should be ignored.
-  , _pageSetupPaperSize :: Maybe PaperSize
+  , _pageSetupPaperSize          :: Maybe PaperSize
 
      -- | Width of custom paper as a number followed by a unit identifier
      --
@@ -117,14 +117,14 @@ data PageSetup = PageSetup {
      --
      -- When paperHeight and paperWidth are specified, paperSize shall be
      -- ignored.
-  , _pageSetupPaperWidth :: Maybe Text
+  , _pageSetupPaperWidth         :: Maybe Text
 
      -- | Print scaling.
      --
      -- This attribute is restricted to values ranging from 10 to 400.
      -- This setting is overridden when fitToWidth and/or fitToHeight are in
      -- use.
-  , _pageSetupScale :: Maybe Int
+  , _pageSetupScale              :: Maybe Int
 
      -- | Use '_pageSetupFirstPageNumber' value for first page number, and do
      -- not auto number the pages.
@@ -139,7 +139,7 @@ data PageSetup = PageSetup {
   , _pageSetupUsePrinterDefaults :: Maybe Bool
 
     -- | Vertical print resolution of the device.
-  , _pageSetupVerticalDpi :: Maybe Int
+  , _pageSetupVerticalDpi        :: Maybe Int
   }
   deriving (Eq, Ord, Show, Generic)
 instance NFData PageSetup

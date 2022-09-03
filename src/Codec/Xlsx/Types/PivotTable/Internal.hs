@@ -1,6 +1,6 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Codec.Xlsx.Types.PivotTable.Internal
   ( CacheId(..)
   , CacheField(..)
@@ -25,7 +25,7 @@ import Codec.Xlsx.Writer.Internal
 newtype CacheId = CacheId Int deriving (Eq, Generic)
 
 data CacheField = CacheField
-  { cfName :: PivotFieldName
+  { cfName  :: PivotFieldName
   , cfItems :: [CellValue]
   } deriving (Eq, Show, Generic)
 
@@ -96,7 +96,7 @@ instance ToElement CacheField where
           ]
       containsNumber = any isNumber cfItems
       isNumber (CellDouble _) = True
-      isNumber _ = False
+      isNumber _              = False
       containsString = any isString cfItems
       isString (CellText _) = True
-      isString _ = False
+      isString _            = False

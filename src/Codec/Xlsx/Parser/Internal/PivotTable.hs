@@ -1,6 +1,6 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Codec.Xlsx.Parser.Internal.PivotTable
   ( parsePivotTable
   , parseCache
@@ -104,6 +104,6 @@ fillCacheFieldsFromRecords fields recs =
       if null (cfItems field)
         then field {cfItems = mapMaybe recToCellValue recVals}
         else field
-    recToCellValue (CacheText t) = Just $ CellText t
+    recToCellValue (CacheText t)   = Just $ CellText t
     recToCellValue (CacheNumber n) = Just $ CellDouble n
-    recToCellValue (CacheIndex _) = Nothing
+    recToCellValue (CacheIndex _)  = Nothing
