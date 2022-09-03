@@ -1,10 +1,10 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PackageImports    #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TupleSections     #-}
 -- | This module provides a function for serializing structured `Xlsx` into lazy bytestring
 module Codec.Xlsx.Writer
   ( fromXlsx
@@ -32,8 +32,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime)
-import Data.Time.Format (formatTime)
-import Data.Time.Format (defaultTimeLocale)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Tuple.Extra (fst3, snd3, thd3)
 import GHC.Generics (Generic)
 import Safe
@@ -43,12 +42,10 @@ import Codec.Xlsx.Types
 import Codec.Xlsx.Types.Cell (applySharedFormulaOpts)
 import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CfPair
-import qualified Codec.Xlsx.Types.Internal.CommentTable
-       as CommentTable
+import qualified Codec.Xlsx.Types.Internal.CommentTable as CommentTable
 import Codec.Xlsx.Types.Internal.CustomProperties
 import Codec.Xlsx.Types.Internal.DvPair
-import Codec.Xlsx.Types.Internal.Relationships as Relationships
-       hiding (lookup)
+import Codec.Xlsx.Types.Internal.Relationships as Relationships hiding (lookup)
 import Codec.Xlsx.Types.Internal.SharedStringTable
 import Codec.Xlsx.Types.PivotTable.Internal
 import Codec.Xlsx.Writer.Internal
@@ -197,7 +194,7 @@ sheetDataXml rows rh sharedFormulas =
       let cellAttrs ref c =
             cellStyleAttr c ++ [("r" .= ref), ("t" .= xlsxCellType c)]
           cellStyleAttr XlsxCell{xlsxCellStyle=Nothing} = []
-          cellStyleAttr XlsxCell{xlsxCellStyle=Just s} = [("s", txti s)]
+          cellStyleAttr XlsxCell{xlsxCellStyle=Just s}  = [("s", txti s)]
           formula = xlsxCellFormula cell
           fEl0 = toElement "f" <$> formula
       fEl <- case formula of
@@ -307,7 +304,7 @@ genDrawing n ref dr = do
     referenced =
       case innerFiles of
         [] -> []
-        _ -> drawingRels : (map snd innerFiles)
+        _  -> drawingRels : (map snd innerFiles)
 
 genChart :: Int -> Int -> ChartSpace -> FileData
 genChart n i ch = FileData path contentType relType contents
@@ -323,9 +320,9 @@ genChart n i ch = FileData path contentType relType contents
       ]
 
 data PvGenerated = PvGenerated
-  { pvgCacheFiles :: [(CacheId, FileData)]
+  { pvgCacheFiles      :: [(CacheId, FileData)]
   , pvgSheetTableFiles :: [[FileData]]
-  , pvgOthers :: [FileData]
+  , pvgOthers          :: [FileData]
   }
 
 generatePivotFiles :: [(CellMap, [PivotTable])] -> PvGenerated
@@ -461,16 +458,16 @@ data XlsxCell = XlsxCell
     } deriving (Eq, Show, Generic)
 
 xlsxCellType :: XlsxCell -> Text
-xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxSS _)} = "s"
-xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxBool _)} = "b"
+xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxSS _)}    = "s"
+xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxBool _)}  = "b"
 xlsxCellType XlsxCell{xlsxCellValue=Just(XlsxError _)} = "e"
-xlsxCellType _ = "n" -- default in SpreadsheetML schema, TODO: add other types
+xlsxCellType _                                         = "n" -- default in SpreadsheetML schema, TODO: add other types
 
 value :: XlsxCellData -> Text
-value (XlsxSS i)       = txti i
-value (XlsxDouble d)   = txtd d
-value (XlsxBool True)  = "1"
-value (XlsxBool False) = "0"
+value (XlsxSS i)        = txti i
+value (XlsxDouble d)    = txtd d
+value (XlsxBool True)   = "1"
+value (XlsxBool False)  = "0"
 value (XlsxError eType) = toAttrVal eType
 
 transformSheetData :: SharedStringTable -> Worksheet -> Cells
@@ -479,11 +476,11 @@ transformSheetData shared ws = map transformRow $ toRows (ws ^. wsCells)
     transformRow = second (map transformCell)
     transformCell (c, Cell{..}) =
         (c, XlsxCell _cellStyle (fmap transformValue _cellValue) _cellComment _cellFormula)
-    transformValue (CellText t) = XlsxSS (sstLookupText shared t)
+    transformValue (CellText t)     = XlsxSS (sstLookupText shared t)
     transformValue (CellDouble dbl) =  XlsxDouble dbl
-    transformValue (CellBool b) = XlsxBool b
-    transformValue (CellRich r) = XlsxSS (sstLookupRich shared r)
-    transformValue (CellError e) = XlsxError e
+    transformValue (CellBool b)     = XlsxBool b
+    transformValue (CellRich r)     = XlsxSS (sstLookupRich shared r)
+    transformValue (CellError e)    = XlsxError e
 
 bookFiles :: Xlsx -> [FileData]
 bookFiles xlsx = runST $ do
@@ -577,7 +574,7 @@ bookXml rIdAttrs (DefinedNames names) cacheIdRefs dateBase =
       leafElement "pivotCache" ["cacheId" .= cId, (odr "id") .= refId]
 
     definedName :: Text -> Maybe Text -> [(Name, Text)]
-    definedName name Nothing = ["name" .= name]
+    definedName name Nothing     = ["name" .= name]
     definedName name (Just lsId) = ["name" .= name, "localSheetId" .= lsId]
 
 ssXml :: SharedStringTable -> L.ByteString

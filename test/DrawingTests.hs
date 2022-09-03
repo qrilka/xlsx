@@ -1,6 +1,6 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE QuasiQuotes       #-}
 module DrawingTests
   ( tests
   , testDrawing
@@ -13,7 +13,7 @@ import Lens.Micro
 import Control.Lens
 #endif
 import Data.ByteString.Lazy (ByteString)
-import Test.Tasty (testGroup, TestTree)
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Text.RawString.QQ
 import Text.XML

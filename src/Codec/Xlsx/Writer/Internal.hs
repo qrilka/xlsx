@@ -1,8 +1,8 @@
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Codec.Xlsx.Writer.Internal (
     -- * Rendering documents
@@ -91,7 +91,7 @@ countedElementList nm as = elementList nm [ "count" .= length as ] as
 nonEmptyCountedElementList :: Name -> [Element] -> Maybe Element
 nonEmptyCountedElementList nm as = case as of
   [] -> Nothing
-  _ -> Just $ countedElementList nm as
+  _  -> Just $ countedElementList nm as
 
 elementList :: Name -> [(Name, Text)] -> [Element] -> Element
 elementList nm attrs els = Element {

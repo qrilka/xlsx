@@ -1,10 +1,10 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.DvPair where
 
 import qualified Data.Map as M
 import GHC.Generics (Generic)
-import Text.XML (Element(..))
+import Text.XML (Element (..))
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.Common

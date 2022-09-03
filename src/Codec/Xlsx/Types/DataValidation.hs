@@ -1,9 +1,9 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE TemplateHaskell       #-}
 module Codec.Xlsx.Types.DataValidation
   ( ValidationExpression(..)
     , ValidationType(..)
@@ -38,7 +38,7 @@ import Lens.Micro.TH (makeLenses)
 #else
 import Control.Lens.TH (makeLenses)
 #endif
-import Control.Monad ((>=>), guard)
+import Control.Monad (guard, (>=>))
 import Data.ByteString (ByteString)
 import Data.Char (isSpace)
 import Data.Default
@@ -48,8 +48,8 @@ import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics (Generic)
-import Text.XML (Element(..), Node(..))
-import Text.XML.Cursor (Cursor, ($/), element)
+import Text.XML (Element (..), Node (..))
+import Text.XML.Cursor (Cursor, element, ($/))
 
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.Common
@@ -220,12 +220,12 @@ readValidationType op ty cur = do
 -- | Attempt to obtain a plain list expression
 maybePlainValidationList :: ValidationType -> Maybe ValidationList
 maybePlainValidationList (ValidationTypeList (ListExpression le)) = Just le
-maybePlainValidationList _ = Nothing
+maybePlainValidationList _                                        = Nothing
 
 -- | Attempt to obtain a range expression
 maybeValidationRange :: ValidationType -> Maybe Range
 maybeValidationRange (ValidationTypeList (RangeExpression re)) = Just re
-maybeValidationRange _ = Nothing
+maybeValidationRange _                                         = Nothing
 
 readListFormulas :: Formula -> Maybe ListOrRangeExpression
 readListFormulas (Formula f) = readQuotedList f <|> readUnquotedCellRange f
@@ -341,7 +341,7 @@ instance ToElement DataValidation where
                 f = Formula $
                       case as of
                         RangeExpression re -> unCellRef re
-                        ListExpression le -> renderPlainList le
+                        ListExpression le  -> renderPlainList le
             in  (Nothing, Just f, Nothing)
 
 viewValidationExpression :: ValidationExpression -> (Text, Formula, Maybe Formula)

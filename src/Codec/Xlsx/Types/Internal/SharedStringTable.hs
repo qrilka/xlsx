@@ -1,6 +1,6 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.SharedStringTable (
     -- * Main types
     SharedStringTable(..)

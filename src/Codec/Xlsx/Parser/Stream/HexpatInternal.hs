@@ -9,16 +9,16 @@ copied over because the upstream library doesn't expose this function.
 module Codec.Xlsx.Parser.Stream.HexpatInternal (parseBuf) where
 
 import Control.Monad
-import Text.XML.Expat.SAX
-import qualified Data.ByteString.Internal as I
 import Data.Bits
-import Data.Int
 import Data.ByteString.Internal (c_strlen)
+import qualified Data.ByteString.Internal as I
+import Data.Int
 import Data.Word
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
+import Text.XML.Expat.SAX
 
 {-# SCC parseBuf #-}
 parseBuf :: (GenericXMLString tag, GenericXMLString text) =>

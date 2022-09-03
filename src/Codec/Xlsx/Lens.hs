@@ -1,7 +1,7 @@
-{-# LANGUAGE CPP   #-}
-{-# LANGUAGE RankNTypes   #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE CPP           #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RankNTypes    #-}
+{-# LANGUAGE TypeFamilies  #-}
 
 -- | lenses to access sheets, cells and values of 'Xlsx'
 module Codec.Xlsx.Lens
@@ -21,8 +21,8 @@ module Codec.Xlsx.Lens
 import Codec.Xlsx.Types
 #ifdef USE_MICROLENS
 import Lens.Micro
-import Lens.Micro.Internal
 import Lens.Micro.GHC ()
+import Lens.Micro.Internal
 #else
 import Control.Lens
 #endif

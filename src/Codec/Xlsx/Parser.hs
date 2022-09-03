@@ -1,8 +1,8 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP                       #-}
+{-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE PackageImports            #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TupleSections             #-}
@@ -26,7 +26,7 @@ import Control.Exception (Exception)
 #ifdef USE_MICROLENS
 import Lens.Micro
 #else
-import Control.Lens hiding ((<.>), element, views)
+import Control.Lens hiding (element, views, (<.>))
 #endif
 import Control.Monad (join, void)
 import Control.Monad.Except (catchError, throwError)
@@ -59,8 +59,7 @@ import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CfPair
 import Codec.Xlsx.Types.Internal.CommentTable as CommentTable
 import Codec.Xlsx.Types.Internal.ContentTypes as ContentTypes
-import Codec.Xlsx.Types.Internal.CustomProperties
-       as CustomProperties
+import Codec.Xlsx.Types.Internal.CustomProperties as CustomProperties
 import Codec.Xlsx.Types.Internal.DvPair
 import Codec.Xlsx.Types.Internal.FormulaData
 import Codec.Xlsx.Types.Internal.Relationships as Relationships
@@ -116,9 +115,9 @@ toXlsxEitherBase parseSheet bs = do
   CustomProperties customPropMap <- getCustomProperties ar
   return $ Xlsx sheets (getStyles ar) names customPropMap dateBase
 
-data WorksheetFile = WorksheetFile { wfName :: Text
+data WorksheetFile = WorksheetFile { wfName  :: Text
                                    , wfState :: SheetState
-                                   , wfPath :: FilePath
+                                   , wfPath  :: FilePath
                                    }
                    deriving (Show, Generic)
 
@@ -246,7 +245,7 @@ extractSheetFast ar sst contentTypes caches wf = do
     liftEither :: Either Text a -> Parser a
     liftEither = left (\t -> InvalidFile filePath t)
     justNonEmpty v@(Just (_:_)) = v
-    justNonEmpty _ = Nothing
+    justNonEmpty _              = Nothing
     collectRows = foldr collectRow (M.empty, M.empty, M.empty)
     collectRow ::
          ( Int
@@ -325,7 +324,7 @@ extractSheetFast ar sst contentTypes caches wf = do
           vConverted =
             case contentBs <$> vNode of
               Nothing -> return Nothing
-              Just c -> Just <$> fromAttrBs c
+              Just c  -> Just <$> fromAttrBs c
       mFormulaData <- mapM fromXenoNode fNode
       d <-
         case t of
@@ -333,7 +332,7 @@ extractSheetFast ar sst contentTypes caches wf = do
             si <- vConverted
             case sstItem sst =<< si of
               Just xlTxt -> return $ Just (xlsxTextToCellValue xlTxt)
-              Nothing -> throwError "bad shared string index"
+              Nothing    -> throwError "bad shared string index"
           "inlineStr" -> mapM (fmap xlsxTextToCellValue . fromXenoNode) isNode
           "str" -> fmap CellText <$> vConverted
           "n" -> fmap CellDouble <$> vConverted
@@ -510,7 +509,7 @@ extractCellValue sst t cur
     si <- vConverted "shared string"
     case sstItem sst si of
       Just xlTxt -> return $ xlsxTextToCellValue xlTxt
-      Nothing -> fail "bad shared string index"
+      Nothing    -> fail "bad shared string index"
   | t == "inlineStr" =
     cur $/ element (n_ "is") >=> fmap xlsxTextToCellValue . fromCursor
   | t == "str" = CellText <$> vConverted "string"
@@ -524,7 +523,7 @@ extractCellValue sst t cur
         return (T.concat $ c $/ content)
       case fromAttrVal vContent of
         Right (val, _) -> return $ val
-        _ -> fail $ "bad " ++ typeStr ++ " cell value"
+        _              -> fail $ "bad " ++ typeStr ++ " cell value"
 
 -- | Get xml cursor from the specified file inside the zip archive.
 xmlCursorOptional :: Zip.Archive -> FilePath -> Parser (Maybe Cursor)

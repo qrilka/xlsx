@@ -1,9 +1,9 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveDataTypeable     #-}
+{-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
 module Codec.Xlsx.Parser.Internal
   ( ParseException(..)
   , n_
@@ -90,7 +90,7 @@ maybeAttribute :: FromAttrVal a => Name -> Cursor -> [Maybe a]
 maybeAttribute name cursor =
     case attribute name cursor of
       [attr] -> Just <$> runReader fromAttrVal attr
-      _ -> [Nothing]
+      _      -> [Nothing]
 
 fromElementValue :: FromAttrVal a => Name -> Cursor -> [a]
 fromElementValue name cursor =
@@ -100,13 +100,13 @@ maybeElementValue :: FromAttrVal a => Name -> Cursor -> [Maybe a]
 maybeElementValue name cursor =
   case cursor $/ element name of
     [cursor'] -> maybeAttribute "val" cursor'
-    _ -> [Nothing]
+    _         -> [Nothing]
 
 maybeElementValueDef :: FromAttrVal a => Name -> a -> Cursor -> [Maybe a]
 maybeElementValueDef name defVal cursor =
   case cursor $/ element name of
     [cursor'] -> Just . fromMaybe defVal <$> maybeAttribute "val" cursor'
-    _ -> [Nothing]
+    _         -> [Nothing]
 
 maybeBoolElementValue :: Name -> Cursor -> [Maybe Bool]
 maybeBoolElementValue name cursor = maybeElementValueDef name True cursor
@@ -114,20 +114,20 @@ maybeBoolElementValue name cursor = maybeElementValueDef name True cursor
 maybeFromElement :: FromCursor a => Name -> Cursor -> [Maybe a]
 maybeFromElement name cursor = case cursor $/ element name of
   [cursor'] -> Just <$> fromCursor cursor'
-  _ -> [Nothing]
+  _         -> [Nothing]
 
 attrValIs :: (Eq a, FromAttrVal a) => Name -> a -> Axis
 attrValIs n v c =
   case fromAttribute n c of
     [x] | x == v -> [c]
-    _ -> []
+    _            -> []
 
 contentOrEmpty :: Cursor -> [Text]
 contentOrEmpty c =
   case c $/ content of
     [t] -> [t]
-    [] -> [""]
-    _ -> error "invalid item: more than one text node encountered"
+    []  -> [""]
+    _   -> error "invalid item: more than one text node encountered"
 
 readSuccess :: a -> Either String (a, Text)
 readSuccess x = Right (x, T.empty)
@@ -144,7 +144,7 @@ defaultReadFailure = Left "invalid text"
 runReader :: T.Reader a -> Text -> [a]
 runReader reader t = case reader t of
   Right (r, leftover) | T.null leftover -> [r]
-  _ -> []
+  _                                     -> []
 
 -- | Add sml namespace to name
 n_ :: Text -> Name

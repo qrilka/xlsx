@@ -1,9 +1,9 @@
 -- | Higher level interface for creating styled worksheets
-{-# LANGUAGE CPP      #-}
+{-# LANGUAGE CPP             #-}
+{-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Formatted
   ( FormattedCell(..)
   , Formatted(..)
@@ -37,9 +37,9 @@ module Codec.Xlsx.Formatted
 
 #ifdef USE_MICROLENS
 import Lens.Micro
+import Lens.Micro.GHC ()
 import Lens.Micro.Mtl
 import Lens.Micro.TH
-import Lens.Micro.GHC ()
 #else
 import Control.Lens
 #endif
@@ -47,7 +47,7 @@ import Control.Monad.State hiding (forM_, mapM)
 import Data.Default
 import Data.Foldable (asum, forM_)
 import Data.Function (on)
-import Data.List (foldl', groupBy, sortBy, sortBy)
+import Data.List (foldl', groupBy, sortBy)
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Ord (comparing)
@@ -56,7 +56,7 @@ import Data.Traversable (mapM)
 import Data.Tuple (swap)
 import GHC.Generics (Generic)
 import Prelude hiding (mapM)
-import Safe (headNote, fromJustNote)
+import Safe (fromJustNote, headNote)
 
 import Codec.Xlsx.Types
 

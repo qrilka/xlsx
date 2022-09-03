@@ -1,8 +1,8 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Codec.Xlsx.Types.Cell
   ( CellFormula(..)
   , FormulaExpression(..)
@@ -48,10 +48,10 @@ import Codec.Xlsx.Writer.Internal
 --
 -- See 18.3.1.40 "f (Formula)" (p. 1636)
 data CellFormula = CellFormula
-  { _cellfExpression :: FormulaExpression
+  { _cellfExpression    :: FormulaExpression
   , _cellfAssignsToName :: Bool
       -- ^ Specifies that this formula assigns a value to a name.
-  , _cellfCalculate :: Bool
+  , _cellfCalculate     :: Bool
       -- ^ Indicates that this formula needs to be recalculated
       -- the next time calculation is performed.
       -- [/Example/: This is always set on volatile functions,
@@ -76,7 +76,7 @@ newtype SharedFormulaIndex = SharedFormulaIndex Int
 instance NFData SharedFormulaIndex
 
 data SharedFormulaOptions = SharedFormulaOptions
-  { _sfoRef :: CellRef
+  { _sfoRef        :: CellRef
   , _sfoExpression :: Formula
   }
   deriving (Eq, Show, Generic)
@@ -165,7 +165,7 @@ instance ToElement CellFormula where
           ]
       (formulaEl, fType) =
         case _cellfExpression of
-          NormalFormula f -> (toElement nm f, defaultFormulaType)
+          NormalFormula f  -> (toElement nm f, defaultFormulaType)
           SharedFormula si -> (leafElement nm ["si" .= si], "shared")
 
 instance ToAttrVal SharedFormulaIndex where

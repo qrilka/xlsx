@@ -67,8 +67,8 @@ import Data.Time
 import Data.Word
 import Data.XML.Types
 import Text.Printf
-import Text.XML (toXMLElement)
 import qualified Text.XML as TXML
+import Text.XML (toXMLElement)
 import Text.XML.Stream.Render
 import Text.XML.Unresolved (elementToEvents)
 

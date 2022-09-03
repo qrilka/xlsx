@@ -1,6 +1,6 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE QuasiQuotes       #-}
 module PivotTableTests
   ( tests
   , testPivotTable
@@ -16,7 +16,7 @@ import Data.ByteString.Lazy (ByteString)
 import qualified Data.Map as M
 import Data.Maybe (mapMaybe)
 import qualified Data.Text as T
-import Test.Tasty (testGroup, TestTree)
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Text.RawString.QQ
 import Text.XML
@@ -43,7 +43,7 @@ tests =
         let sheetName = "Sheet1"
             ref = CellRef "A1:D5"
             forCacheId (CacheId 3) = Just (sheetName, ref, testPivotCacheFields)
-            forCacheId _ = Nothing
+            forCacheId _           = Nothing
             -- fields with numeric values go into cache records
             testPivotCacheFields' =
               [ if cfName cf == PivotFieldName "Color"

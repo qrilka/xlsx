@@ -1,9 +1,9 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell     #-}
 module Codec.Xlsx.Types.ConditionalFormatting
   ( ConditionalFormatting
   , CfRule(..)
@@ -272,11 +272,11 @@ instance NFData CfvType
 --
 -- See 18.3.1.49 "iconSet (Icon Set)" (p. 1645)
 data IconSetOptions = IconSetOptions
-  { _isoIconSet :: IconSetType
+  { _isoIconSet   :: IconSetType
   -- ^ icon set used, default value is 'IconSet3Trafficlights1'
-  , _isoValues :: [CfValue]
+  , _isoValues    :: [CfValue]
   -- ^ values describing per icon ranges
-  , _isoReverse :: Bool
+  , _isoReverse   :: Bool
   -- ^ reverses the default order of the icons in the specified icon set
   , _isoShowValue :: Bool
   -- ^ indicates whether to show the values of the cells on which this
@@ -326,9 +326,9 @@ data DataBarOptions = DataBarOptions
   , _dboShowValue :: Bool
   -- ^ Indicates whether to show the values of the cells on which this
   -- data bar is applied.
-  , _dboMinimum :: MinCfValue
-  , _dboMaximum :: MaxCfValue
-  , _dboColor :: Color
+  , _dboMinimum   :: MinCfValue
+  , _dboMaximum   :: MaxCfValue
+  , _dboColor     :: Color
   } deriving (Eq, Ord, Show, Generic)
 instance NFData DataBarOptions
 
@@ -468,9 +468,9 @@ readCondition "top10" cur = do
   percent <- fromAttributeDef "percent" False cur
   rank <- fromAttribute "rank" cur
   case (bottom, percent) of
-    (True, True) -> return $ BottomNPercent rank
-    (True, False) -> return $ BottomNValues rank
-    (False, True) -> return $ TopNPercent rank
+    (True, True)   -> return $ BottomNPercent rank
+    (True, False)  -> return $ BottomNValues rank
+    (False, True)  -> return $ TopNPercent rank
     (False, False) -> return $ TopNValues rank
 readCondition "uniqueValues" _       = return UniqueValues
 readCondition t _                    = error $ "Unexpected conditional formatting type " ++ show t
@@ -568,9 +568,9 @@ instance FromXenoNode CfRule where
         percent <- fromAttrDef "percent" False
         rank <- fromAttr "rank"
         case (bottom, percent) of
-          (True, True) -> return $ BottomNPercent rank
-          (True, False) -> return $ BottomNValues rank
-          (False, True) -> return $ TopNPercent rank
+          (True, True)   -> return $ BottomNPercent rank
+          (True, False)  -> return $ BottomNValues rank
+          (False, True)  -> return $ TopNPercent rank
           (False, False) -> return $ TopNValues rank
       readConditionX "uniqueValues" = return UniqueValues
       readConditionX x =
@@ -717,44 +717,44 @@ instance FromXenoNode IconSetOptions where
     return IconSetOptions {..}
 
 instance FromAttrVal IconSetType where
-  fromAttrVal "3Arrows" = readSuccess IconSet3Arrows
-  fromAttrVal "3ArrowsGray" = readSuccess IconSet3ArrowsGray
-  fromAttrVal "3Flags" = readSuccess IconSet3Flags
-  fromAttrVal "3Signs" = readSuccess IconSet3Signs
-  fromAttrVal "3Symbols" = readSuccess IconSet3Symbols
-  fromAttrVal "3Symbols2" = readSuccess IconSet3Symbols2
+  fromAttrVal "3Arrows"         = readSuccess IconSet3Arrows
+  fromAttrVal "3ArrowsGray"     = readSuccess IconSet3ArrowsGray
+  fromAttrVal "3Flags"          = readSuccess IconSet3Flags
+  fromAttrVal "3Signs"          = readSuccess IconSet3Signs
+  fromAttrVal "3Symbols"        = readSuccess IconSet3Symbols
+  fromAttrVal "3Symbols2"       = readSuccess IconSet3Symbols2
   fromAttrVal "3TrafficLights1" = readSuccess IconSet3TrafficLights1
   fromAttrVal "3TrafficLights2" = readSuccess IconSet3TrafficLights2
-  fromAttrVal "4Arrows" = readSuccess IconSet4Arrows
-  fromAttrVal "4ArrowsGray" = readSuccess IconSet4ArrowsGray
-  fromAttrVal "4Rating" = readSuccess IconSet4Rating
-  fromAttrVal "4RedToBlack" = readSuccess IconSet4RedToBlack
-  fromAttrVal "4TrafficLights" = readSuccess IconSet4TrafficLights
-  fromAttrVal "5Arrows" = readSuccess IconSet5Arrows
-  fromAttrVal "5ArrowsGray" = readSuccess IconSet5ArrowsGray
-  fromAttrVal "5Quarters" = readSuccess IconSet5Quarters
-  fromAttrVal "5Rating" = readSuccess IconSet5Rating
-  fromAttrVal t = invalidText "IconSetType" t
+  fromAttrVal "4Arrows"         = readSuccess IconSet4Arrows
+  fromAttrVal "4ArrowsGray"     = readSuccess IconSet4ArrowsGray
+  fromAttrVal "4Rating"         = readSuccess IconSet4Rating
+  fromAttrVal "4RedToBlack"     = readSuccess IconSet4RedToBlack
+  fromAttrVal "4TrafficLights"  = readSuccess IconSet4TrafficLights
+  fromAttrVal "5Arrows"         = readSuccess IconSet5Arrows
+  fromAttrVal "5ArrowsGray"     = readSuccess IconSet5ArrowsGray
+  fromAttrVal "5Quarters"       = readSuccess IconSet5Quarters
+  fromAttrVal "5Rating"         = readSuccess IconSet5Rating
+  fromAttrVal t                 = invalidText "IconSetType" t
 
 instance FromAttrBs IconSetType where
-  fromAttrBs "3Arrows" = return IconSet3Arrows
-  fromAttrBs "3ArrowsGray" = return IconSet3ArrowsGray
-  fromAttrBs "3Flags" = return IconSet3Flags
-  fromAttrBs "3Signs" = return IconSet3Signs
-  fromAttrBs "3Symbols" = return IconSet3Symbols
-  fromAttrBs "3Symbols2" = return IconSet3Symbols2
+  fromAttrBs "3Arrows"         = return IconSet3Arrows
+  fromAttrBs "3ArrowsGray"     = return IconSet3ArrowsGray
+  fromAttrBs "3Flags"          = return IconSet3Flags
+  fromAttrBs "3Signs"          = return IconSet3Signs
+  fromAttrBs "3Symbols"        = return IconSet3Symbols
+  fromAttrBs "3Symbols2"       = return IconSet3Symbols2
   fromAttrBs "3TrafficLights1" = return IconSet3TrafficLights1
   fromAttrBs "3TrafficLights2" = return IconSet3TrafficLights2
-  fromAttrBs "4Arrows" = return IconSet4Arrows
-  fromAttrBs "4ArrowsGray" = return IconSet4ArrowsGray
-  fromAttrBs "4Rating" = return IconSet4Rating
-  fromAttrBs "4RedToBlack" = return IconSet4RedToBlack
-  fromAttrBs "4TrafficLights" = return IconSet4TrafficLights
-  fromAttrBs "5Arrows" = return IconSet5Arrows
-  fromAttrBs "5ArrowsGray" = return IconSet5ArrowsGray
-  fromAttrBs "5Quarters" = return IconSet5Quarters
-  fromAttrBs "5Rating" = return IconSet5Rating
-  fromAttrBs x = unexpectedAttrBs "IconSetType" x
+  fromAttrBs "4Arrows"         = return IconSet4Arrows
+  fromAttrBs "4ArrowsGray"     = return IconSet4ArrowsGray
+  fromAttrBs "4Rating"         = return IconSet4Rating
+  fromAttrBs "4RedToBlack"     = return IconSet4RedToBlack
+  fromAttrBs "4TrafficLights"  = return IconSet4TrafficLights
+  fromAttrBs "5Arrows"         = return IconSet5Arrows
+  fromAttrBs "5ArrowsGray"     = return IconSet5ArrowsGray
+  fromAttrBs "5Quarters"       = return IconSet5Quarters
+  fromAttrBs "5Rating"         = return IconSet5Rating
+  fromAttrBs x                 = unexpectedAttrBs "IconSetType" x
 
 instance FromCursor DataBarOptions where
   fromCursor cur = do
@@ -886,11 +886,11 @@ operatorExpressionData (OpNotContains f)         = ("notContains", [formulaNode 
 operatorExpressionData (OpNotEqual f)            = ("notEqual", [formulaNode  f])
 
 instance ToElement MinCfValue where
-  toElement nm CfvMin = leafElement nm ["type" .= CfvtMin]
+  toElement nm CfvMin           = leafElement nm ["type" .= CfvtMin]
   toElement nm (MinCfValue cfv) = toElement nm cfv
 
 instance ToElement MaxCfValue where
-  toElement nm CfvMax = leafElement nm ["type" .= CfvtMax]
+  toElement nm CfvMax           = leafElement nm ["type" .= CfvtMax]
   toElement nm (MaxCfValue cfv) = toElement nm cfv
 
 instance ToElement CfValue where
@@ -903,11 +903,11 @@ instance ToElement CfValue where
     leafElement nm ["type" .= CfvtFormula, "val" .= unFormula f]
 
 instance ToAttrVal CfvType where
-  toAttrVal CfvtNum = "num"
-  toAttrVal CfvtPercent = "percent"
-  toAttrVal CfvtMax = "max"
-  toAttrVal CfvtMin = "min"
-  toAttrVal CfvtFormula = "formula"
+  toAttrVal CfvtNum        = "num"
+  toAttrVal CfvtPercent    = "percent"
+  toAttrVal CfvtMax        = "max"
+  toAttrVal CfvtMin        = "min"
+  toAttrVal CfvtFormula    = "formula"
   toAttrVal CfvtPercentile = "percentile"
 
 instance ToElement IconSetOptions where
@@ -921,23 +921,23 @@ instance ToElement IconSetOptions where
         ]
 
 instance ToAttrVal IconSetType where
-  toAttrVal IconSet3Arrows = "3Arrows"
-  toAttrVal IconSet3ArrowsGray = "3ArrowsGray"
-  toAttrVal IconSet3Flags = "3Flags"
-  toAttrVal IconSet3Signs = "3Signs"
-  toAttrVal IconSet3Symbols = "3Symbols"
-  toAttrVal IconSet3Symbols2 = "3Symbols2"
+  toAttrVal IconSet3Arrows         = "3Arrows"
+  toAttrVal IconSet3ArrowsGray     = "3ArrowsGray"
+  toAttrVal IconSet3Flags          = "3Flags"
+  toAttrVal IconSet3Signs          = "3Signs"
+  toAttrVal IconSet3Symbols        = "3Symbols"
+  toAttrVal IconSet3Symbols2       = "3Symbols2"
   toAttrVal IconSet3TrafficLights1 = "3TrafficLights1"
   toAttrVal IconSet3TrafficLights2 = "3TrafficLights2"
-  toAttrVal IconSet4Arrows = "4Arrows"
-  toAttrVal IconSet4ArrowsGray = "4ArrowsGray"
-  toAttrVal IconSet4Rating = "4Rating"
-  toAttrVal IconSet4RedToBlack = "4RedToBlack"
-  toAttrVal IconSet4TrafficLights = "4TrafficLights"
-  toAttrVal IconSet5Arrows = "5Arrows"
-  toAttrVal IconSet5ArrowsGray = "5ArrowsGray"
-  toAttrVal IconSet5Quarters = "5Quarters"
-  toAttrVal IconSet5Rating = "5Rating"
+  toAttrVal IconSet4Arrows         = "4Arrows"
+  toAttrVal IconSet4ArrowsGray     = "4ArrowsGray"
+  toAttrVal IconSet4Rating         = "4Rating"
+  toAttrVal IconSet4RedToBlack     = "4RedToBlack"
+  toAttrVal IconSet4TrafficLights  = "4TrafficLights"
+  toAttrVal IconSet5Arrows         = "5Arrows"
+  toAttrVal IconSet5ArrowsGray     = "5ArrowsGray"
+  toAttrVal IconSet5Quarters       = "5Quarters"
+  toAttrVal IconSet5Rating         = "5Rating"
 
 instance ToElement DataBarOptions where
   toElement nm DataBarOptions {..} = elementList nm attrs elements

@@ -1,9 +1,9 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE MultiWayIf            #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TupleSections         #-}
 module Codec.Xlsx.Parser.Internal.Fast
   ( FromXenoNode(..)
   , collectChildren
@@ -36,7 +36,7 @@ import Control.Arrow (second)
 import Control.Exception (Exception, throw)
 import Control.Monad (ap, forM, join, liftM)
 import Data.Bifunctor (first)
-import Data.Bits ((.|.), shiftL)
+import Data.Bits (shiftL, (.|.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Unsafe as SU
@@ -84,7 +84,7 @@ toChildCollector :: Either Text a -> ChildCollector a
 toChildCollector unlifted =
   case unlifted of
     Right a -> return a
-    Left e -> ChildCollector $ \_ -> Left e
+    Left e  -> ChildCollector $ \_ -> Left e
 
 collectChildren :: Node -> ChildCollector a -> Either Text a
 collectChildren n c = snd <$> runChildCollector c (children n)
@@ -108,7 +108,7 @@ childList :: ByteString -> ChildCollector [Node]
 childList nm = do
   mNode <- maybeChild nm
   case mNode of
-    Just n -> (n:) <$> childList nm
+    Just n  -> (n:) <$> childList nm
     Nothing -> return []
 
 maybeFromChild :: (FromXenoNode a) => ByteString -> ChildCollector (Maybe a)
@@ -121,13 +121,13 @@ fromChild nm = do
   n <- requireChild nm
   case fromXenoNode n of
     Right a -> return a
-    Left e -> ChildCollector $ \_ -> Left e
+    Left e  -> ChildCollector $ \_ -> Left e
 
 fromChildList :: (FromXenoNode a) => ByteString -> ChildCollector [a]
 fromChildList nm = do
   mA <- maybeFromChild nm
   case mA of
-    Just a -> (a:) <$> fromChildList nm
+    Just a  -> (a:) <$> fromChildList nm
     Nothing -> return []
 
 maybeParse :: ByteString -> (Node -> Either Text a) -> ChildCollector (Maybe a)
@@ -170,7 +170,7 @@ toAttrParser :: Either Text a -> AttrParser a
 toAttrParser unlifted =
   case unlifted of
     Right a -> return a
-    Left e -> AttrParser $ \_ -> Left e
+    Left e  -> AttrParser $ \_ -> Left e
 
 maybeAttrBs :: ByteString -> AttrParser (Maybe ByteString)
 maybeAttrBs attrName = AttrParser $ go id
@@ -186,7 +186,7 @@ requireAttrBs nm = do
   mVal <- maybeAttrBs nm
   case mVal of
     Just val -> return val
-    Nothing -> attrError $ "attribute " <> T.pack (show nm) <> " is required"
+    Nothing  -> attrError $ "attribute " <> T.pack (show nm) <> " is required"
 
 unexpectedAttrBs :: Text -> ByteString -> Either Text a
 unexpectedAttrBs typ val =
@@ -208,7 +208,7 @@ fromAttrDef nm defVal = fromMaybe defVal <$> maybeAttr nm
 parseAttributes :: Node -> AttrParser a -> Either Text a
 parseAttributes n attrParser =
   case runAttrParser attrParser (attributes n) of
-    Left e -> Left e
+    Left e       -> Left e
     Right (_, a) -> return a
 
 class FromAttrBs a where
@@ -353,8 +353,8 @@ contentBs :: Node -> ByteString
 contentBs n = BS.concat . map toBs $ contents n
   where
     toBs (Element _) = BS.empty
-    toBs (Text bs) = bs
-    toBs (CData bs) = bs
+    toBs (Text bs)   = bs
+    toBs (CData bs)  = bs
 
 contentX :: Node -> Either Text Text
 contentX = replaceEntititesBs . contentBs

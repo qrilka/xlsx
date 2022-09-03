@@ -1,5 +1,5 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Internal.CfPair where
 
 import GHC.Generics (Generic)

@@ -1,8 +1,8 @@
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE QuasiQuotes       #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module TestXlsx where
 
@@ -24,12 +24,11 @@ import Codec.Xlsx
 import Codec.Xlsx.Formatted
 import Codec.Xlsx.Types.Internal
 import Codec.Xlsx.Types.Internal.CommentTable
-import Codec.Xlsx.Types.Internal.CustomProperties
-       as CustomProperties
+import Codec.Xlsx.Types.Internal.CustomProperties as CustomProperties
 import Codec.Xlsx.Types.Internal.SharedStringTable
 
-import PivotTableTests
 import DrawingTests
+import PivotTableTests
 
 testXlsx :: Xlsx
 testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
@@ -235,8 +234,8 @@ withDoubleUnderline = withUnderline FontUnderlineDouble
 
 withUnderline :: FontUnderline -> SharedStringTable -> SharedStringTable
 withUnderline u (SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just props) val]]) =
-    let newprops = props & runPropertiesUnderline .~ Just u  
-    in SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just newprops) val]] 
+    let newprops = props & runPropertiesUnderline .~ Just u
+    in SharedStringTable [text, XlsxRichText [rich1, RichTextRun (Just newprops) val]]
 
 testSharedStringTable :: SharedStringTable
 testSharedStringTable = SharedStringTable $ V.fromList items
@@ -469,13 +468,13 @@ testFormatWorkbookResult = def & xlSheets .~ sheets
     cellXf2 = def
         { _cellXfApplyNumberFormat = Just True
         , _cellXfNumFmtId          = Just 164 }
-  
+
 testFormatWorkbook :: Xlsx
 testFormatWorkbook = formatWorkbook sheets minimalStyleSheet
   where
     sheetNames = ["Sheet1", "Sheet2"]
     testFormattedCellMap1 = M.fromList [((1,1), (def & formattedCell . cellValue ?~ CellText "text at A1 Sheet1"))]
-      
+
     testFormattedCellMap2 = M.fromList [((2,3), (def & formattedCell . cellValue ?~ CellDouble 1.23456
                                                  & formattedFormat . formatNumberFormat ?~ (UserNumberFormat "DD.MM.YYYY")))]
     sheets = zip sheetNames [testFormattedCellMap1, testFormattedCellMap2]

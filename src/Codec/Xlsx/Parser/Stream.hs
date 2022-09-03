@@ -85,6 +85,8 @@ import Lens.Micro.TH
 import Control.Lens
 #endif
 import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Parser.Internal.Memoize
+import Control.DeepSeq
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -95,9 +97,9 @@ import qualified Data.ByteString as BS
 import Data.Conduit (ConduitT)
 import qualified Data.DList as DL
 import Data.Foldable
-import Data.IORef
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
+import Data.IORef
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -107,8 +109,6 @@ import qualified Data.Text.Read as Read
 import Data.Traversable (for)
 import Data.XML.Types
 import GHC.Generics
-import Control.DeepSeq
-import Codec.Xlsx.Parser.Internal.Memoize
 
 import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
 import Control.Monad.Base
@@ -134,8 +134,8 @@ data SheetItem = MkSheetItem
     deriving anyclass NFData
 
 data Row = MkRow
-  { _ri_row_index   :: Int       -- ^ Row number
-  , _ri_cell_row    :: ~CellRow  -- ^ Row itself
+  { _ri_row_index :: Int       -- ^ Row number
+  , _ri_cell_row  :: ~CellRow  -- ^ Row itself
   } deriving stock (Generic, Show)
     deriving anyclass NFData
 

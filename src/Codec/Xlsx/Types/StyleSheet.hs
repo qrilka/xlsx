@@ -1,8 +1,8 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE DeriveGeneric #-}
 -- | Support for writing (but not reading) style sheets
 module Codec.Xlsx.Types.StyleSheet (
     -- * The main two types
@@ -649,7 +649,7 @@ type FormatCode = Text
 --
 -- Section 18.8.30 "numFmt (Number Format)" (p. 1777)
 data NumFmt = NumFmt
-  { _numFmtId :: Int
+  { _numFmtId   :: Int
   , _numFmtCode :: FormatCode
   } deriving (Eq, Ord, Show, Generic)
 

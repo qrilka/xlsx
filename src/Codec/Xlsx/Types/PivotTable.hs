@@ -1,6 +1,6 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Codec.Xlsx.Types.PivotTable
   ( PivotTable(..)
   , PivotFieldName(..)
@@ -16,31 +16,31 @@ import Control.DeepSeq (NFData)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
-import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Parser.Internal
+import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Writer.Internal
 
 data PivotTable = PivotTable
-  { _pvtName :: Text
-  , _pvtDataCaption :: Text
-  , _pvtRowFields :: [PositionedField]
-  , _pvtColumnFields :: [PositionedField]
-  , _pvtDataFields :: [DataField]
-  , _pvtFields :: [PivotFieldInfo]
-  , _pvtRowGrandTotals :: Bool
+  { _pvtName              :: Text
+  , _pvtDataCaption       :: Text
+  , _pvtRowFields         :: [PositionedField]
+  , _pvtColumnFields      :: [PositionedField]
+  , _pvtDataFields        :: [DataField]
+  , _pvtFields            :: [PivotFieldInfo]
+  , _pvtRowGrandTotals    :: Bool
   , _pvtColumnGrandTotals :: Bool
-  , _pvtOutline :: Bool
-  , _pvtOutlineData :: Bool
-  , _pvtLocation :: CellRef
-  , _pvtSrcSheet :: Text
-  , _pvtSrcRef :: Range
+  , _pvtOutline           :: Bool
+  , _pvtOutlineData       :: Bool
+  , _pvtLocation          :: CellRef
+  , _pvtSrcSheet          :: Text
+  , _pvtSrcRef            :: Range
   } deriving (Eq, Show, Generic)
 instance NFData PivotTable
 
 data PivotFieldInfo = PivotFieldInfo
-  { _pfiName :: Maybe PivotFieldName
-  , _pfiOutline :: Bool
-  , _pfiSortType :: FieldSortType
+  { _pfiName        :: Maybe PivotFieldName
+  , _pfiOutline     :: Bool
+  , _pfiSortType    :: FieldSortType
   , _pfiHiddenItems :: [CellValue]
   } deriving (Eq, Show, Generic)
 instance NFData PivotFieldInfo
@@ -67,8 +67,8 @@ data PositionedField
 instance NFData PositionedField
 
 data DataField = DataField
-  { _dfField :: PivotFieldName
-  , _dfName :: Text
+  { _dfField    :: PivotFieldName
+  , _dfName     :: Text
   , _dfFunction :: ConsolidateFunction
   } deriving (Eq, Show, Generic)
 instance NFData DataField
@@ -116,24 +116,24 @@ instance NFData ConsolidateFunction
 -------------------------------------------------------------------------------}
 
 instance ToAttrVal ConsolidateFunction where
-  toAttrVal ConsolidateAverage = "average"
-  toAttrVal ConsolidateCount = "count"
+  toAttrVal ConsolidateAverage   = "average"
+  toAttrVal ConsolidateCount     = "count"
   toAttrVal ConsolidateCountNums = "countNums"
-  toAttrVal ConsolidateMaximum = "max"
-  toAttrVal ConsolidateMinimum = "min"
-  toAttrVal ConsolidateProduct = "product"
-  toAttrVal ConsolidateStdDev = "stdDev"
-  toAttrVal ConsolidateStdDevP = "stdDevp"
-  toAttrVal ConsolidateSum = "sum"
-  toAttrVal ConsolidateVariance = "var"
-  toAttrVal ConsolidateVarP = "varp"
+  toAttrVal ConsolidateMaximum   = "max"
+  toAttrVal ConsolidateMinimum   = "min"
+  toAttrVal ConsolidateProduct   = "product"
+  toAttrVal ConsolidateStdDev    = "stdDev"
+  toAttrVal ConsolidateStdDevP   = "stdDevp"
+  toAttrVal ConsolidateSum       = "sum"
+  toAttrVal ConsolidateVariance  = "var"
+  toAttrVal ConsolidateVarP      = "varp"
 
 instance ToAttrVal PivotFieldName where
   toAttrVal (PivotFieldName n) = toAttrVal n
 
 instance ToAttrVal FieldSortType where
-  toAttrVal FieldSortManual = "manual"
-  toAttrVal FieldSortAscending = "ascending"
+  toAttrVal FieldSortManual     = "manual"
+  toAttrVal FieldSortAscending  = "ascending"
   toAttrVal FieldSortDescending = "descending"
 
 {-------------------------------------------------------------------------------
@@ -141,24 +141,24 @@ instance ToAttrVal FieldSortType where
 -------------------------------------------------------------------------------}
 
 instance FromAttrVal ConsolidateFunction where
-  fromAttrVal "average" = readSuccess ConsolidateAverage
-  fromAttrVal "count" = readSuccess ConsolidateCount
+  fromAttrVal "average"   = readSuccess ConsolidateAverage
+  fromAttrVal "count"     = readSuccess ConsolidateCount
   fromAttrVal "countNums" = readSuccess ConsolidateCountNums
-  fromAttrVal "max" = readSuccess ConsolidateMaximum
-  fromAttrVal "min" = readSuccess ConsolidateMinimum
-  fromAttrVal "product" = readSuccess ConsolidateProduct
-  fromAttrVal "stdDev" = readSuccess ConsolidateStdDev
-  fromAttrVal "stdDevp" = readSuccess ConsolidateStdDevP
-  fromAttrVal "sum" = readSuccess ConsolidateSum
-  fromAttrVal "var" = readSuccess ConsolidateVariance
-  fromAttrVal "varp" = readSuccess ConsolidateVarP
-  fromAttrVal t = invalidText "ConsolidateFunction" t
+  fromAttrVal "max"       = readSuccess ConsolidateMaximum
+  fromAttrVal "min"       = readSuccess ConsolidateMinimum
+  fromAttrVal "product"   = readSuccess ConsolidateProduct
+  fromAttrVal "stdDev"    = readSuccess ConsolidateStdDev
+  fromAttrVal "stdDevp"   = readSuccess ConsolidateStdDevP
+  fromAttrVal "sum"       = readSuccess ConsolidateSum
+  fromAttrVal "var"       = readSuccess ConsolidateVariance
+  fromAttrVal "varp"      = readSuccess ConsolidateVarP
+  fromAttrVal t           = invalidText "ConsolidateFunction" t
 
 instance FromAttrVal PivotFieldName where
   fromAttrVal = fmap (first PivotFieldName) . fromAttrVal
 
 instance FromAttrVal FieldSortType where
-  fromAttrVal "manual" = readSuccess FieldSortManual
-  fromAttrVal "ascending" = readSuccess FieldSortAscending
+  fromAttrVal "manual"     = readSuccess FieldSortManual
+  fromAttrVal "ascending"  = readSuccess FieldSortAscending
   fromAttrVal "descending" = readSuccess FieldSortDescending
-  fromAttrVal t = invalidText "FieldSortType" t
+  fromAttrVal t            = invalidText "FieldSortType" t
