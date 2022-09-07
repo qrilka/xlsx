@@ -10,6 +10,7 @@ import Data.List.Extra (nubOrd)
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Text.Lazy (toStrict)
 import qualified Data.Text.Lazy.Builder as B
 import qualified Data.Text.Lazy.Builder.Int as B
@@ -26,6 +27,9 @@ import Codec.Xlsx.Writer.Internal
 newtype CommentTable = CommentTable
     { _commentsTable :: Map CellRef Comment }
     deriving (Eq, Show, Generic)
+
+tshow :: Show a => a -> Text
+tshow = Text.pack . show
 
 fromList :: [(CellRef, Comment)] -> CommentTable
 fromList = CommentTable . M.fromList
@@ -51,7 +55,8 @@ instance ToElement CommentTable where
       commentToEl (ref, Comment{..}) = Element
           { elementName = "comment"
           , elementAttributes = M.fromList [ ("ref" .= ref)
-                                           , ("authorId" .= lookupAuthor _commentAuthor)]
+                                           , ("authorId" .= lookupAuthor _commentAuthor)
+                                           , ("visible" .= tshow _commentVisible)]
           , elementNodes      = [NodeElement $ toElement "text" _commentText]
           }
       lookupAuthor a = fromJustNote "author lookup" $ M.lookup a authorIds
@@ -73,8 +78,10 @@ parseComment authors cur = do
     ref <- fromAttribute "ref" cur
     txt <- cur $/ element (n_ "text") >=> fromCursor
     authorId <- cur $| attribute "authorId" >=> decimal
+    visible <- (read . Text.unpack :: Text -> Bool)
+      <$> (fromAttribute "visible" cur :: [Text])
     let author = fromJustNote "authorId" $ M.lookup authorId authors
-    return (ref, Comment txt author True)
+    return (ref, Comment txt author visible)
 
 -- | helper to render comment baloons vml file,
 -- currently uses fixed shape
