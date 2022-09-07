@@ -257,7 +257,7 @@ testSharedStringTableWithEmpty =
 
 testCommentTable :: CommentTable
 testCommentTable = CommentTable $ M.fromList
-    [ (CellRef "D4", Comment (XlsxRichText rich) "Bob" True)
+    [ (CellRef "D4", Comment (XlsxRichText rich) "Bob" False)
     , (CellRef "A2", Comment (XlsxText "Some comment here") "CBR" True) ]
   where
     rich = [ RichTextRun
@@ -325,7 +325,7 @@ testComments = [r|
     <author>CBR</author>
   </authors>
   <commentList>
-    <comment ref="D4" authorId="0">
+    <comment ref="D4" authorId="0" visible="False">
       <text>
         <r>
           <rPr>
@@ -343,7 +343,7 @@ testComments = [r|
         </r>
       </text>
     </comment>
-    <comment ref="A2" authorId="1">
+    <comment ref="A2" authorId="1" visible="True">
       <text><t>Some comment here</t></text>
     </comment>
   </commentList>

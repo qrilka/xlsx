@@ -48,6 +48,9 @@ import Data.Set (Set)
 import Text.Printf
 import Data.Conduit
 
+tshow :: Show a => a -> Text
+tshow = Text.pack . show
+
 toBs :: Xlsx -> BS.ByteString
 toBs = LB.toStrict . fromXlsx testTime
 
@@ -138,10 +141,6 @@ simpleWorkbookRow :: Xlsx
 simpleWorkbookRow = def & atSheet "Sheet1" ?~ sheet
   where
     sheet = toWs [((1,1), a1), ((2,1), cellValue ?~ CellText "text at A2 Sheet1" $ def)]
-
-
-tshow :: Show a => a -> Text
-tshow = Text.pack . show
 
 toWs :: [((Int,Int), Cell)] -> Worksheet
 toWs x = set wsCells (M.fromList x) def
