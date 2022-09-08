@@ -43,8 +43,10 @@ module Codec.Xlsx.Types.Common
   , DateBase(..)
   , dateFromNumber
   , dateToNumber
-  , columnIndexToText -- previously int2col
-  , textToColumnIndex -- previously col2int
+  , int2col
+  , col2int
+  , columnIndexToText
+  , textToColumnIndex
   -- ** prisms
   , _XlsxText
   , _XlsxRichText
@@ -101,6 +103,14 @@ instance NFData ColumnIndex
 
 instance ToAttrVal RowIndex where
   toAttrVal = toAttrVal . unRowIndex
+
+ -- | DEPRECATED: this function will be removed in an upcoming release, use
+ -- columnIndexToText instead.
+int2col = columnIndexToText
+
+ -- | DEPRECATED: this function will be removed in an upcoming release, use
+ -- textToColumnIndex instead.
+col2int = textToColumnIndex
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
 columnIndexToText :: ColumnIndex -> Text
