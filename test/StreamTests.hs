@@ -130,10 +130,8 @@ sharedStringInputTextsIsSameAsValueSetLength someTexts =
 simpleWorkbook :: Xlsx
 simpleWorkbook = def & atSheet "Sheet1" ?~ sheet
   where
-    sheet = toWs [((1,1), a1), ((1,2), cellValue ?~ CellText "text at B1 Sheet1" $ def)]
---    sheets = [("Sheet1" , toWs
---      [ ((RowIndex 1, ColumnIndex 1), a1)
---      , ((RowIndex 1, ColumnIndex 2), cellValue ?~ CellText "text at B1 Sheet1" $ def)])]
+    sheet = toWs [ ((RowIndex 1, ColumnIndex 1), a1)
+                 , ((RowIndex 1, ColumnIndex 2), cellValue ?~ CellText "text at B1 Sheet1" $ def) ]
 
 a1 :: Cell
 a1 = cellValue ?~ CellText "text at A1 Sheet1" $ cellStyle ?~ 1 $ def
@@ -143,10 +141,8 @@ a1 = cellValue ?~ CellText "text at A1 Sheet1" $ cellStyle ?~ 1 $ def
 simpleWorkbookRow :: Xlsx
 simpleWorkbookRow = def & atSheet "Sheet1" ?~ sheet
   where
-    sheet = toWs [((1,1), a1), ((2,1), cellValue ?~ CellText "text at A2 Sheet1" $ def)]
---    sheets = [("Sheet1" , toWs
---      [ ((RowIndex 1, ColumnIndex 1), a1)
---      , ((RowIndex 2, ColumnIndex 1), cellValue ?~ CellText "text at A2 Sheet1" $ def)])]
+    sheet = toWs [ ((RowIndex 1, ColumnIndex 1), a1)
+                 , ((RowIndex 2, ColumnIndex 1), cellValue ?~ CellText "text at A2 Sheet1" $ def) ]
 
 toWs :: [((RowIndex, ColumnIndex), Cell)] -> Worksheet
 toWs x = set wsCells (M.fromList x) def

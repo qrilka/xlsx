@@ -104,12 +104,14 @@ instance NFData ColumnIndex
 instance ToAttrVal RowIndex where
   toAttrVal = toAttrVal . unRowIndex
 
- -- | DEPRECATED: this function will be removed in an upcoming release, use
- -- columnIndexToText instead.
+{-# DEPRECATED int2col
+    "this function will be removed in an upcoming release, use columnIndexToText instead." #-}
+int2col :: ColumnIndex -> Text
 int2col = columnIndexToText
 
- -- | DEPRECATED: this function will be removed in an upcoming release, use
- -- textToColumnIndex instead.
+{-# DEPRECATED col2int
+    "this function will be removed in an upcoming release, use textToColumnIndex instead." #-}
+col2int :: Text -> ColumnIndex
 col2int = textToColumnIndex
 
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
