@@ -115,7 +115,7 @@ makeLenses ''Cell
 -- | Map containing cell values which are indexed by row and column
 -- if you need to use more traditional (x,y) indexing please you could
 -- use corresponding accessors from ''Codec.Xlsx.Lens''
-type CellMap = Map (Int, Int) Cell
+type CellMap = Map (RowIndex, ColumnIndex) Cell
 
 {-------------------------------------------------------------------------------
   Parsing

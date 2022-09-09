@@ -507,15 +507,16 @@ testCondFormattedResult = CondFormatted styleSheet formattings
         , _cfrPriority   = 1
         , _cfrStopIfTrue = Nothing }
 
-testFormattedCells :: Map (Int, Int) FormattedCell
+testFormattedCells :: Map (RowIndex, ColumnIndex) FormattedCell
 testFormattedCells = flip execState def $ do
-    at (1,1) ?= (def & formattedRowSpan .~ 5
+    at (1, 1) ?=
+                  (def & formattedRowSpan .~ 5
                      & formattedColSpan .~ 5
                      & formattedFormat . formatBorder . non def . borderTop .
                                                         non def . borderStyleLine ?~ LineStyleDashed
                      & formattedFormat . formatBorder . non def . borderBottom .
                                                         non def . borderStyleLine ?~ LineStyleDashed)
-    at (10,2) ?= (def & formattedFormat . formatFont . non def . fontBold ?~ True)
+    at (10, 2) ?= (def & formattedFormat . formatFont . non def . fontBold ?~ True)
 
 testRunCondFormatted :: CondFormatted
 testRunCondFormatted = conditionallyFormatted condFmts minimalStyleSheet

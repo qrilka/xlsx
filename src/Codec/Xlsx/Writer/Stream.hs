@@ -304,7 +304,7 @@ writeWorkSheet sharedStrings' = doc (n_ "worksheet") $ do
 
 mapRow :: MonadReader SheetWriteSettings m => Map Text Int -> Row -> ConduitT Row Event m ()
 mapRow sharedStrings' sheetItem = do
-  mRowProp <- preview $ wsRowProperties . ix rowIx . rowHeightLens . _Just . failing _CustomHeight _AutomaticHeight
+  mRowProp <- preview $ wsRowProperties . ix (unRowIndex rowIx) . rowHeightLens . _Just . failing _CustomHeight _AutomaticHeight
   let rowAttr :: Attributes
       rowAttr = ixAttr <> fold (attr "ht" . txtd <$> mRowProp)
   tag (n_ "row") rowAttr $
@@ -313,14 +313,16 @@ mapRow sharedStrings' sheetItem = do
     rowIx = sheetItem ^. ri_row_index
     ixAttr = attr "r" $ toAttrVal rowIx
 
-mapCell :: Monad m => Map Text Int -> Int -> Int -> Cell -> ConduitT Row Event m ()
-mapCell sharedStrings' rix cix cell =
+mapCell ::
+  Monad m => Map Text Int -> RowIndex -> Int -> Cell -> ConduitT Row Event m ()
+mapCell sharedStrings' rix cix' cell =
   when (has (cellValue . _Just) cell || has (cellStyle . _Just) cell) $
   tag (n_ "c") celAttr $
     when (has (cellValue . _Just) cell) $
     el (n_ "v") $
       content $ renderCell sharedStrings' cell
   where
+    cix = ColumnIndex cix'
     celAttr  = attr "r" ref <>
       renderCellType sharedStrings' cell
       <> foldMap (attr "s" . txti) (cell ^. cellStyle)

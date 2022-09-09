@@ -5,13 +5,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Codec.Xlsx.Types.Common
   ( CellRef(..)
-  , Coord(..)
+  , RowCoord(..)
+  , ColumnCoord(..)
   , CellCoord
   , RangeCoord
-  , mkCoord
-  , unCoord
   , mapBoth
   , col2coord
   , coord2col
@@ -44,6 +45,8 @@ module Codec.Xlsx.Types.Common
   , dateToNumber
   , int2col
   , col2int
+  , columnIndexToText
+  , textToColumnIndex
   -- ** prisms
   , _XlsxText
   , _XlsxRichText
@@ -52,6 +55,8 @@ module Codec.Xlsx.Types.Common
   , _CellBool
   , _CellRich
   , _CellError
+  , RowIndex(..)
+  , ColumnIndex(..)
   ) where
 
 import GHC.Generics (Generic)
@@ -89,9 +94,29 @@ import Data.Profunctor(dimap)
 import Control.Lens(makePrisms)
 #endif
 
+newtype RowIndex = RowIndex {unRowIndex :: Int}
+  deriving (Eq, Ord, Show, Read, Generic, Num, Real, Enum, Integral)
+newtype ColumnIndex = ColumnIndex {unColumnIndex :: Int}
+  deriving (Eq, Ord, Show, Read, Generic, Num, Real, Enum, Integral)
+instance NFData RowIndex
+instance NFData ColumnIndex
+
+instance ToAttrVal RowIndex where
+  toAttrVal = toAttrVal . unRowIndex
+
+{-# DEPRECATED int2col
+    "this function will be removed in an upcoming release, use columnIndexToText instead." #-}
+int2col :: ColumnIndex -> Text
+int2col = columnIndexToText
+
+{-# DEPRECATED col2int
+    "this function will be removed in an upcoming release, use textToColumnIndex instead." #-}
+col2int :: Text -> ColumnIndex
+col2int = textToColumnIndex
+
 -- | convert column number (starting from 1) to its textual form (e.g. 3 -> \"C\")
-int2col :: Int -> Text
-int2col = T.pack . reverse . map int2let . base26
+columnIndexToText :: ColumnIndex -> Text
+columnIndexToText = T.pack . reverse . map int2let . base26 . unColumnIndex
     where
         int2let 0 = 'Z'
         int2let x = chr $ (x - 1) + ord 'A'
@@ -100,11 +125,17 @@ int2col = T.pack . reverse . map int2let . base26
                         i'' = if i' == 0 then 26 else i'
                     in seq i' (i' : base26 ((i - i'') `div` 26))
 
--- | reverse to 'int2col'
-col2int :: Text -> Int
-col2int = T.foldl' (\i c -> i * 26 + let2int c) 0
+rowIndexToText :: RowIndex -> Text
+rowIndexToText = T.pack . show . unRowIndex
+
+-- | reverse of 'columnIndexToText'
+textToColumnIndex :: Text -> ColumnIndex
+textToColumnIndex = ColumnIndex . T.foldl' (\i c -> i * 26 + let2int c) 0
     where
         let2int c = 1 + ord c - ord 'A'
+
+textToRowIndex :: Text -> RowIndex
+textToRowIndex = RowIndex . read . T.unpack
 
 -- | Excel cell or cell range reference (e.g. @E3@), possibly absolute.
 -- See 18.18.62 @ST_Ref@ (p. 2482)
@@ -118,42 +149,56 @@ instance NFData CellRef
 
 -- | A helper type for coordinates to carry the intent of them being relative or absolute (preceded by '$'):
 --
--- > singleCellRefRaw' (Rel 5, Abs 1) == "$A5"
-data Coord
-  = Abs !Int
-  | Rel !Int
+-- > singleCellRefRaw' (RowRel 5, ColumnAbs 1) == "$A5"
+data RowCoord
+  = RowAbs !RowIndex
+  | RowRel !RowIndex
   deriving (Eq, Ord, Show, Read, Generic)
-instance NFData Coord
+instance NFData RowCoord
 
-type CellCoord = (Coord, Coord)
+data ColumnCoord
+  = ColumnAbs !ColumnIndex
+  | ColumnRel !ColumnIndex
+  deriving (Eq, Ord, Show, Read, Generic)
+instance NFData ColumnCoord
+
+type CellCoord = (RowCoord, ColumnCoord)
 
 type RangeCoord = (CellCoord, CellCoord)
 
-mkCoord :: Bool -> Int -> Coord
-mkCoord isAbs = if isAbs then Abs else Rel
+mkColumnCoord :: Bool -> ColumnIndex -> ColumnCoord
+mkColumnCoord isAbs = if isAbs then ColumnAbs else ColumnRel
 
-coord2col :: Coord -> Text
-coord2col (Abs c) = "$" <> coord2col (Rel c)
-coord2col (Rel c) = int2col c
+mkRowCoord :: Bool -> RowIndex -> RowCoord
+mkRowCoord isAbs = if isAbs then RowAbs else RowRel
 
-col2coord :: Text -> Coord
+coord2col :: ColumnCoord -> Text
+coord2col (ColumnAbs c) = "$" <> coord2col (ColumnRel c)
+coord2col (ColumnRel c) = columnIndexToText c
+
+col2coord :: Text -> ColumnCoord
 col2coord t =
   let t' = T.stripPrefix "$" t
-    in mkCoord (isJust t') (col2int (fromMaybe t t'))
+    in mkColumnCoord (isJust t') (textToColumnIndex (fromMaybe t t'))
 
-coord2row :: Coord -> Text
-coord2row (Abs c) = "$" <> coord2row (Rel c)
-coord2row (Rel c) = T.pack $ show c
+coord2row :: RowCoord -> Text
+coord2row (RowAbs c) = "$" <> coord2row (RowRel c)
+coord2row (RowRel c) = rowIndexToText c
 
-row2coord :: Text -> Coord
+row2coord :: Text -> RowCoord
 row2coord t =
   let t' = T.stripPrefix "$" t
-    in mkCoord (isJust t') . read . T.unpack $ fromMaybe t t'
+    in mkRowCoord (isJust t') (textToRowIndex (fromMaybe t t'))
 
 -- | Unwrap a Coord into an abstract Int coordinate
-unCoord :: Coord -> Int
-unCoord (Abs i) = i
-unCoord (Rel i) = i
+unRowCoord :: RowCoord -> RowIndex
+unRowCoord (RowAbs i) = i
+unRowCoord (RowRel i) = i
+
+-- | Unwrap a Coord into an abstract Int coordinate
+unColumnCoord :: ColumnCoord -> ColumnIndex
+unColumnCoord (ColumnAbs i) = i
+unColumnCoord (ColumnRel i) = i
 
 -- | Helper function to apply the same transformation to both members of a tuple
 --
@@ -163,8 +208,8 @@ mapBoth f = bimap f f
 
 -- | Render position in @(row, col)@ format to an Excel reference.
 --
--- > singleCellRef (2, 4) == CellRef "D2"
-singleCellRef :: (Int, Int) -> CellRef
+-- > singleCellRef (RowIndex 2, ColumnIndex 4) == CellRef "D2"
+singleCellRef :: (RowIndex, ColumnIndex) -> CellRef
 singleCellRef = CellRef . singleCellRefRaw
 
 -- | Allow specifying whether a coordinate parameter is relative or absolute.
@@ -173,8 +218,8 @@ singleCellRef = CellRef . singleCellRefRaw
 singleCellRef' :: CellCoord -> CellRef
 singleCellRef' = CellRef . singleCellRefRaw'
 
-singleCellRefRaw :: (Int, Int) -> Text
-singleCellRefRaw = singleCellRefRaw' . mapBoth Rel
+singleCellRefRaw :: (RowIndex, ColumnIndex) -> Text
+singleCellRefRaw (row, col) = T.concat [columnIndexToText col, rowIndexToText row]
 
 singleCellRefRaw' :: CellCoord -> Text
 singleCellRefRaw' (row, col) =
@@ -182,7 +227,7 @@ singleCellRefRaw' (row, col) =
 
 -- | Converse function to 'singleCellRef'
 -- Ignores a potential foreign sheet prefix.
-fromSingleCellRef :: CellRef -> Maybe (Int, Int)
+fromSingleCellRef :: CellRef -> Maybe (RowIndex, ColumnIndex)
 fromSingleCellRef = fromSingleCellRefRaw . unCellRef
 
 -- | Converse function to 'singleCellRef\''
@@ -190,8 +235,9 @@ fromSingleCellRef = fromSingleCellRefRaw . unCellRef
 fromSingleCellRef' :: CellRef -> Maybe CellCoord
 fromSingleCellRef' = fromSingleCellRefRaw' . unCellRef
 
-fromSingleCellRefRaw :: Text -> Maybe (Int, Int)
-fromSingleCellRefRaw = fmap (mapBoth unCoord) . fromSingleCellRefRaw'
+fromSingleCellRefRaw :: Text -> Maybe (RowIndex, ColumnIndex)
+fromSingleCellRefRaw =
+  fmap (first unRowCoord . second unColumnCoord) . fromSingleCellRefRaw'
 
 fromSingleCellRefRaw' :: Text -> Maybe CellCoord
 fromSingleCellRefRaw' t' = ignoreRefSheetName t' >>= \t -> do
@@ -206,13 +252,13 @@ fromSingleCellRefRaw' t' = ignoreRefSheetName t' >>= \t -> do
     row <- decimal rowT
     return $
       bimap
-      (mkCoord isRowAbsolute)
-      (mkCoord isColAbsolute)
-      (row, col2int colT)
+      (mkRowCoord isRowAbsolute)
+      (mkColumnCoord isColAbsolute)
+      (row, textToColumnIndex colT)
 
 -- | Converse function to 'singleCellRef' expecting valid reference and failig with
 -- a standard error message like /"Bad cell reference 'XXX'"/
-fromSingleCellRefNoting :: CellRef -> (Int, Int)
+fromSingleCellRefNoting :: CellRef -> (RowIndex, ColumnIndex)
 fromSingleCellRefNoting ref = fromJustNote errMsg $ fromSingleCellRefRaw txt
   where
     txt = unCellRef ref
@@ -267,14 +313,14 @@ type Range = CellRef
 
 -- | Render range
 --
--- > mkRange (2, 4) (6, 8) == CellRef "D2:H6"
-mkRange :: (Int, Int) -> (Int, Int) -> Range
+-- > mkRange (RowIndex 2, ColumnIndex 4) (RowIndex 6, ColumnIndex 8) == CellRef "D2:H6"
+mkRange :: (RowIndex, ColumnIndex) -> (RowIndex, ColumnIndex) -> Range
 mkRange fr to = CellRef $ T.concat [singleCellRefRaw fr, ":", singleCellRefRaw to]
 
 -- | Render range with possibly absolute coordinates
 --
 -- > mkRange' (Abs 2, Abs 4) (6, 8) == CellRef "$D$2:H6"
-mkRange' :: (Coord,Coord) -> (Coord,Coord) -> Range
+mkRange' :: (RowCoord,ColumnCoord) -> (RowCoord,ColumnCoord) -> Range
 mkRange' fr to =
   CellRef $ T.concat [singleCellRefRaw' fr, ":", singleCellRefRaw' to]
 
@@ -290,9 +336,9 @@ mkForeignRange sheetName fr to =
 
 -- | Converse function to 'mkRange' ignoring absolute coordinates.
 -- Ignores a potential foreign sheet prefix.
-fromRange :: Range -> Maybe ((Int, Int), (Int, Int))
+fromRange :: Range -> Maybe ((RowIndex, ColumnIndex), (RowIndex, ColumnIndex))
 fromRange r =
-  mapBoth (mapBoth unCoord) <$> fromRange' r
+  mapBoth (first unRowCoord . second unColumnCoord) <$> fromRange' r
 
 -- | Converse function to 'mkRange\'' to handle possibly absolute coordinates.
 -- Ignores a potential foreign sheet prefix.

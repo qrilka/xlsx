@@ -130,7 +130,8 @@ sharedStringInputTextsIsSameAsValueSetLength someTexts =
 simpleWorkbook :: Xlsx
 simpleWorkbook = def & atSheet "Sheet1" ?~ sheet
   where
-    sheet = toWs [((1,1), a1), ((1,2), cellValue ?~ CellText "text at B1 Sheet1" $ def)]
+    sheet = toWs [ ((RowIndex 1, ColumnIndex 1), a1)
+                 , ((RowIndex 1, ColumnIndex 2), cellValue ?~ CellText "text at B1 Sheet1" $ def) ]
 
 a1 :: Cell
 a1 = cellValue ?~ CellText "text at A1 Sheet1" $ cellStyle ?~ 1 $ def
@@ -140,9 +141,10 @@ a1 = cellValue ?~ CellText "text at A1 Sheet1" $ cellStyle ?~ 1 $ def
 simpleWorkbookRow :: Xlsx
 simpleWorkbookRow = def & atSheet "Sheet1" ?~ sheet
   where
-    sheet = toWs [((1,1), a1), ((2,1), cellValue ?~ CellText "text at A2 Sheet1" $ def)]
+    sheet = toWs [ ((RowIndex 1, ColumnIndex 1), a1)
+                 , ((RowIndex 2, ColumnIndex 1), cellValue ?~ CellText "text at A2 Sheet1" $ def) ]
 
-toWs :: [((Int,Int), Cell)] -> Worksheet
+toWs :: [((RowIndex, ColumnIndex), Cell)] -> Worksheet
 toWs x = set wsCells (M.fromList x) def
 
 -- can we do xxx
@@ -159,6 +161,18 @@ smallWorkbook = def & atSheet "Sheet1" ?~ sheet
                   , ((row,4), def & cellValue ?~ CellDouble (0.2 + 0.1))
                   , ((row,5), def & cellValue ?~ CellBool False)
                   ]
+--    sheets = [("Sheet1" , toWs $ [1..2] >>= \row ->
+--        [ ((RowIndex row, ColumnIndex 1), a1)
+--        , ((RowIndex row, ColumnIndex 2),
+--            def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
+--        , ((RowIndex row, ColumnIndex 3),
+--            def & cellValue ?~ CellText "text at C1 Sheet1")
+--        , ((RowIndex row, ColumnIndex 4),
+--            def & cellValue ?~ CellDouble (0.2 + 0.1))
+--        , ((RowIndex row, ColumnIndex 5),
+--            def & cellValue ?~ CellBool False)
+--        ]
+--      )]
 
 bigWorkbook :: Xlsx
 bigWorkbook = def & atSheet "Sheet1" ?~ sheet
@@ -168,7 +182,14 @@ bigWorkbook = def & atSheet "Sheet1" ?~ sheet
                   ,((row,2), def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
                   ,((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
                   ]
-
+--    sheets = [("Sheet1" , toWs $ [1..512] >>= \row ->
+--        [((RowIndex row, ColumnIndex 1), a1)
+--        ,((RowIndex row, ColumnIndex 2),
+--            def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
+--        ,((RowIndex row, ColumnIndex 3),
+--            def & cellValue ?~ CellText "text at C1 Sheet1")
+--        ]
+--      )]
 
 inlineStringsAreParsed :: IO ()
 inlineStringsAreParsed = do

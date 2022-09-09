@@ -249,18 +249,18 @@ extractSheetFast ar sst contentTypes caches wf = do
     justNonEmpty _ = Nothing
     collectRows = foldr collectRow (M.empty, M.empty, M.empty)
     collectRow ::
-         ( Int
+         ( RowIndex
          , Maybe RowProperties
-         , [(Int, Int, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))])
-      -> ( Map Int RowProperties
+         , [(RowIndex, ColumnIndex, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))])
+      -> ( Map RowIndex RowProperties
          , CellMap
          , Map SharedFormulaIndex SharedFormulaOptions)
-      -> ( Map Int RowProperties
+      -> ( Map RowIndex RowProperties
          , CellMap
          , Map SharedFormulaIndex SharedFormulaOptions)
     collectRow (r, mRP, rowCells) (rowMap, cellMap, sharedF) =
       let (newCells0, newSharedF0) =
-            unzip [(((x, y), cd), shared) | (x, y, cd, shared) <- rowCells]
+            unzip [(((rInd, cInd), cd), shared) | (rInd, cInd, cd, shared) <- rowCells]
           newCells = M.fromAscList newCells0
           newSharedF = M.fromAscList $ catMaybes newSharedF0
           newRowMap =
@@ -270,10 +270,10 @@ extractSheetFast ar sst contentTypes caches wf = do
       in (newRowMap, cellMap <> newCells, sharedF <> newSharedF)
     parseRow ::
          Xeno.Node
-      -> Either Text ( Int
+      -> Either Text ( RowIndex
                      , Maybe RowProperties
-                     , [( Int
-                        , Int
+                     , [( RowIndex
+                        , ColumnIndex
                         , Cell
                         , Maybe (SharedFormulaIndex, SharedFormulaOptions))])
     parseRow row = do
@@ -294,7 +294,7 @@ extractSheetFast ar sst contentTypes caches wf = do
       cellNodes <- collectChildren row $ childList "c"
       cells <- forM cellNodes parseCell
       return
-        ( r
+        ( RowIndex r
         , if props == def
             then Nothing
             else Just props
@@ -310,8 +310,8 @@ extractSheetFast ar sst contentTypes caches wf = do
     -- </xsd:complexType>
     parseCell ::
          Xeno.Node
-      -> Either Text ( Int
-                     , Int
+      -> Either Text ( RowIndex
+                     , ColumnIndex
                      , Cell
                      , Maybe (SharedFormulaIndex, SharedFormulaOptions))
     parseCell cell = do
@@ -384,11 +384,11 @@ extractSheet ar sst contentTypes caches wf = do
         collect $ cur $/ element (n_ "sheetData") &/ element (n_ "row") >=> parseRow
       parseRow ::
            Cursor
-        -> [( Int
+        -> [( RowIndex
             , Maybe RowProperties
-            , [(Int, Int, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))])]
+            , [(RowIndex, ColumnIndex, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))])]
       parseRow c = do
-        r <- fromAttribute "r" c
+        r <- RowIndex <$> fromAttribute "r" c
         let prop = RowProps
               { rowHeight = do h <- listToMaybe $ fromAttribute "ht" c
                                case fromAttribute "customHeight" c of
@@ -406,7 +406,7 @@ extractSheet ar sst contentTypes caches wf = do
                )
       parseCell ::
            Cursor
-        -> [(Int, Int, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))]
+        -> [(RowIndex, ColumnIndex, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))]
       parseCell cell = do
         ref <- fromAttribute "r" cell
         let s = listToMaybe $ cell $| attribute "s" >=> decimal
@@ -427,11 +427,11 @@ extractSheet ar sst contentTypes caches wf = do
         return (r, c, Cell s d comment f, shared)
       collect = foldr collectRow (M.empty, M.empty, M.empty)
       collectRow ::
-           ( Int
+           ( RowIndex
            , Maybe RowProperties
-           , [(Int, Int, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))])
-        -> (Map Int RowProperties, CellMap, Map SharedFormulaIndex SharedFormulaOptions)
-        -> (Map Int RowProperties, CellMap, Map SharedFormulaIndex SharedFormulaOptions)
+           , [(RowIndex, ColumnIndex, Cell, Maybe (SharedFormulaIndex, SharedFormulaOptions))])
+        -> (Map RowIndex RowProperties, CellMap, Map SharedFormulaIndex SharedFormulaOptions)
+        -> (Map RowIndex RowProperties, CellMap, Map SharedFormulaIndex SharedFormulaOptions)
       collectRow (r, mRP, rowCells) (rowMap, cellMap, sharedF) =
         let (newCells0, newSharedF0) =
               unzip [(((x,y),cd), shared) | (x, y, cd, shared) <- rowCells]

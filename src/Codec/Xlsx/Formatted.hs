@@ -234,7 +234,7 @@ data Formatted = Formatted {
 --
 -- If you don't already have a 'StyleSheet' you want to use as starting point
 -- then 'minimalStyleSheet' is a good choice.
-formatted :: Map (Int, Int) FormattedCell -> StyleSheet -> Formatted
+formatted :: Map (RowIndex, ColumnIndex) FormattedCell -> StyleSheet -> Formatted
 formatted cs styleSheet =
    let initSt         = stateFromStyleSheet styleSheet
        (cs', finalSt) = runState (mapM (uncurry formatCell) (M.toList cs)) initSt
@@ -246,7 +246,8 @@ formatted cs styleSheet =
         }
 
 -- | Build an 'Xlsx', render provided cells as per the 'StyleSheet'.
-formatWorkbook :: [(Text, Map (Int, Int) FormattedCell)] -> StyleSheet -> Xlsx
+formatWorkbook ::
+  [(Text, Map (RowIndex, ColumnIndex) FormattedCell)] -> StyleSheet -> Xlsx
 formatWorkbook nfcss initStyle = extract go
   where
     initSt = stateFromStyleSheet initStyle
@@ -263,7 +264,7 @@ formatWorkbook nfcss initStyle = extract go
 
 -- | reverse to 'formatted' which allows to get a map of formatted cells
 -- from an existing worksheet and its workbook's style sheet
-toFormattedCells :: CellMap -> [Range] -> StyleSheet -> Map (Int, Int) FormattedCell
+toFormattedCells :: CellMap -> [Range] -> StyleSheet -> Map (RowIndex, ColumnIndex) FormattedCell
 toFormattedCells m merges StyleSheet{..} = applyMerges $ M.map toFormattedCell m
   where
     toFormattedCell cell@Cell{..} =
@@ -301,11 +302,14 @@ toFormattedCells m merges StyleSheet{..} = applyMerges $ M.map toFormattedCell m
         if apply then prop cXf else fail "not applied"
     applyMerges cells = foldl' onlyTopLeft cells merges
     onlyTopLeft cells range = flip execState cells $ do
-        let ((r1, c1), (r2, c2)) = fromJustNote "fromRange" $ fromRange range
+        let ((r1, c1), (r2, c2)) =
+              fromJustNote "fromRange" $ fromRange range
             nonTopLeft = tail [(r, c) | r<-[r1..r2], c<-[c1..c2]]
         forM_ nonTopLeft (modify . M.delete)
-        at (r1, c1) . non def . formattedRowSpan .= (r2 - r1 +1)
-        at (r1, c1) . non def . formattedColSpan .= (c2 - c1 +1)
+        at (r1, c1) . non def . formattedRowSpan .=
+          (unRowIndex r2 - unRowIndex r1 + 1)
+        at (r1, c1) . non def . formattedColSpan .=
+          (unColumnIndex c2 - unColumnIndex c1 + 1)
 
 data CondFormatted = CondFormatted {
     -- | The resulting stylesheet
@@ -334,13 +338,15 @@ conditionallyFormatted cfs styleSheet = CondFormatted
 -------------------------------------------------------------------------------}
 
 -- | Format a cell with (potentially) rowspan or colspan
-formatCell :: (Int, Int) -> FormattedCell -> State FormattingState [((Int, Int), Cell)]
+formatCell :: (RowIndex, ColumnIndex) -> FormattedCell
+  -> State FormattingState [((RowIndex, ColumnIndex), Cell)]
 formatCell (row, col) cell = do
     let (block, mMerge) = cellBlock (row, col) cell
     forM_ mMerge $ \merge -> formattingMerges %= (:) merge
     mapM go block
   where
-    go :: ((Int, Int), FormattedCell) -> State FormattingState ((Int, Int), Cell)
+    go :: ((RowIndex, ColumnIndex), FormattedCell)
+      -> State FormattingState ((RowIndex, ColumnIndex), Cell)
     go (pos, c@FormattedCell{..}) = do
       styleId <- cellStyleId c
       return (pos, _formattedCell{_cellStyle = styleId})
@@ -354,11 +360,11 @@ formatCell (row, col) cell = do
 -- remaining cells are the cells covered by the rowspan/colspan.
 --
 -- Also returns the cell merge instruction, if any.
-cellBlock :: (Int, Int) -> FormattedCell
-          -> ([((Int, Int), FormattedCell)], Maybe Range)
+cellBlock :: (RowIndex, ColumnIndex) -> FormattedCell
+          -> ([((RowIndex, ColumnIndex), FormattedCell)], Maybe Range)
 cellBlock (row, col) cell@FormattedCell{..} = (block, merge)
   where
-    block :: [((Int, Int), FormattedCell)]
+    block :: [((RowIndex, ColumnIndex), FormattedCell)]
     block = [ ((row', col'), cellAt (row', col'))
             | row' <- [topRow  .. bottomRow]
             , col' <- [leftCol .. rightCol]
@@ -368,7 +374,7 @@ cellBlock (row, col) cell@FormattedCell{..} = (block, merge)
     merge = do guard (topRow /= bottomRow || leftCol /= rightCol)
                return $ mkRange (topRow, leftCol) (bottomRow, rightCol)
 
-    cellAt :: (Int, Int) -> FormattedCell
+    cellAt :: (RowIndex, ColumnIndex) -> FormattedCell
     cellAt (row', col') =
       if row' == row && col == col'
         then cell
@@ -376,18 +382,19 @@ cellBlock (row, col) cell@FormattedCell{..} = (block, merge)
 
     border = _formatBorder _formattedFormat
 
-    borderAt :: (Int, Int) -> Border
+    borderAt :: (RowIndex, ColumnIndex) -> Border
     borderAt (row', col') = def
       & borderTop    .~ do guard (row' == topRow)    ; _borderTop    =<< border
       & borderBottom .~ do guard (row' == bottomRow) ; _borderBottom =<< border
       & borderLeft   .~ do guard (col' == leftCol)   ; _borderLeft   =<< border
       & borderRight  .~ do guard (col' == rightCol)  ; _borderRight  =<< border
 
-    topRow, bottomRow, leftCol, rightCol :: Int
+    topRow, bottomRow :: RowIndex
+    leftCol, rightCol :: ColumnIndex
     topRow    = row
-    bottomRow = row + _formattedRowSpan - 1
+    bottomRow = RowIndex $ unRowIndex row + _formattedRowSpan - 1
     leftCol   = col
-    rightCol  = col + _formattedColSpan - 1
+    rightCol  = ColumnIndex $ unColumnIndex col + _formattedColSpan - 1
 
 cellStyleId :: FormattedCell -> State FormattingState (Maybe Int)
 cellStyleId c = mapM (getId formattingCellXfs) =<< constructCellXf c

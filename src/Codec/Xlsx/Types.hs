@@ -269,7 +269,8 @@ instance ToAttrVal SheetState where
 -- | Xlsx worksheet
 data Worksheet = Worksheet
   { _wsColumnsProperties :: [ColumnsProperties] -- ^ column widths
-  , _wsRowPropertiesMap :: Map Int RowProperties -- ^ custom row properties (height, style) map
+  , _wsRowPropertiesMap :: Map RowIndex RowProperties
+    -- ^ custom row properties (height, style) map
   , _wsCells :: CellMap -- ^ data mapped by (row, column) pairs
   , _wsDrawing :: Maybe Drawing -- ^ SpreadsheetML Drawing
   , _wsMerges :: [Range] -- ^ list of cell merges
@@ -389,7 +390,7 @@ parseStyleSheet (Styles bs) = parseLBS def bs >>= parseDoc
 
 -- | converts cells mapped by (row, column) into rows which contain
 -- row index and cells as pairs of column indices and cell values
-toRows :: CellMap -> [(Int, [(Int, Cell)])]
+toRows :: CellMap -> [(RowIndex, [(ColumnIndex, Cell)])]
 toRows cells =
     map extractRow $ groupBy ((==) `on` (fst . fst)) $ M.toList cells
   where
@@ -398,7 +399,7 @@ toRows cells =
     extractRow _ = error "invalid CellMap row"
 
 -- | reverse to 'toRows'
-fromRows :: [(Int, [(Int, Cell)])] -> CellMap
+fromRows :: [(RowIndex, [(ColumnIndex, Cell)])] -> CellMap
 fromRows rows = M.fromList $ concatMap mapRow rows
   where
     mapRow (r, cells) = map (\(c, v) -> ((r, c), v)) cells
