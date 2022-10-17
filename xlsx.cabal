@@ -129,7 +129,7 @@ Library
                      , indexed-traversable
     cpp-options: -DUSE_MICROLENS
   else
-    Build-depends:     lens         >= 3.8 && < 5.2
+    Build-depends:     lens         >= 3.8 && < 5.3
 
   Default-Language:     Haskell2010
   Other-Extensions:  DeriveDataTypeable
