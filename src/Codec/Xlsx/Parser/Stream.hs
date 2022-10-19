@@ -106,6 +106,7 @@ import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.Text.Read as Read
@@ -392,9 +393,10 @@ getSheetConduit (MkSheetIndex sheetId) = do
   msource <- getSheetXmlSource sheetId
   initState <- makeInitialSheetState (MkSheetIndex sheetId)
   (parseChunk, _getLoc) <- liftIO $ Hexpat.hexpatNewParser Nothing Nothing False
+  stateRef <- liftIO $ newIORef initState
   pure $ msource <&> \source -> source
                         .| expatConduit parseChunk
-                        .| C.evalStateC initState saxRowConduit
+                        .| saxRowConduit stateRef
                         .| CC.map (MkSheetItem sheetId)
 
 expatConduit ::
@@ -404,17 +406,25 @@ expatConduit ::
   ConduitT ByteString (SAXEvent tag text) m ()
 expatConduit parseChunk = do
   mUpstream <- C.await
-  res <- liftIO $ case mUpstream of
-    Just upstreamBs -> processChunk @tag @text parseChunk False upstreamBs
-    Nothing -> processChunk @tag @text parseChunk True BS.empty
-  traverse_ C.yield res
+  case mUpstream of
+    Just upstreamBs -> do
+      liftIO $ putStrLn "expatConduit"
+      liftIO $ putStrLn $ T.unpack $ T.decodeUtf8 upstreamBs
+      traverse_ C.yield =<< liftIO (processChunk @tag @text parseChunk False upstreamBs)
+      expatConduit parseChunk
+    Nothing -> do
+      liftIO $ putStrLn "expatConduit nothing"
+      traverse_ C.yield =<< liftIO (processChunk @tag @text parseChunk True BS.empty)
 
 saxRowConduit ::
-  (MonadIO m, HasSheetState m) =>
+  (MonadIO m) =>
+  IORef SheetState ->
   ConduitT (SAXEvent ByteString Text) Row m ()
-saxRowConduit =
+saxRowConduit sheetStateRef =
       CC.concatMapM $ \sax -> do
-          row <- saxToRow sax
+          curState <- liftIO $ readIORef sheetStateRef
+          (row, nextState) <- flip runStateT curState $ saxToRow sax
+          liftIO $ writeIORef sheetStateRef nextState
           case row of
             RowError err -> liftIO $ throwIO err -- crash
             RowInProgress -> pure $ Nothing -- filter
@@ -442,6 +452,7 @@ runCallbackExpat initialState byteSource handler = do
   C.runConduitRes $
     byteSource .|
     C.awaitForever (\x -> liftIO $ do
+                       putStrLn $ T.unpack $ T.decodeUtf8 x
                        callHandlerState =<< processChunk @tag @text parseChunk False x
 
                    )
