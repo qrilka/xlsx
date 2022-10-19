@@ -71,9 +71,6 @@ tests =
       testGroup "Reader/Writer"
       [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbook
       , testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbookRow
-      , testCase "Write as stream, using conduit parser (simpleWorkbook)" $ readWriteConduit simpleWorkbook
-      , testCase "Write as stream, using conduit parser (simpleWorkbookRow)" $ readWriteConduit simpleWorkbookRow
-      , testCase "Write as stream, using conduit parser (bigWorkbook)" $ readWriteConduit bigWorkbook
       , testCase "Test a small workbook which has a fullblown sqaure" $ readWrite smallWorkbook
       , testCase "Test a big workbook as a full square which caused issues with zipstream \
                  The buffer of zipstream maybe 1kb, this workbook is big enough \
@@ -83,6 +80,12 @@ tests =
                   $ readWrite bigWorkbook
       -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
       -- TODO forall SheetItem write that can be read
+
+      , testGroup "Conduit" [
+        testCase "Write as stream, using conduit parser (simpleWorkbook)" $ readWriteConduit simpleWorkbook
+      , testCase "Write as stream, using conduit parser (simpleWorkbookRow)" $ readWriteConduit simpleWorkbookRow
+      , testCase "Write as stream, using conduit parser (bigWorkbook)" $ readWriteConduit bigWorkbook
+                            ]
       ],
 
       testGroup "Reader/inline strings"
