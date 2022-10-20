@@ -128,6 +128,12 @@ readWriteConduit input = do
     Left x -> do
       throwIO x
 
+-- No sst behaves differently frmo the normal writexlsx because
+-- the sst table isn't first constructed.
+-- this results in a single pass instead of a double pass.
+-- it turns out that in certain cases this test would pass
+-- but the writeXlsx wouldn't, which indicates brittleness within
+-- the statefull hexpat parser.
 readWriteConduitNoSst :: Xlsx -> IO ()
 readWriteConduitNoSst input = do
   BS.writeFile "testinput.xlsx" (toBs input)
