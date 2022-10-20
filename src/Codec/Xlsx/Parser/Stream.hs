@@ -106,7 +106,6 @@ import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.Text.Read as Read
@@ -116,7 +115,6 @@ import GHC.Generics
 import GHC.Stack
 import Control.DeepSeq
 import Codec.Xlsx.Parser.Internal.Memoize
-import Control.Lens.Extras(is)
 
 import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
 import Control.Monad.Base
@@ -392,9 +390,10 @@ getSheetConduit :: (MonadIO m, PrimMonad m, MonadThrow m, C.MonadResource m)
 getSheetConduit (MkSheetIndex sheetId) = do
   msource <- getSheetXmlSource sheetId
   initState <- makeInitialSheetState (MkSheetIndex sheetId)
-  (parseChunk, _getLoc) <- liftIO $ Hexpat.hexpatNewParser Nothing Nothing False
-  stateRef <- liftIO $ newIORef initState
-  pure $ msource <&> \source -> source
+  pure $ msource <&> \source -> do
+        (parseChunk, _getLoc) <- liftIO $ Hexpat.hexpatNewParser Nothing Nothing False
+        stateRef <- liftIO $ newIORef initState
+        source
                         .| expatConduit parseChunk
                         .| saxRowConduit stateRef
                         .| CC.map (MkSheetItem sheetId)
@@ -408,12 +407,9 @@ expatConduit parseChunk = do
   mUpstream <- C.await
   case mUpstream of
     Just upstreamBs -> do
-      liftIO $ putStrLn "expatConduit"
-      liftIO $ putStrLn $ T.unpack $ T.decodeUtf8 upstreamBs
       traverse_ C.yield =<< liftIO (processChunk @tag @text parseChunk False upstreamBs)
       expatConduit parseChunk
     Nothing -> do
-      liftIO $ putStrLn "expatConduit nothing"
       traverse_ C.yield =<< liftIO (processChunk @tag @text parseChunk True BS.empty)
 
 saxRowConduit ::
@@ -451,8 +447,7 @@ runCallbackExpat initialState byteSource handler = do
 
   C.runConduitRes $
     byteSource .|
-    C.awaitForever (\x -> liftIO $ do
-                       putStrLn $ T.unpack $ T.decodeUtf8 x
+    C.awaitForever (\x -> liftIO $
                        callHandlerState =<< processChunk @tag @text parseChunk False x
 
                    )

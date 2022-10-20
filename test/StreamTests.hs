@@ -85,7 +85,12 @@ tests =
         testCase "Write as stream, using conduit parser (simpleWorkbook)" $ readWriteConduit simpleWorkbook
       , testCase "Write as stream, using conduit parser (simpleWorkbookRow)" $ readWriteConduit simpleWorkbookRow
       , testCase "Write as stream, using conduit parser (bigWorkbook)" $ readWriteConduit bigWorkbook
-                            ]
+      , testGroup "No sst" [
+        testCase "Write as stream, using conduit parser (simpleWorkbook)" $ readWriteConduitNoSst simpleWorkbook
+      , testCase "Write as stream, using conduit parser (simpleWorkbookRow)" $ readWriteConduitNoSst simpleWorkbookRow
+      , testCase "Write as stream, using conduit parser (bigWorkbook)" $ readWriteConduitNoSst bigWorkbook
+        ]
+          ]
       ],
 
       testGroup "Reader/inline strings"
@@ -115,7 +120,21 @@ readWriteConduit input = do
     mConduit <- getSheetConduit $ makeIndex 1
     case mConduit of
       Nothing -> error "sheet should exist"
-      -- TODO make this work with SW.writeXlsx, we the conduit variant can't do replays right now
+      Just conduit -> liftIO $ runConduitRes $ void (SW.writeXlsx SW.defaultSettings (conduit .| CC.map (view si_row))) .| C.foldC
+
+  case toXlsxEither $ LB.fromStrict bs of
+    Right result  ->
+      input @==?  result
+    Left x -> do
+      throwIO x
+
+readWriteConduitNoSst :: Xlsx -> IO ()
+readWriteConduitNoSst input = do
+  BS.writeFile "testinput.xlsx" (toBs input)
+  bs <- runXlsxM "testinput.xlsx" $ do
+    mConduit <- getSheetConduit $ makeIndex 1
+    case mConduit of
+      Nothing -> error "sheet should exist"
       Just conduit -> liftIO $ runConduitRes $ void (SW.writeXlsxWithSharedStrings SW.defaultSettings mempty (conduit .| CC.map (view si_row))) .| C.foldC
 
   case toXlsxEither $ LB.fromStrict bs of
