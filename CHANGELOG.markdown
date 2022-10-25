@@ -1,3 +1,16 @@
+1.1.0
+------------
+* Fix default cell type in streaming parser
+  (thanks to Nikita Razmakhnin <nikita@supercede.com>)
+* Implemented cell range data validation
+  (thanks to Florian Fouratier <6524406+flhorizon@users.noreply.github.com>)
+* Added support for sheet visibility
+  (thanks to Florian Fouratier <6524406+flhorizon@users.noreply.github.com>)
+* Added parsing of comment visibility
+  (thanks to Luke <luke@supercede.com>)
+* Added newtypes for column and row indices
+  (thanks to Luke <luke@supercede.com>)
+
 1.0.0
 ------------
 * Add support for streaming xlsx files
