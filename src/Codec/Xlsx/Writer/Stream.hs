@@ -48,6 +48,7 @@ import Lens.Micro.Platform
 #else
 import Control.Lens
 #endif
+import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Reader.Class
 import Control.Monad.State.Strict

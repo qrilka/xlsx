@@ -85,6 +85,7 @@ import Lens.Micro.TH
 import Control.Lens
 #endif
 import Codec.Xlsx.Parser.Internal
+import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
