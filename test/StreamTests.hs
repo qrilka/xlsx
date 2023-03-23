@@ -40,6 +40,7 @@ import Test.Tasty.HUnit (testCase)
 import TestXlsx
 import qualified Codec.Xlsx.Writer.Stream as SW
 import qualified Codec.Xlsx.Writer.Internal.Stream as SW
+import Control.Monad (void)
 import Control.Monad.State.Lazy
 import Test.Tasty.SmallCheck
 import Test.SmallCheck.Series.Instances ()
