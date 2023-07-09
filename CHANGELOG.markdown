@@ -1,3 +1,7 @@
+1.1.1
+------------
+* dropped support for GHC 8.8.* and 8.10.* and added support for GHC 9.4.* and 9.6.*
+
 1.1.0
 ------------
 * Fix default cell type in streaming parser
