@@ -26,6 +26,7 @@ import Codec.Xlsx.Parser.Stream
 import Conduit ((.|))
 import qualified Conduit as C
 import Control.Lens hiding (indexed)
+import Control.Monad (void)
 import Data.Set.Lens
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString as BS
