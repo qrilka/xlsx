@@ -700,9 +700,20 @@ getRels ar fp = do
     c <- xmlCursorOptional ar relsPath
     return $ maybe Relationships.empty (setTargetsFrom fp . headNote "Missing rels" . fromCursor) c
 
+-- According to part 2, section 7.3.4 of ECMA-376, when mapping logical item
+-- names to ZIP item names we need to remove the leading slash.
+--
+-- Non-ASCII characters should be percent-encoded as well, but this is not
+-- currently implemented.
+--
+-- https://ecma-international.org/publications-and-standards/standards/ecma-376/
+logicalNameToZipItemName :: FilePath -> FilePath
+logicalNameToZipItemName ('/' : name) = name
+logicalNameToZipItemName name = name
+
 lookupRelPath :: FilePath
               -> Relationships
               -> RefId
               -> Either ParseError FilePath
 lookupRelPath fp rels rId =
-  relTarget <$> note (InvalidRef fp rId) (Relationships.lookup rId rels)
+  logicalNameToZipItemName . relTarget <$> note (InvalidRef fp rId) (Relationships.lookup rId rels)
