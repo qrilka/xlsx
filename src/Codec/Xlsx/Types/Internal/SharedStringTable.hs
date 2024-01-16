@@ -37,7 +37,7 @@ import Codec.Xlsx.Writer.Internal
 -- reading and writing the repetitive information once.
 --
 -- Relevant parts of the EMCA standard (2nd edition, part 1,
--- <http://www.ecma-international.org/publications/standards/Ecma-376.htm>),
+-- <https://ecma-international.org/publications-and-standards/standards/ecma-376/>),
 -- page numbers refer to the page in the PDF rather than the page number as
 -- printed on the page):
 --

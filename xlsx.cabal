@@ -10,7 +10,7 @@ Description:
     For examples look into "Codec.Xlsx".
     .
     Format is covered by ECMA-376 standard:
-    <http://www.ecma-international.org/publications/standards/Ecma-376.htm>
+    <https://ecma-international.org/publications-and-standards/standards/ecma-376/>
     .
     4th edition of the standard with the transitional schema is used for this library.
 Extra-source-files:
