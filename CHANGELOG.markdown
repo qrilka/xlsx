@@ -1,3 +1,8 @@
+1.1.2
+------------
+* Strip leading slash from target paths in relations as the ECMA-376 spec requires
+  (thanks to Luke Clifton <lukec@themk.net>)
+
 1.1.1
 ------------
 * dropped support for GHC 8.8.* and 8.10.* and added support for GHC 9.4.* and 9.6.*
