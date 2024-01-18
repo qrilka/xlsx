@@ -45,7 +45,7 @@ import qualified Data.Text as T
 import Data.Traversable
 import GHC.Generics (Generic)
 import Prelude hiding (sequence)
-import Safe
+import Safe (headNote)
 import System.FilePath.Posix
 import Text.XML as X
 import Text.XML.Cursor hiding (bool)
