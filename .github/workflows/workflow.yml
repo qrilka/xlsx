@@ -29,9 +29,9 @@ jobs:
           extra-args: ""
     steps:
       - name: Clone project
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Cache dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: ~/.stack
           key: ${{ runner.os }}-${{ hashFiles(matrix.stack-yaml) }}-${{ matrix.extra-args }}
