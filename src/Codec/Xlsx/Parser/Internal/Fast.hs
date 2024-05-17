@@ -43,6 +43,7 @@ import qualified Data.ByteString.Unsafe as SU
 import Data.Char (chr)
 import Data.Maybe
 import Data.Monoid ((<>))
+import Data.Scientific (Scientific)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -228,6 +229,10 @@ instance FromAttrBs Int where
   fromAttrBs = first T.pack . eitherDecimal . T.decodeLatin1
 
 instance FromAttrBs Double where
+  -- as for rationals
+  fromAttrBs = first T.pack . eitherRational . T.decodeLatin1
+
+instance FromAttrBs Scientific where
   -- as for rationals
   fromAttrBs = first T.pack . eitherRational . T.decodeLatin1
 

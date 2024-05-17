@@ -11,6 +11,7 @@ import Control.Applicative
 import Data.ByteString.Lazy (ByteString)
 import Data.List (transpose)
 import Data.Maybe (listToMaybe, mapMaybe, maybeToList)
+import Data.Scientific (fromFloatDigits)
 import Data.Text (Text)
 import Safe (atMay)
 import Text.XML
@@ -105,5 +106,5 @@ fillCacheFieldsFromRecords fields recs =
         then field {cfItems = mapMaybe recToCellValue recVals}
         else field
     recToCellValue (CacheText t) = Just $ CellText t
-    recToCellValue (CacheNumber n) = Just $ CellDouble n
+    recToCellValue (CacheNumber n) = Just $ CellDecimal (fromFloatDigits n)
     recToCellValue (CacheIndex _) = Nothing

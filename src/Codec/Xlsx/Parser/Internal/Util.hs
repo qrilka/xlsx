@@ -24,7 +24,7 @@ eitherDecimal t = case T.signed T.decimal t of
 rational :: (MonadFail m) => Text -> m Double
 rational = fromEither . eitherRational
 
-eitherRational :: Text -> Either String Double
+eitherRational :: Fractional a => Text -> Either String a
 eitherRational t = case T.signed T.rational t of
   Right (r, leftover) | T.null leftover -> Right r
   _ -> Left $ "invalid rational: " ++ show t
