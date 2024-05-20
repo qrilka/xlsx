@@ -74,7 +74,7 @@ import Text.XML.Stream.Render
 import Text.XML.Unresolved (elementToEvents)
 
 
-upsertSharedStrings :: MonadState SharedStringState m => Row -> m [(Text,Int)]
+upsertSharedStrings :: MonadState SharedStringState m => Row -> m [(Text, Int)]
 upsertSharedStrings row =
   traverse upsertSharedString items
   where
@@ -94,7 +94,7 @@ sharedStrings = void sharedStringsStream .| CL.foldMap (uncurry Map.singleton)
 --   but I don't think conduit provides a way of getting that out.
 --   use 'sharedStrings' to just get the map
 sharedStringsStream :: Monad m  =>
-  ConduitT Row (Text, Int) m (Map Text Int)
+  ConduitT Row (Text, Int) m (Map Text T)
 sharedStringsStream = fmap (view string_map) $ C.execStateC initialSharedString $
   CL.mapFoldableM upsertSharedStrings
 

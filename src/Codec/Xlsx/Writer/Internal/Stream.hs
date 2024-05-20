@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP              #-}
+{-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TemplateHaskell  #-}
 
@@ -9,6 +10,7 @@ module Codec.Xlsx.Writer.Internal.Stream
   ( upsertSharedString
   , initialSharedString
   , string_map
+  , T(..)
   , SharedStringState(..)
   ) where
 
@@ -20,11 +22,12 @@ import Control.Lens
 #endif
 import Control.Monad.State.Strict
 import Data.Map.Strict (Map)
-import Data.Maybe
 import Data.Text (Text)
 
+data T = T !Text !Int
+
 newtype SharedStringState = MkSharedStringState
-  { _string_map :: Map Text Int
+  { _string_map :: Map Text T
   }
 makeLenses 'MkSharedStringState
 
@@ -33,19 +36,13 @@ initialSharedString = MkSharedStringState mempty
 
 -- properties:
 -- for a list of [text], every unique text gets a unique number.
-upsertSharedString :: MonadState SharedStringState m => Text -> m (Text,Int)
+upsertSharedString :: MonadState SharedStringState m => Text -> m (Text, Int)
 upsertSharedString current = do
   strings  <- use string_map
 
-  let mIdx :: Maybe Int
-      mIdx = strings ^? ix current
-
-      idx :: Int
-      idx = fromMaybe (length strings) mIdx
-
-      newMap :: Map Text Int
-      newMap = at current ?~ idx $ strings
-
-  string_map .= newMap
-  pure (current, idx)
-
+  case strings ^? ix current of
+    Just (T old i) -> pure (old, i)
+    Nothing -> do
+      let !idx = length strings
+      string_map .= (strings & ix current .~ T current idx)
+      pure (current, idx)
