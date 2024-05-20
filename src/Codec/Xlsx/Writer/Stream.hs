@@ -301,6 +301,8 @@ writeWorkSheet :: MonadReader SheetWriteSettings  m => Map Text Int  -> ConduitT
 writeWorkSheet sharedStrings' = doc (n_ "worksheet") $ do
     sheetViews
     columns
+    -- <sheetFormatPr baseColWidth="10" defaultRowHeight="16" x14ac:dyDescent="0.2"/>
+    tag (n_ "sheelFormatPr") (attr "baseColWidth" "10" <> attr "defaultRowHeight" "16") (pure ())
     el (n_ "sheetData") $ C.awaitForever (mapRow sharedStrings')
 
 mapRow :: MonadReader SheetWriteSettings m => Map Text Int -> Row -> ConduitT Row Event m ()
