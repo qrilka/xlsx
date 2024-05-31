@@ -160,7 +160,7 @@ smallWorkbook = def & atSheet "Sheet1" ?~ sheet
                   [((row,1), a1)
                   , ((row,2), def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
                   , ((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
-                  , ((row,4), def & cellValue ?~ CellDouble (0.2 + 0.1))
+                  , ((row,4), def & cellValue ?~ CellDecimal (0.2 + 0.1))
                   , ((row,5), def & cellValue ?~ CellBool False)
                   ]
 --    sheets = [("Sheet1" , toWs $ [1..2] >>= \row ->
@@ -170,7 +170,7 @@ smallWorkbook = def & atSheet "Sheet1" ?~ sheet
 --        , ((RowIndex row, ColumnIndex 3),
 --            def & cellValue ?~ CellText "text at C1 Sheet1")
 --        , ((RowIndex row, ColumnIndex 4),
---            def & cellValue ?~ CellDouble (0.2 + 0.1))
+--            def & cellValue ?~ CellDecimal (0.2 + 0.1))
 --        , ((RowIndex row, ColumnIndex 5),
 --            def & cellValue ?~ CellBool False)
 --        ]
@@ -224,13 +224,13 @@ untypedCellsAreParsedAsFloats = do
   -- as numbers explicitly in `t` attribute.
   items <- runXlsxM "data/floats.xlsx" $ collectItems $ makeIndex 1
   let expected =
-        [ IM.fromList [ (1, def & cellValue ?~ CellDouble 12.0) ]
-        , IM.fromList [ (1, def & cellValue ?~ CellDouble 13.0) ]
+        [ IM.fromList [ (1, def & cellValue ?~ CellDecimal 12.0) ]
+        , IM.fromList [ (1, def & cellValue ?~ CellDecimal 13.0) ]
         -- cell below has explicit `Numeric` type, while others are all `General`,
         -- but sometimes excel does not add a `t="n"` attr even to numeric cells
         -- but it should be default as number in any cases if `t` is missing
-        , IM.fromList [ (1, def & cellValue ?~ CellDouble 14.0 & cellStyle ?~ 1 ) ]
-        , IM.fromList [ (1, def & cellValue ?~ CellDouble 15.0) ]
+        , IM.fromList [ (1, def & cellValue ?~ CellDecimal 14.0 & cellStyle ?~ 1 ) ]
+        , IM.fromList [ (1, def & cellValue ?~ CellDecimal 15.0) ]
         ]
   expected @==? (_ri_cell_row . _si_row <$> items)
 

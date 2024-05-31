@@ -117,10 +117,10 @@ floatsParsingTests parser = do
   let xlsx = parser bs
       parsedCells = maybe mempty (_wsCells . snd) $ listToMaybe $ xlsx ^. xlSheets
       expectedCells = M.fromList
-        [ ((1,1), def & cellValue ?~ CellDouble 12.0)
-        , ((2,1), def & cellValue ?~ CellDouble 13.0)
-        , ((3,1), def & cellValue ?~ CellDouble 14.0 & cellStyle ?~ 1)
-        , ((4,1), def & cellValue ?~ CellDouble 15.0)
+        [ ((1,1), def & cellValue ?~ CellDecimal 12.0)
+        , ((2,1), def & cellValue ?~ CellDecimal 13.0)
+        , ((3,1), def & cellValue ?~ CellDecimal 14.0 & cellStyle ?~ 1)
+        , ((4,1), def & cellValue ?~ CellDecimal 15.0)
         ]
   expectedCells @==? parsedCells
 
