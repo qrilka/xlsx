@@ -420,6 +420,7 @@ data CellValue
   | CellRich [RichTextRun]
   | CellError ErrorType
   deriving (Eq, Ord, Show, Generic)
+{-# COMPLETE CellText, CellDecimal, CellBool, CellRich, CellError #-}
 
 viewCellDouble :: CellValue -> Maybe Double
 viewCellDouble (CellDecimal s) = Just (toRealFloat s)
@@ -428,6 +429,7 @@ viewCellDouble _ = Nothing
 -- view pattern, since 'CellDecimal' has replaced the old constructor.
 pattern CellDouble :: Double -> CellValue
 pattern CellDouble b <- (viewCellDouble -> Just b)
+{-# COMPLETE CellText, CellDouble, CellBool, CellRich, CellError #-}
 
 instance NFData CellValue
 
