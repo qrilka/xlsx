@@ -688,6 +688,14 @@ _CellText
               CellText y1_a1ZQx -> Right y1_a1ZQx
               _ -> Left x_a1ZQw)
 {-# INLINE _CellText #-}
+_CellDecimal :: Prism' CellValue Scientific
+_CellDecimal
+  = (prism (\ x1_a1ZQy -> CellDecimal x1_a1ZQy))
+      (\ x_a1ZQz
+         -> case x_a1ZQz of
+              CellDecimal y1_a1ZQA -> Right y1_a1ZQA
+              _ -> Left x_a1ZQz)
+{-# INLINE _CellDecimal #-}
 _CellDouble :: Prism' CellValue Double
 _CellDouble
   = (prism (\ x1_a1ZQy -> CellDecimal (fromFloatDigits x1_a1ZQy)))
