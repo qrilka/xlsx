@@ -41,6 +41,7 @@ module Codec.Xlsx.Parser.Stream
   , WorkbookInfo(..)
   , SheetInfo(..)
   , wiSheets
+  , getOrParseSharedStringss
   , getWorkbookInfo
   , CellRow
   , readSheet
@@ -256,10 +257,10 @@ parseSharedStrings
      )
   => HexpatEvent -> m (Maybe Text)
 parseSharedStrings = \case
-  StartElement "t" _ -> Nothing <$ (ss_string .= mempty)
-  EndElement "t"     -> Just . LT.toStrict . TB.toLazyText <$> gets _ss_string
-  CharacterData txt  -> Nothing <$ (ss_string <>= TB.fromText txt)
-  _                  -> pure Nothing
+  StartElement "si" _ -> Nothing <$ (ss_string .= mempty)
+  EndElement "si"     -> Just . LT.toStrict . TB.toLazyText <$> gets _ss_string
+  CharacterData txt   -> Nothing <$ (ss_string <>= TB.fromText txt)
+  _                   -> pure Nothing
 
 -- | Run a series of actions on an Xlsx file
 runXlsxM :: MonadIO m => FilePath -> XlsxM a -> m a
