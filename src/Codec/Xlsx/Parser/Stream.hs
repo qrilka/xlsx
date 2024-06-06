@@ -182,6 +182,8 @@ makeLenses 'MkSheetState
 -- | State for parsing shared strings
 data SharedStringsState = MkSharedStringsState
   { _ss_string :: TB.Builder -- ^ String we are parsing
+  -- TODO: At the moment SharedStrings can be used only to create CellText values.
+  -- We should add support for CellRich values.
   , _ss_list   :: DL.DList Text -- ^ list of shared strings
   } deriving stock (Generic, Show)
 makeLenses 'MkSharedStringsState
@@ -257,6 +259,7 @@ parseSharedStrings
      )
   => HexpatEvent -> m (Maybe Text)
 parseSharedStrings = \case
+  -- TODO: Add parsing of text styles to further create CellRich values.
   StartElement "si" _ -> Nothing <$ (ss_string .= mempty)
   EndElement "si"     -> Just . LT.toStrict . TB.toLazyText <$> gets _ss_string
   CharacterData txt   -> Nothing <$ (ss_string <>= TB.fromText txt)
