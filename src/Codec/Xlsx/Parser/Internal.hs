@@ -33,6 +33,7 @@ import Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Read as T
+import Data.Scientific (Scientific)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 import Text.XML
@@ -66,6 +67,9 @@ instance FromAttrVal Integer where
     fromAttrVal = T.signed T.decimal
 
 instance FromAttrVal Double where
+    fromAttrVal = T.rational
+
+instance FromAttrVal Scientific where
     fromAttrVal = T.rational
 
 instance FromAttrVal Bool where

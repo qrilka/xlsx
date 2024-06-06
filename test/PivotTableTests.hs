@@ -106,10 +106,10 @@ testPivotSrcCells =
   where
     cellMap =
       [ [CellText "Color", CellText "Year", CellText "Price", CellText "Count"]
-      , [CellText "green", CellDouble 2012, CellDouble 12.23, CellDouble 17]
-      , [CellText "white", CellDouble 2011, CellDouble 73.99, CellDouble 21]
-      , [CellText "red", CellDouble 2012, CellDouble 10.19, CellDouble 172]
-      , [CellText "white", CellDouble 2012, CellDouble 34.99, CellDouble 49]
+      , [CellText "green", CellDecimal 2012, CellDecimal 12.23, CellDecimal 17]
+      , [CellText "white", CellDecimal 2011, CellDecimal 73.99, CellDecimal 21]
+      , [CellText "red", CellDecimal 2012, CellDecimal 10.19, CellDecimal 172]
+      , [CellText "white", CellDecimal 2012, CellDecimal 34.99, CellDecimal 49]
       ]
 
 testPivotCacheFields :: [CacheField]
@@ -117,13 +117,13 @@ testPivotCacheFields =
   [ CacheField
       (PivotFieldName "Color")
       [CellText "green", CellText "white", CellText "red"]
-  , CacheField (PivotFieldName "Year") [CellDouble 2012, CellDouble 2011]
+  , CacheField (PivotFieldName "Year") [CellDecimal 2012, CellDecimal 2011]
   , CacheField
       (PivotFieldName "Price")
-      [CellDouble 12.23, CellDouble 73.99, CellDouble 10.19, CellDouble 34.99]
+      [CellDecimal 12.23, CellDecimal 73.99, CellDecimal 10.19, CellDecimal 34.99]
   , CacheField
       (PivotFieldName "Count")
-      [CellDouble 17, CellDouble 21, CellDouble 172, CellDouble 49]
+      [CellDecimal 17, CellDecimal 21, CellDecimal 172, CellDecimal 49]
   ]
 
 testPivotTableDefinition :: ByteString

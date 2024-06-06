@@ -55,7 +55,7 @@ instance FromCursor CacheField where
 cellValueFromNode :: Node -> [CellValue]
 cellValueFromNode n
   | n `nodeElNameIs` (n_ "s") = CellText <$> attributeV
-  | n `nodeElNameIs` (n_ "n") = CellDouble <$> attributeV
+  | n `nodeElNameIs` (n_ "n") = CellDecimal <$> attributeV
   | otherwise = fail "no matching shared item"
   where
     cur = fromNode n
