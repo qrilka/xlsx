@@ -2,6 +2,7 @@
 {-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TemplateHaskell  #-}
+{-# LANGUAGE ViewPatterns     #-}
 
 -- | Internal stream related functions.
 --   These are exported because they're tested like this.
@@ -21,8 +22,10 @@ import Lens.Micro.Platform
 import Control.Lens
 #endif
 import Control.Monad.State.Strict
+import Data.Char
 import Data.Map.Strict (Map)
 import Data.Text (Text)
+import qualified Data.Text as Text
 
 data T = T !Text !Int
 
@@ -37,7 +40,7 @@ initialSharedString = MkSharedStringState mempty
 -- properties:
 -- for a list of [text], every unique text gets a unique number.
 upsertSharedString :: MonadState SharedStringState m => Text -> m (Text, Int)
-upsertSharedString current = do
+upsertSharedString (Text.filter (\x -> ord x >= 10) -> current) = do
   strings  <- use string_map
 
   case strings ^? ix current of
