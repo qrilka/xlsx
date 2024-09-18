@@ -42,6 +42,7 @@ module Codec.Xlsx.Writer.Internal (
   ) where
 
 import qualified Data.Map as Map
+import Data.Char
 import Data.Maybe (catMaybes)
 import Data.String (fromString)
 import Data.Text (Text)
@@ -225,3 +226,7 @@ justFalse = justNonDef True
 
 justTrue :: Bool -> Maybe Bool
 justTrue = justNonDef False
+
+
+cleanText :: Text.Text -> Text.Text
+cleanText = Text.filter (\x -> (ord x == 10 || ord x >= 13) && ord x /= 31)

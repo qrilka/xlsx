@@ -27,6 +27,8 @@ import Data.Map.Strict (Map)
 import Data.Text (Text)
 import qualified Data.Text as Text
 
+import Codec.Xlsx.Writer.Internal (cleanText)
+
 data T = T !Text !Int
 
 newtype SharedStringState = MkSharedStringState
@@ -40,7 +42,7 @@ initialSharedString = MkSharedStringState mempty
 -- properties:
 -- for a list of [text], every unique text gets a unique number.
 upsertSharedString :: MonadState SharedStringState m => Text -> m (Text, Int)
-upsertSharedString (Text.filter (\x -> (ord x == 10 || ord x >= 13) && ord x /= 31) -> current) = do
+upsertSharedString (cleanText -> current) = do
   strings  <- use string_map
 
   case strings ^? ix current of

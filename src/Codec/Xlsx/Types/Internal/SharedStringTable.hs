@@ -98,8 +98,8 @@ sstConstruct =
     goSheet = mapMaybe (_cellValue >=> sstEntry) . Map.elems . _wsCells
 
     sstEntry :: CellValue -> Maybe XlsxText
-    sstEntry (CellText text) = Just $ XlsxText text
-    sstEntry (CellRich rich) = Just $ XlsxRichText rich
+    sstEntry (CellText text) = Just $ XlsxText (cleanText text)
+    sstEntry (CellRich rich) = Just $ XlsxRichText (cleanText rich)
     sstEntry _               = Nothing
 
     uniq :: Ord a => [a] -> [a]
