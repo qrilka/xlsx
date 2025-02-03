@@ -71,6 +71,7 @@ import Text.Printf
 import Text.XML (toXMLElement)
 import qualified Text.XML as TXML
 import Text.XML.Stream.Render
+import Text.XML.Stream.Render.Internal (RenderSettings(rsPretty))
 import Text.XML.Unresolved (elementToEvents)
 
 
