@@ -25,6 +25,9 @@ jobs:
           stack-yaml: stack-lts-21.yaml # GHC 9.4
           extra-args: ""
         - os: ubuntu-latest
+          stack-yaml: stack-lts-22.yaml # GHC 9.6
+          extra-args: ""
+        - os: ubuntu-latest
           stack-yaml: stack-nightly.yaml
           extra-args: ""
     steps:
@@ -39,6 +42,7 @@ jobs:
         shell: bash
         run: |
             set -ex
+            sudo apt-get -y install libbz2-dev
             stack upgrade
             stack --version
             stack test --fast --stack-yaml=${{ matrix.stack-yaml }} ${{ matrix.extra-args }}
