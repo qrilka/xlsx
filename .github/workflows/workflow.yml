@@ -13,10 +13,7 @@ jobs:
       matrix:
         include:
         - os: ubuntu-latest
-          stack-yaml: stack-lts-19.yaml # GHC 9.0
-          extra-args: ""
-        - os: ubuntu-latest
-          stack-yaml: stack-lts-19.yaml
+          stack-yaml: stack-lts-20.yaml
           extra-args: "--flag xlsx:microlens"
         - os: ubuntu-latest
           stack-yaml: stack-lts-20.yaml # GHC 9.2
@@ -25,7 +22,10 @@ jobs:
           stack-yaml: stack-lts-21.yaml # GHC 9.4
           extra-args: ""
         - os: ubuntu-latest
-          stack-yaml: stack-nightly.yaml
+          stack-yaml: stack-lts-22.yaml # GHC 9.6
+          extra-args: ""
+        - os: ubuntu-latest # GHC 9.8
+          stack-yaml: stack-lts-23.yaml
           extra-args: ""
     steps:
       - name: Clone project
@@ -39,6 +39,7 @@ jobs:
         shell: bash
         run: |
             set -ex
+            sudo apt-get -y install libbz2-dev
             stack upgrade
             stack --version
             stack test --fast --stack-yaml=${{ matrix.stack-yaml }} ${{ matrix.extra-args }}
