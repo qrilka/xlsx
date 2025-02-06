@@ -71,9 +71,6 @@ import Text.Printf
 import Text.XML (toXMLElement)
 import qualified Text.XML as TXML
 import Text.XML.Stream.Render
-#if MIN_VERSION_xml_conduit(1,10,0)
-import Text.XML.Stream.Render.Internal (RenderSettings(rsPretty))
-#endif
 import Text.XML.Unresolved (elementToEvents)
 
 
@@ -268,7 +265,7 @@ writeSst sharedStrings' = doc (n_ "sst") $
                   ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sharedStrings'
 
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
-writeEvents = renderBuilder (def {rsPretty=False})
+writeEvents = renderBuilder def
 
 sheetViews :: forall m . MonadReader SheetWriteSettings m => forall i . ConduitT i Event m ()
 sheetViews = do
