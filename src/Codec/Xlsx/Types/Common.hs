@@ -6,6 +6,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Codec.Xlsx.Types.Common
   ( CellRef(..)
@@ -39,6 +41,7 @@ module Codec.Xlsx.Types.Common
   , xlsxTextToCellValue
   , Formula(..)
   , CellValue(..)
+  , pattern CellDouble
   , ErrorType(..)
   , DateBase(..)
   , dateFromNumber
@@ -51,7 +54,7 @@ module Codec.Xlsx.Types.Common
   , _XlsxText
   , _XlsxRichText
   , _CellText
-  , _CellDouble
+  , _CellDecimal
   , _CellBool
   , _CellRich
   , _CellError
@@ -72,6 +75,7 @@ import Data.Maybe (isJust, fromMaybe)
 import Data.Function ((&))
 import Data.Ix (inRange)
 import qualified Data.Map as Map
+import Data.Scientific (Scientific,toRealFloat,fromFloatDigits)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -411,12 +415,21 @@ instance NFData Formula
 -- - 18.18.11 ST_CellType (Cell Type)
 data CellValue
   = CellText Text
-  | CellDouble Double
+  | CellDecimal Scientific
   | CellBool Bool
   | CellRich [RichTextRun]
   | CellError ErrorType
   deriving (Eq, Ord, Show, Generic)
+{-# COMPLETE CellText, CellDecimal, CellBool, CellRich, CellError #-}
 
+viewCellDouble :: CellValue -> Maybe Double
+viewCellDouble (CellDecimal s) = Just (toRealFloat s)
+viewCellDouble _ = Nothing 
+
+-- view pattern, since 'CellDecimal' has replaced the old constructor.
+pattern CellDouble :: Double -> CellValue
+pattern CellDouble b <- (viewCellDouble -> Just b)
+{-# COMPLETE CellText, CellDouble, CellBool, CellRich, CellError #-}
 
 instance NFData CellValue
 
@@ -677,9 +690,17 @@ _CellText
               CellText y1_a1ZQx -> Right y1_a1ZQx
               _ -> Left x_a1ZQw)
 {-# INLINE _CellText #-}
+_CellDecimal :: Prism' CellValue Scientific
+_CellDecimal
+  = (prism (\ x1_a1ZQy -> CellDecimal x1_a1ZQy))
+      (\ x_a1ZQz
+         -> case x_a1ZQz of
+              CellDecimal y1_a1ZQA -> Right y1_a1ZQA
+              _ -> Left x_a1ZQz)
+{-# INLINE _CellDecimal #-}
 _CellDouble :: Prism' CellValue Double
 _CellDouble
-  = (prism (\ x1_a1ZQy -> CellDouble x1_a1ZQy))
+  = (prism (\ x1_a1ZQy -> CellDecimal (fromFloatDigits x1_a1ZQy)))
       (\ x_a1ZQz
          -> case x_a1ZQz of
               CellDouble y1_a1ZQA -> Right y1_a1ZQA

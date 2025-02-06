@@ -146,16 +146,16 @@ testCellMap1 = M.fromList [ ((1, 2), cd1_2), ((1, 5), cd1_5), ((1, 10), cd1_10)
   where
     cd v = def {_cellValue=Just v}
     cd1_2 = cd (CellText "just a text, fließen, русский <> и & \"in quotes\"")
-    cd1_5 = cd (CellDouble 42.4567)
+    cd1_5 = cd (CellDecimal 42.4567)
     cd1_10 = cd (CellText "")
     cd3_1 = cd (CellText "another text")
     cd3_2 = def -- shouldn't it be skipped?
     cd3_3 = def & cellValue ?~ CellError ErrorDiv0
                 & cellFormula ?~ simpleCellFormula "1/0"
     cd3_7 = cd (CellBool True)
-    cd4_1 = cd (CellDouble 1)
-    cd4_2 = cd (CellDouble 123456789012345)
-    cd4_3 = (cd (CellDouble (1+2))) { _cellFormula =
+    cd4_1 = cd (CellDecimal 1)
+    cd4_2 = cd (CellDecimal 123456789012345)
+    cd4_3 = (cd (CellDecimal (1+2))) { _cellFormula =
                                             Just $ simpleCellFormula "A4+B4<>11"
                                     }
     cd5_1 = def & cellFormula ?~ sharedFormulaByIndex (SharedFormulaIndex 0)
@@ -169,16 +169,16 @@ cellRangeDvSourceMap = M.fromList [ ((1, 1), def & cellValue ?~ CellText "A-A-A"
                                     , ((2, 1), def & cellValue ?~ CellText "B-B-B")
                                     , ((1, 2), def & cellValue ?~ CellText "C-C-C")
                                     , ((2, 2), def & cellValue ?~ CellText "D-D-D")
-                                    , ((1, 3), def & cellValue ?~ CellDouble 6)
-                                    , ((2, 3), def & cellValue ?~ CellDouble 7)
-                                    , ((3, 1), def & cellValue ?~ CellDouble 5)
+                                    , ((1, 3), def & cellValue ?~ CellDecimal 6)
+                                    , ((2, 3), def & cellValue ?~ CellDecimal 7)
+                                    , ((3, 1), def & cellValue ?~ CellDecimal 5)
                                     , ((3, 2), def & cellValue ?~ CellText "numbers!")
-                                    , ((3, 3), def & cellValue ?~ CellDouble 5)
+                                    , ((3, 3), def & cellValue ?~ CellDecimal 5)
                                   ]
 
 testCellMap2 :: CellMap
 testCellMap2 = M.fromList [ ((1, 2), def & cellValue ?~ CellText "something here")
-                          , ((3, 5), def & cellValue ?~ CellDouble 123.456)
+                          , ((3, 5), def & cellValue ?~ CellDecimal 123.456)
                           , ((2, 4),
                              def & cellValue ?~ CellText "value"
                                  & cellComment ?~ comment1
@@ -401,12 +401,12 @@ testFormattedResult = Formatted cm styleSheet merges
         , _cellFormula = Nothing }
     cell12 = Cell
         { _cellStyle   = Just 2
-        , _cellValue   = Just (CellDouble 1.23)
+        , _cellValue   = Just (CellDecimal 1.23)
         , _cellComment = Nothing
         , _cellFormula = Nothing }
     cell25 = Cell
         { _cellStyle   = Just 3
-        , _cellValue   = Just (CellDouble 1.23456)
+        , _cellValue   = Just (CellDecimal 1.23456)
         , _cellComment = Nothing
         , _cellFormula = Nothing }
     merges = []
@@ -441,10 +441,10 @@ testRunFormatted = formatted formattedCellMap minimalStyleSheet
                         & fontName ?~ "Calibri"
         at (1, 1) ?= (def & formattedCell . cellValue ?~ CellText "text at A1"
                           & formattedFormat . formatFont  ?~ font1)
-        at (1, 2) ?= (def & formattedCell . cellValue ?~ CellDouble 1.23
+        at (1, 2) ?= (def & formattedCell . cellValue ?~ CellDecimal 1.23
                           & formattedFormat . formatFont . non def . fontItalic ?~ True
                           & formattedFormat . formatNumberFormat ?~ fmtDecimalsZeroes 4)
-        at (2, 5) ?= (def & formattedCell . cellValue ?~ CellDouble 1.23456
+        at (2, 5) ?= (def & formattedCell . cellValue ?~ CellDecimal 1.23456
                           & formattedFormat . formatNumberFormat ?~ StdNumberFormat Nf2Decimal)
 
 testFormatWorkbookResult :: Xlsx
@@ -456,7 +456,7 @@ testFormatWorkbookResult = def & xlSheets .~ sheets
                                               , _cellComment = Nothing
                                               , _cellFormula = Nothing })]
     cellMap2 = M.fromList [((2, 3), Cell { _cellStyle   = Just 1
-                                              , _cellValue   = Just (CellDouble 1.23456)
+                                              , _cellValue   = Just (CellDecimal 1.23456)
                                               , _cellComment = Nothing
                                               , _cellFormula = Nothing })]
     sheets = [ ("Sheet1", def & wsCells .~ cellMap1) , ("Sheet2", def & wsCells .~ cellMap2) ]
@@ -476,7 +476,7 @@ testFormatWorkbook = formatWorkbook sheets minimalStyleSheet
     sheetNames = ["Sheet1", "Sheet2"]
     testFormattedCellMap1 = M.fromList [((1,1), (def & formattedCell . cellValue ?~ CellText "text at A1 Sheet1"))]
       
-    testFormattedCellMap2 = M.fromList [((2,3), (def & formattedCell . cellValue ?~ CellDouble 1.23456
+    testFormattedCellMap2 = M.fromList [((2,3), (def & formattedCell . cellValue ?~ CellDecimal 1.23456
                                                  & formattedFormat . formatNumberFormat ?~ (UserNumberFormat "DD.MM.YYYY")))]
     sheets = zip sheetNames [testFormattedCellMap1, testFormattedCellMap2]
 
