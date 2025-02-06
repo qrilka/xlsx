@@ -265,7 +265,7 @@ writeSst sharedStrings' = doc (n_ "sst") $
                   ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sharedStrings'
 
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
-writeEvents = renderBuilder (def {rsPretty=False})
+writeEvents = renderBuilder def
 
 sheetViews :: forall m . MonadReader SheetWriteSettings m => forall i . ConduitT i Event m ()
 sheetViews = do
