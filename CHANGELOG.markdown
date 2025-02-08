@@ -1,3 +1,8 @@
+1.1.3
+------------
+* fixed compatibility with xml-conduit moving `rsPretty` into internal module
+* dropped support for GHC 9.0.* and added support for GHC 9.8.*
+
 1.1.2
 ------------
 * Strip leading slash from target paths in relations as the ECMA-376 spec requires
