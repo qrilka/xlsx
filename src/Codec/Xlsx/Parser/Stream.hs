@@ -530,7 +530,7 @@ parseValue sstrings txt = \case
     string <- maybe (Left $ SharedStringsNotFound idx sstrings) Right $ {-# SCC "sstrings_lookup_scc" #-}  (sstrings ^? ix idx)
     Right $ CellText string
   TStr -> pure $ CellText txt
-  TN -> bimap (ReadError txt) (CellDouble . fst) $ Read.double txt
+  TN -> bimap (ReadError txt) (CellDecimal . fst) $ Read.rational txt
   TE -> bimap (ReadError txt) (CellError . fst) $ fromAttrVal txt
   TB | txt == "1" -> Right $ CellBool True
      | txt == "0" -> Right $ CellBool False
