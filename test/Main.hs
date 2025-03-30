@@ -81,6 +81,10 @@ main = defaultMain $
         $ floatsParsingTests toXlsx
     , testCase "toXlsxFast: correct floats parsing (typed and untyped cells are floats by default)"
         $ floatsParsingTests toXlsxFast
+    , testCase "toXlsx: correct resolving of absolute relationship targets"
+        $ absoluteRelationshipsTest toXlsx
+    , testCase "toXlsxFast: correct resolving of absolute relationship targets"
+        $ absoluteRelationshipsTest toXlsxFast
     , testGroup "Codec: sheet state visibility"
         [ testGroup "toXlsxEitherFast"
             [ testProperty "pure state == toXlsxEitherFast (fromXlsx (defXlsxWithState state))" $
@@ -123,6 +127,17 @@ floatsParsingTests parser = do
         , ((4,1), def & cellValue ?~ CellDouble 15.0)
         ]
   expectedCells @==? parsedCells
+
+-- Test whether absolute logical item names are correctly mapped to ZIP item names.
+-- absolute_relationships.xlsx contains relationships of worksheet, comment,
+-- drawing and pivot table types with absolute paths in their targets.
+absoluteRelationshipsTest :: (ByteString -> Xlsx) -> IO ()
+absoluteRelationshipsTest parser = do
+  bs <- LB.readFile "data/absolute_relationships.xlsx"
+  let xlsx = parser bs
+      expectedComment = Just $ Comment (XlsxText "test comment") "author" False
+      parsedComment = xlsx ^? ixSheet "Test" . ixCell (2, 1) . cellComment . _Just
+  expectedComment @==? parsedComment
 
 constSheetName :: Text
 constSheetName = "sheet1"
