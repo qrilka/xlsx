@@ -214,8 +214,8 @@ extractSheetFast ar sst contentTypes caches wf = do
 
       let commentsType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
           commentTarget :: Maybe FilePath
-          commentTarget = relTarget <$> findRelByType commentsType sheetRels
-          legacyDrPath = fmap relTarget . flip Relationships.lookup sheetRels =<< legacyDrRId
+          commentTarget = logicalNameToZipItemName . relTarget <$> findRelByType commentsType sheetRels
+          legacyDrPath = fmap (logicalNameToZipItemName . relTarget) . flip Relationships.lookup sheetRels =<< legacyDrRId
       commentsMap <-
         fmap join . forM commentTarget $ getComments ar legacyDrPath
       let commentCells =
@@ -230,11 +230,11 @@ extractSheetFast ar sst contentTypes caches wf = do
         fp <- lookupRelPath filePath sheetRels rId
         getTable ar fp
       drawing <- forM drawingRId $ \dId -> do
-        rel <- note (InvalidRef filePath dId) $ Relationships.lookup dId sheetRels
-        getDrawing ar contentTypes (relTarget rel)
+        fp <- lookupRelPath filePath sheetRels dId
+        getDrawing ar contentTypes fp
       let ptType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
       pivotTables <- forM (allByType ptType sheetRels) $ \rel -> do
-        let ptPath = relTarget rel
+        let ptPath = logicalNameToZipItemName $ relTarget rel
         bs <- note (MissingFile ptPath) $ Zip.fromEntry <$> Zip.findEntryByPath ptPath ar
         note (InconsistentXlsx $ "Bad pivot table in " <> T.pack ptPath) $
           parsePivotTable (flip Prelude.lookup caches) bs
@@ -369,9 +369,9 @@ extractSheet ar sst contentTypes caches wf = do
 
   let commentsType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
       commentTarget :: Maybe FilePath
-      commentTarget = relTarget <$> findRelByType commentsType sheetRels
+      commentTarget = logicalNameToZipItemName . relTarget <$> findRelByType commentsType sheetRels
       legacyDrRId = cur $/ element (n_ "legacyDrawing") >=> fromAttribute (odr"id")
-      legacyDrPath = fmap relTarget . flip Relationships.lookup sheetRels  =<< listToMaybe legacyDrRId
+      legacyDrPath = fmap (logicalNameToZipItemName . relTarget) . flip Relationships.lookup sheetRels  =<< listToMaybe legacyDrRId
 
   commentsMap :: Maybe CommentTable <- maybe (Right Nothing) (getComments ar legacyDrPath) commentTarget
 
@@ -470,14 +470,14 @@ extractSheet ar sst contentTypes caches wf = do
 
   mDrawing <- case mDrawingId of
       Just dId -> do
-          rel <- note (InvalidRef filePath dId) $ Relationships.lookup dId sheetRels
-          Just <$> getDrawing ar contentTypes (relTarget rel)
+          fp <- lookupRelPath filePath sheetRels dId
+          Just <$> getDrawing ar contentTypes fp
       Nothing  ->
           return Nothing
 
   let ptType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
   pTables <- forM (allByType ptType sheetRels) $ \rel -> do
-    let ptPath = relTarget rel
+    let ptPath = logicalNameToZipItemName $ relTarget rel
     bs <- note (MissingFile ptPath) $ Zip.fromEntry <$> Zip.findEntryByPath ptPath ar
     note (InconsistentXlsx $ "Bad pivot table in " <> T.pack ptPath) $
       parsePivotTable (flip Prelude.lookup caches) bs

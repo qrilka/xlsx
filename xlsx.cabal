@@ -17,6 +17,7 @@ Extra-source-files:
                      CHANGELOG.markdown
                      data/inline-strings.xlsx
                      data/floats.xlsx
+                     data/absolute_relationships.xlsx
 
 Homepage:            https://github.com/qrilka/xlsx
 Bug-Reports:         https://github.com/qrilka/xlsx/issues
