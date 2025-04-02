@@ -1,3 +1,8 @@
+1.1.4
+------------
+* fix the problem with leading slashes for comments, drawings and pivot tables
+  (thanks to  mindston <mindston@eml.cc>)
+
 1.1.3
 ------------
 * fixed compatibility with xml-conduit moving `rsPretty` into internal module
