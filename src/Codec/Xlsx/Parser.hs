@@ -336,7 +336,7 @@ extractSheetFast ar sst contentTypes caches wf = do
               Nothing -> throwError "bad shared string index"
           "inlineStr" -> mapM (fmap xlsxTextToCellValue . fromXenoNode) isNode
           "str" -> fmap CellText <$> vConverted
-          "n" -> fmap CellDouble <$> vConverted
+          "n" -> fmap CellDecimal <$> vConverted
           "b" -> fmap CellBool <$> vConverted
           "e" -> fmap CellError <$> vConverted
           unexpected ->
@@ -514,7 +514,7 @@ extractCellValue sst t cur
   | t == "inlineStr" =
     cur $/ element (n_ "is") >=> fmap xlsxTextToCellValue . fromCursor
   | t == "str" = CellText <$> vConverted "string"
-  | t == "n" = CellDouble <$> vConverted "double"
+  | t == "n" = CellDecimal <$> vConverted "scientific"
   | t == "b" = CellBool <$> vConverted "boolean"
   | t == "e" = CellError <$> vConverted "error"
   | otherwise = fail "bad cell value"
