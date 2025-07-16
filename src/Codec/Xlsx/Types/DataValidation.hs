@@ -106,6 +106,9 @@ data DataValidation = DataValidation
     , _dvPrompt           :: Maybe Text
     , _dvPromptTitle      :: Maybe Text
     , _dvShowDropDown     :: Bool
+    -- ^ A boolean value indicating whether to display a dropdown combo box for a list type data validation.
+    -- Note that it has an inverted logic, false shows the dropdown list and true will render the dropdown as
+    -- plain text instead.
     , _dvShowErrorMessage :: Bool
     , _dvShowInputMessage :: Bool
     , _dvValidationType   :: ValidationType
@@ -335,7 +338,7 @@ instance ToElement DataValidation where
           ValidationTypeWhole f      -> opExp $ viewValidationExpression f
           ValidationTypeList as      ->
             let renderPlainList l =
-                  let csvFy xs = T.intercalate "," xs
+                  let csvFy = T.intercalate ","
                       reQuote x = '"' `T.cons`  x `T.snoc` '"'
                     in reQuote (csvFy l)
                 f = Formula $
