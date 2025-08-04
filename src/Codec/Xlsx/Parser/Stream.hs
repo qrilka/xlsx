@@ -44,7 +44,9 @@ module Codec.Xlsx.Parser.Stream
   , getOrParseSharedStringss
   , getWorkbookInfo
   , CellRow
+  -- * using a sheet
   , readSheet
+  , getSheetConduit
   , countRowsInSheet
   , collectItems
   -- ** Index
@@ -75,6 +77,7 @@ import Codec.Xlsx.Types.Internal.Relationships (Relationship (..),
                                                 Relationships (..))
 import Conduit (PrimMonad, (.|))
 import qualified Conduit as C
+import qualified Data.Conduit.Combinators as CC
 import qualified Data.Vector as V
 #ifdef USE_MICROLENS
 import Lens.Micro
@@ -86,6 +89,7 @@ import Lens.Micro.TH
 import Control.Lens
 #endif
 import Codec.Xlsx.Parser.Internal
+import Control.Exception(throwIO)
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Except
@@ -109,6 +113,7 @@ import qualified Data.Text.Read as Read
 import Data.Traversable (for)
 import Data.XML.Types
 import GHC.Generics
+import GHC.Stack
 import Control.DeepSeq
 import Codec.Xlsx.Parser.Internal.Memoize
 
@@ -286,7 +291,7 @@ parseSharedStringss = do
         else do
           let state0 = initialSharedStrings
           byteSrc <- Zip.getEntrySource sharedStrsSel
-          st <- liftIO $ runExpat state0 byteSrc $ \evs -> forM_ evs $ \ev -> do
+          st <- liftIO $ runCallbackExpat state0 byteSrc $ \evs -> forM_ evs $ \ev -> do
             mTxt <- parseSharedStrings ev
             for_ mTxt $ \txt ->
               ss_list %= (`DL.snoc` txt)
@@ -300,7 +305,7 @@ readWorkbookInfo :: Zip.ZipArchive WorkbookInfo
 readWorkbookInfo = do
    sel <- Zip.mkEntrySelector "xl/workbook.xml"
    src <- Zip.getEntrySource sel
-   sheets <- liftIO $ runExpat [] src $ \evs -> forM_ evs $ \case
+   sheets <- liftIO $ runCallbackExpat [] src $ \evs -> forM_ evs $ \case
      StartElement ("sheet" :: ByteString) attrs -> do
        nm <- lookupBy "name" attrs
        sheetId <- lookupBy "sheetId" attrs
@@ -323,7 +328,7 @@ readWorkbookRelationships :: Zip.ZipArchive Relationships
 readWorkbookRelationships = do
    sel <- Zip.mkEntrySelector "xl/_rels/workbook.xml.rels"
    src <- Zip.getEntrySource sel
-   liftIO $ fmap Relationships $ runExpat mempty src $ \evs -> forM_ evs $ \case
+   liftIO $ fmap Relationships $ runCallbackExpat mempty src $ \evs -> forM_ evs $ \case
      StartElement ("Relationship" :: ByteString) attrs -> do
        rId <- lookupBy "Id" attrs
        rTarget <- lookupBy "Target" attrs
@@ -383,57 +388,122 @@ getSheetXmlSource sheetId = do
           Just <$> liftZip (Zip.getEntrySource sheetSel)
     _ -> pure Nothing
 
-{-# SCC runExpat #-}
-runExpat :: forall state tag text.
+getSheetConduit :: (MonadIO m, PrimMonad m, MonadThrow m, C.MonadResource m)
+  => SheetIndex ->
+  XlsxM (Maybe (ConduitT () SheetItem m ()))
+getSheetConduit (MkSheetIndex sheetId) = do
+  msource <- getSheetXmlSource sheetId
+  initState <- makeInitialSheetState (MkSheetIndex sheetId)
+  pure $ msource <&> \source -> do
+        (parseChunk, _getLoc) <- liftIO $ Hexpat.hexpatNewParser Nothing Nothing False
+        stateRef <- liftIO $ newIORef initState
+        source
+                        .| expatConduit parseChunk
+                        .| saxRowConduit stateRef
+                        .| CC.map (MkSheetItem sheetId)
+
+expatConduit ::
+  forall tag text m .
+  (GenericXMLString tag, GenericXMLString text, MonadIO m, HasCallStack) =>
+  HParser ->
+  ConduitT ByteString (SAXEvent tag text) m ()
+expatConduit parseChunk = do
+  mUpstream <- C.await
+  case mUpstream of
+    Just upstreamBs -> do
+      traverse_ C.yield =<< liftIO (processChunk @tag @text parseChunk False upstreamBs)
+      expatConduit parseChunk
+    Nothing -> do
+      traverse_ C.yield =<< liftIO (processChunk @tag @text parseChunk True BS.empty)
+
+saxRowConduit ::
+  (MonadIO m) =>
+  IORef SheetState ->
+  ConduitT (SAXEvent ByteString Text) Row m ()
+saxRowConduit sheetStateRef =
+      CC.concatMapM $ \sax -> do
+          curState <- liftIO $ readIORef sheetStateRef
+          (row, nextState) <- flip runStateT curState $ saxToRow sax
+          liftIO $ writeIORef sheetStateRef nextState
+          case row of
+            RowError err -> liftIO $ throwIO err -- crash
+            RowInProgress -> pure $ Nothing -- filter
+            RowCompleted completed -> pure $ Just completed -- result
+
+{-# SCC runCallbackExpat #-}
+runCallbackExpat :: forall state tag text.
   (GenericXMLString tag, GenericXMLString text) =>
   state ->
   ConduitT () ByteString (C.ResourceT IO) () ->
   ([SAXEvent tag text] -> StateT state IO ()) ->
   IO state
-runExpat initialState byteSource handler = do
+runCallbackExpat initialState byteSource handler = do
   -- Set up state
   ref <- newIORef initialState
   -- Set up parser and callbacks
   (parseChunk, _getLoc) <- Hexpat.hexpatNewParser Nothing Nothing False
-  let noExtra _ offset = pure ((), offset)
-      {-# SCC processChunk #-}
-      {-# INLINE processChunk #-}
-      processChunk isFinalChunk chunk = do
+  let callHandlerState hexpat = do
+            -- you'd say you could factor this out completly
+            -- dealing with state shouldn't be part at all of this function
+            state0 <- readIORef ref
+            state1 <- execStateT (handler hexpat) state0
+            writeIORef ref state1
+
+  C.runConduitRes $
+    byteSource .|
+    C.awaitForever (\x -> liftIO $
+                       callHandlerState =<< processChunk @tag @text parseChunk False x
+
+                   )
+  callHandlerState =<< processChunk @tag @text parseChunk True BS.empty
+  readIORef ref
+
+{-# SCC processChunk #-}
+{-# INLINE processChunk #-}
+processChunk :: forall tag text.
+  (GenericXMLString tag, GenericXMLString text, HasCallStack) =>
+  HParser -> Bool -> ByteString -> IO [SAXEvent tag text]
+processChunk parseChunk isFinalChunk chunk = do
         (buf, len, mError) <- parseChunk chunk isFinalChunk
         saxen <- HexpatInternal.parseBuf buf len noExtra
         case mError of
           Just err -> error $ "expat error: " <> show err
           Nothing -> do
-            state0 <- liftIO $ readIORef ref
-            state1 <-
-              {-# SCC "runExpat_runStateT_call" #-}
-              execStateT (handler $ map fst saxen) state0
-            writeIORef ref state1
-  C.runConduitRes $
-    byteSource .|
-    C.awaitForever (liftIO . processChunk False)
-  processChunk True BS.empty
-  readIORef ref
-
+            pure $ map fst saxen
+        where
+          noExtra _ offset = pure ((), offset)
 runExpatForSheet ::
   SheetState ->
   ConduitT () ByteString (C.ResourceT IO) () ->
   (SheetItem -> IO ()) ->
   XlsxM ()
 runExpatForSheet initState byteSource inner =
-  void $ liftIO $ runExpat initState byteSource handler
+  void $ liftIO $ runCallbackExpat initState byteSource handler
   where
-    sheetName = _ps_sheet_index initState
+    sheetIndex = _ps_sheet_index initState
     handler evs = forM_ evs $ \ev -> do
+      si <- saxToRow ev
+      liftIO $ case si of
+        RowError err -> throwIO err
+        RowInProgress -> pure ()
+        RowCompleted completed -> inner $ MkSheetItem sheetIndex $ completed
+
+data SaxToRowResult = RowError SheetErrors -- ^ something went wrong
+                    | RowInProgress -- ^ hasn't finished a row
+                    | RowCompleted Row
+
+saxToRow ::
+  (HasSheetState m) =>
+  SAXEvent ByteString Text -> m SaxToRowResult
+saxToRow ev = do
       parseRes <- runExceptT $ matchHexpatEvent ev
       case parseRes of
-        Left err -> throwM err
+        Left err -> pure $ RowError err
         Right (Just cellRow)
           | not (IntMap.null cellRow) -> do
               rowNum <- use ps_cell_row_index
-              liftIO $ inner $ MkSheetItem sheetName $ MkRow rowNum cellRow
-        _ -> pure ()
-
+              pure $ RowCompleted $ MkRow rowNum cellRow
+        _ -> pure RowInProgress
 -- | this will collect the sheetitems in a list.
 --   useful for cases were memory is of no concern but a sheetitem
 --   type in a list is needed.
@@ -481,12 +551,16 @@ readSheet (MkSheetIndex sheetId) inner = do
   case mSrc of
     Nothing -> pure False
     Just sourceSheetXml -> do
-      sharedStrs <- getOrParseSharedStringss
-      let sheetState0 = initialSheetState
-            & ps_shared_strings .~ sharedStrs
-            & ps_sheet_index .~ sheetId
+      sheetState0 <- makeInitialSheetState (MkSheetIndex sheetId)
       runExpatForSheet sheetState0 sourceSheetXml inner
       pure True
+
+makeInitialSheetState :: SheetIndex -> XlsxM SheetState
+makeInitialSheetState (MkSheetIndex sheetId) = do
+      sharedStrs <- getOrParseSharedStringss
+      pure $ initialSheetState
+            & ps_shared_strings .~ sharedStrs
+            & ps_sheet_index .~ sheetId
 
 -- | Returns number of rows in the given sheet (identified by the
 -- sheet's ID, AKA the sheetId attribute, AKA 'sheetInfoSheetId'), or Nothing
@@ -498,7 +572,7 @@ countRowsInSheet (MkSheetIndex sheetId) = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
     getSheetXmlSource sheetId
   for mSrc $ \sourceSheetXml -> do
-    liftIO $ runExpat @Int @ByteString @ByteString 0 sourceSheetXml $ \evs ->
+    liftIO $ runCallbackExpat @Int @ByteString @ByteString 0 sourceSheetXml $ \evs ->
       forM_ evs $ \case
         StartElement "row" _ -> modify' (+1)
         _                    -> pure ()
