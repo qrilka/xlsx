@@ -6,12 +6,16 @@ import Codec.Xlsx.Parser.Stream
 import Codec.Xlsx.Writer.Stream
 import Control.DeepSeq
 import Control.Lens
-import Control.Monad (void)
+import Control.Monad (unless, void)
+import Control.Monad.IO.Class (liftIO)
 import Criterion.Main
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
+import Data.Conduit ((.|))
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Combinators as C
+import Data.Foldable (for_)
+import Data.IORef
 import Data.Maybe
 
 main :: IO ()
@@ -34,15 +38,29 @@ main = do
         , bench "with stream (reading)" $ nfIO $ runXlsxM filename $ readSheet idx (pure . rwhnf)
         ]
     , bgroup
+        "read partial data (100 rows)"
+        [ bench "with readSheet" $ nfIO $ runXlsxM filename $ do
+            rowsRef <- liftIO $ newIORef []
+            readSheet idx $ \ sheetItem -> do
+              existing <- readIORef rowsRef
+              unless (length existing > 100) $
+                writeIORef rowsRef $ sheetItem:existing
+            liftIO $ readIORef rowsRef
+        , bench "with stream (conduit)" $ nfIO $ runXlsxM filename $ do
+            mConduit <- getSheetConduit idx
+            for_ mConduit $ \conduit ->
+              liftIO $ C.runConduitRes $ conduit .| C.take 100 .| C.sinkList
+        ]
+    , bgroup
         "writeFile"
         [ bench "with xlsx" $ nf (fromXlsx 0) parsed
         , bench "with stream (no sst)" $
           nfIO $ C.runConduit $
             void (writeXlsxWithSharedStrings defaultSettings mempty $ C.yieldMany $ view si_row <$> items)
-            C..| C.fold
+            .| C.fold
         , bench "with stream (sst)" $
           nfIO $ C.runConduit $
             void (writeXlsx defaultSettings $ C.yieldMany $ view si_row <$> items)
-            C..| C.fold
+            .| C.fold
         ]
     ]

@@ -26,6 +26,8 @@ import Codec.Xlsx
 import Codec.Xlsx.Parser.Stream
 import Conduit ((.|))
 import qualified Conduit as C
+import qualified Data.Conduit.Combinators as CC
+import Control.Exception (bracket)
 import Control.Lens hiding (indexed)
 import Control.Monad (void)
 import Data.Set.Lens
@@ -86,6 +88,17 @@ tests =
                   $ readWrite bigWorkbook
       -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
       -- TODO forall SheetItem write that can be read
+
+      , testGroup "Conduit" [
+        testCase "Write as stream, using conduit parser (simpleWorkbook)" $ readWriteConduit simpleWorkbook
+      , testCase "Write as stream, using conduit parser (simpleWorkbookRow)" $ readWriteConduit simpleWorkbookRow
+      , testCase "Write as stream, using conduit parser (bigWorkbook)" $ readWriteConduit bigWorkbook
+      , testGroup "No sst" [
+        testCase "Write as stream, using conduit parser (simpleWorkbook)" $ readWriteConduitNoSst simpleWorkbook
+      , testCase "Write as stream, using conduit parser (simpleWorkbookRow)" $ readWriteConduitNoSst simpleWorkbookRow
+      , testCase "Write as stream, using conduit parser (bigWorkbook)" $ readWriteConduitNoSst bigWorkbook
+        ]
+          ]
       ],
 
       testGroup "Reader/inline strings"
@@ -108,6 +121,41 @@ readWrite input = do
     Left x -> do
       throwIO x
 
+readWriteConduit :: Xlsx -> IO ()
+readWriteConduit input = do
+  BS.writeFile "testinput.xlsx" (toBs input)
+  bs <- runXlsxM "testinput.xlsx" $ do
+    mConduit <- getSheetConduit $ makeIndex 1
+    case mConduit of
+      Nothing -> error "sheet should exist"
+      Just conduit -> liftIO $ runConduitRes $ void (SW.writeXlsx SW.defaultSettings (conduit .| CC.map (view si_row))) .| C.foldC
+
+  case toXlsxEither $ LB.fromStrict bs of
+    Right result  ->
+      input @==?  result
+    Left x -> do
+      throwIO x
+
+-- No sst behaves differently frmo the normal writexlsx because
+-- the sst table isn't first constructed.
+-- this results in a single pass instead of a double pass.
+-- it turns out that in certain cases this test would pass
+-- but the writeXlsx wouldn't, which indicates brittleness within
+-- the statefull hexpat parser.
+readWriteConduitNoSst :: Xlsx -> IO ()
+readWriteConduitNoSst input = do
+  BS.writeFile "testinput.xlsx" (toBs input)
+  bs <- runXlsxM "testinput.xlsx" $ do
+    mConduit <- getSheetConduit $ makeIndex 1
+    case mConduit of
+      Nothing -> error "sheet should exist"
+      Just conduit -> liftIO $ runConduitRes $ void (SW.writeXlsxWithSharedStrings SW.defaultSettings mempty (conduit .| CC.map (view si_row))) .| C.foldC
+
+  case toXlsxEither $ LB.fromStrict bs of
+    Right result  ->
+      input @==?  result
+    Left x -> do
+      throwIO x
 -- test if the input text is also the result (a property we use for convenience)
 sharedStringInputSameAsOutput :: Text -> Either String String
 sharedStringInputSameAsOutput someText =
