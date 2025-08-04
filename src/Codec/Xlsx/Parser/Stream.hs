@@ -450,7 +450,7 @@ collectItems sheetId = do
 --   can be done with 'makeIndexFromName', which is the preferred approach.
 --   although 'makeIndex' is available in case it's already known.
 newtype SheetIndex = MkSheetIndex Int
- deriving newtype NFData
+ deriving newtype (NFData, Show)
 
 -- | This does *no* checking if the index exists or not.
 --   you could have index out of bounds issues because of this.

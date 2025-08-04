@@ -141,7 +141,7 @@ writeXlsx :: MonadThrow m
     -> ConduitT () ByteString m Word64 -- ^ result conduit producing xlsx files
 writeXlsx settings sheetC = do
     sstrings  <- sheetC .| sharedStrings
-    writeXlsxWithSharedStrings settings sstrings [sheetC]
+    writeXlsxWithSharedStrings settings sstrings [("Sheet1", sheetC)]
 
 -- | Same as 'writeXlsx' but write to multiple sheets.
 writeXlsxMultipleSheets :: MonadThrow m
@@ -149,13 +149,13 @@ writeXlsxMultipleSheets :: MonadThrow m
     => SheetWriteSettings
     -- ^ use 'defaultSettings'.
     -- Currently, all sheets will use the same setting.
-    -> [ConduitT () Row m ()]
+    -> [(Text, ConduitT () Row m ())]
     -- ^ the conduits producing sheetitems for each sheet
     -> ConduitT () ByteString m Word64 -- ^ result conduit producing xlsx files
-writeXlsxMultipleSheets settings items = do
-    -- let allSheets = foldl (>>) mempty $ map _swRowConduit sheetWriters
-    sstrings  <- mempty .| sharedStrings
-    writeXlsxWithSharedStrings settings sstrings items
+writeXlsxMultipleSheets settings sheets = do
+    let rowConduits = foldl (>>) mempty $ map snd sheets
+    sstrings  <- rowConduits .| sharedStrings
+    writeXlsxWithSharedStrings settings sstrings sheets
 
 -- TODO maybe should use bimap instead: https://hackage.haskell.org/package/bimap-0.4.0/docs/Data-Bimap.html
 -- it guarantees uniqueness of both text and int
@@ -175,30 +175,30 @@ writeXlsxMultipleSheets settings items = do
 writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m
     => SheetWriteSettings
     -> Map Text Int -- ^ shared strings table
-    -> [ConduitT () Row m ()]
+    -> [(Text, ConduitT () Row m ())]
     -> ConduitT () ByteString m Word64
-writeXlsxWithSharedStrings settings sharedStrings' items =
-  combinedFiles settings sharedStrings' items .| zipStream (settings ^. wsZip)
+writeXlsxWithSharedStrings settings sharedStrings' sheets =
+  combinedFiles settings sharedStrings' sheets .| zipStream (settings ^. wsZip)
 
 combinedFiles :: PrimMonad m
   => SheetWriteSettings
   -> Map Text Int
-  -> [ConduitT () Row m ()]
+  -> [(Text, ConduitT () Row m ())]
   -> ConduitT () (ZipEntry, ZipData m) m ()
-combinedFiles settings sharedStrings' items =
-  let sheets = map (\(rowConduit, sheetId) ->
+combinedFiles settings sharedStrings' sheets =
+  let zippedSheets = map (\(sheetId, rowConduit) ->
         ( zipEntry ("xl/worksheets/sheet" <> Text.pack (show sheetId) <> ".xml")
         , ZipDataSource $ rowConduit .| C.runReaderC settings (writeWorkSheet sharedStrings') .| eventsToBS
-        )) $ zip items $ [1..(length items)]
+        )) $ zip [1..(length sheets)] $ map snd sheets
   in
   C.yieldMany $
     [ (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sharedStrings' .| eventsToBS)
     , (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
-    , (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook (length items) .| eventsToBS)
+    , (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook (map fst sheets) .| eventsToBS)
     , (zipEntry "xl/styles.xml", ZipDataByteString $ coerce $ settings ^. wsStyles)
     , (zipEntry "xl/_rels/workbook.xml.rels", ZipDataSource $ writeWorkbookRels (length sheets) .| eventsToBS)
     , (zipEntry "_rels/.rels", ZipDataSource $ writeRootRels .| eventsToBS)
-    ] <> sheets
+    ] <> zippedSheets
 
 el :: Monad m => Name -> Monad m => forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 el x = tag x mempty
@@ -212,7 +212,6 @@ override content' part =
       (attr "ContentType" content'
        <> attr "PartName" part) $ pure ()
 
-
 -- | required by Excel.
 writeContentTypes :: Monad m => forall i.  ConduitT i Event m ()
 writeContentTypes = doc "{http://schemas.openxmlformats.org/package/2006/content-types}Types" $ do
@@ -224,15 +223,16 @@ writeContentTypes = doc "{http://schemas.openxmlformats.org/package/2006/content
     override "application/vnd.openxmlformats-package.relationships+xml" "/_rels/.rels"
 
 -- | required by Excel.
-writeWorkbook :: Monad m => Int -> forall i.  ConduitT i Event m ()
-writeWorkbook sheetCount =
-  let addSheet sheetId = tag (n_ "sheet")
-          (attr "name" ("Sheet" <> (Text.pack $ show sheetId))
+writeWorkbook :: Monad m => [Text] -> forall i.  ConduitT i Event m ()
+writeWorkbook sheetNames =
+  let addSheet (sheetId, sheetName) = tag (n_ "sheet")
+          (attr "name" sheetName
           <> attr "sheetId" (Text.pack $ show sheetId)
           <> attr (odr "id") ("rId" <> (Text.pack $ show (sheetId + 2)))
           ) $ pure ()
+      sheetIdAndName = zip [1..(length sheetNames)] sheetNames
   in doc (n_ "workbook") $
-    el (n_ "sheets") $ mapM_ addSheet [1..sheetCount]
+    el (n_ "sheets") $ mapM_ addSheet sheetIdAndName
 
 doc :: Monad m => Name ->  forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 doc root docM = do

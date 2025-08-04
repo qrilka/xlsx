@@ -112,13 +112,16 @@ readWrite input = do
 
 readWriteMultipleSheets :: Xlsx -> IO ()
 readWriteMultipleSheets input = do
-  BS.writeFile "testinput.xlsx" (toBs input)
-  sheetConduits <- runXlsxM "testinput.xlsx" $ do
-    sheetCount <- length . _wiSheets <$> getWorkbookInfo
-    sheetItems <- mapM (collectItems . makeIndex) [1..sheetCount]
-    pure $ map (C.yieldMany . toListOf (traversed . si_row)) sheetItems
+  BS.writeFile "testinput.xlsx" $ toBs input
+  sheetNamesAndConduits <- runXlsxM "testinput.xlsx" $ do
+    sheets <- reverse . _wiSheets <$> getWorkbookInfo
+    let sheetCount = length sheets
+    let sheetNames = map sheetInfoName sheets
+    sheetConduits <- map (C.yieldMany . toListOf (traversed . si_row))
+      <$> mapM (collectItems . makeIndex) [1..sheetCount]
+    pure $ zip sheetNames sheetConduits
 
-  bs <- runConduitRes $ void (SW.writeXlsxMultipleSheets SW.defaultSettings sheetConduits) .| C.foldC
+  bs <- runConduitRes $ void (SW.writeXlsxMultipleSheets SW.defaultSettings sheetNamesAndConduits) .| C.foldC
   case toXlsxEither $ LB.fromStrict bs of
     Right result  -> input @==? result
     Left x -> throwIO x
@@ -217,7 +220,7 @@ bigWorkbook = def & atSheet "Sheet1" ?~ sheet
 --      )]
 
 multipleSheetsWorkbook :: Xlsx
-multipleSheetsWorkbook = simpleWorkbook & atSheet "Sheet2" ?~ sheet
+multipleSheetsWorkbook = simpleWorkbook & atSheet "my Sheet 2" ?~ sheet
   where
     sheet = toWs [ ((RowIndex 1, ColumnIndex 1), cellValue ?~ CellText "text at A1 Sheet2" $ def)
                  , ((RowIndex 1, ColumnIndex 2), cellValue ?~ CellText "text at B1 Sheet2" $ def) ]
