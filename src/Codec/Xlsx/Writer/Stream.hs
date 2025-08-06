@@ -36,7 +36,7 @@ import Codec.Xlsx.Types (ColumnsProperties (..), RowProperties (..),
                          emptyStyles, rowHeightLens)
 import Codec.Xlsx.Types.Cell
 import Codec.Xlsx.Types.Common
-import Codec.Xlsx.Types.Internal.Relationships (odr, pr)
+import Codec.Xlsx.Types.Internal.Relationships (odr, pr, odRelNs)
 import Codec.Xlsx.Types.SheetViews
 import Codec.Xlsx.Writer.Internal (nonEmptyElListSimple, toAttrVal, toElement,
                                    txtd, txti)
@@ -194,7 +194,9 @@ combinedFiles settings sharedStrings' sheets =
   C.yieldMany $
     [ (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sharedStrings' .| eventsToBS)
     , (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
-    , (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook (map fst sheets) .| eventsToBS)
+    , (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook (map fst sheets)
+    .| renderBuilder ( def {rsNamespaces=[("r", odRelNs)]})
+    .| C.builderToByteString)
     , (zipEntry "xl/styles.xml", ZipDataByteString $ coerce $ settings ^. wsStyles)
     , (zipEntry "xl/_rels/workbook.xml.rels", ZipDataSource $ writeWorkbookRels (length sheets) .| eventsToBS)
     , (zipEntry "_rels/.rels", ZipDataSource $ writeRootRels .| eventsToBS)
