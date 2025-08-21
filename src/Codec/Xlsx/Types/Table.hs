@@ -90,9 +90,9 @@ instance FromCursor Table where
     tblDisplayName <- fromAttribute "displayName" c
     tblName <- maybeAttribute "name" c
     tblRef <- fromAttribute "ref" c
-    tblAutoFilter <- maybeFromElement (n_ "autoFilter") c
+    tblAutoFilter <- maybeFromElement (addSmlNamespace "autoFilter") c
     let tblColumns =
-          c $/ element (n_ "tableColumns") &/ element (n_ "tableColumn") >=>
+          c $/ element (addSmlNamespace "tableColumns") &/ element (addSmlNamespace "tableColumn") >=>
           fmap TableColumn . fromAttribute "name"
     return Table {..}
 

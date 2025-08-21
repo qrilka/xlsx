@@ -21,5 +21,5 @@ tests =
   testGroup
     "Types.AutFilter tests"
     [ testProperty "fromCursor . toElement == id" $ \(autoFilter :: AutoFilter) ->
-        [autoFilter] == fromCursor (cursorFromElement $ toElement (n_ "autoFilter") autoFilter)
+        [autoFilter] == fromCursor (cursorFromElement $ toElement (addSmlNamespace "autoFilter") autoFilter)
     ]

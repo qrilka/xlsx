@@ -364,7 +364,7 @@ extractSheet ar sst contentTypes caches wf = do
 
   -- The specification says the file should contain either 0 or 1 @sheetViews@
   -- (4th edition, section 18.3.1.88, p. 1704 and definition CT_Worksheet, p. 3910)
-  let  sheetViewList = cur $/ element (n_ "sheetViews") &/ element (n_ "sheetView") >=> fromCursor
+  let  sheetViewList = cur $/ element (addSmlNamespace "sheetViews") &/ element (addSmlNamespace "sheetView") >=> fromCursor
        sheetViews = case sheetViewList of
          []    -> Nothing
          views -> Just views
@@ -372,18 +372,18 @@ extractSheet ar sst contentTypes caches wf = do
   let commentsType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
       commentTarget :: Maybe FilePath
       commentTarget = logicalNameToZipItemName . relTarget <$> findRelByType commentsType sheetRels
-      legacyDrRId = cur $/ element (n_ "legacyDrawing") >=> fromAttribute (odr"id")
+      legacyDrRId = cur $/ element (addSmlNamespace "legacyDrawing") >=> fromAttribute (odr"id")
       legacyDrPath = fmap (logicalNameToZipItemName . relTarget) . flip Relationships.lookup sheetRels  =<< listToMaybe legacyDrRId
 
   commentsMap :: Maybe CommentTable <- maybe (Right Nothing) (getComments ar legacyDrPath) commentTarget
 
   -- Likewise, @pageSetup@ also occurs either 0 or 1 times
-  let pageSetup = listToMaybe $ cur $/ element (n_ "pageSetup") >=> fromCursor
+  let pageSetup = listToMaybe $ cur $/ element (addSmlNamespace "pageSetup") >=> fromCursor
 
-      cws = cur $/ element (n_ "cols") &/ element (n_ "col") >=> fromCursor
+      cws = cur $/ element (addSmlNamespace "cols") &/ element (addSmlNamespace "col") >=> fromCursor
 
       (rowProps, cells0, sharedFormulas) =
-        collect $ cur $/ element (n_ "sheetData") &/ element (n_ "row") >=> parseRow
+        collect $ cur $/ element (addSmlNamespace "sheetData") &/ element (addSmlNamespace "row") >=> parseRow
       parseRow ::
            Cursor
         -> [( RowIndex
@@ -404,7 +404,7 @@ extractSheet ar sst contentTypes caches wf = do
               }
         return ( r
                , if prop == def then Nothing else Just prop
-               , c $/ element (n_ "c") >=> parseCell
+               , c $/ element (addSmlNamespace "c") >=> parseCell
                )
       parseCell ::
            Cursor
@@ -421,7 +421,7 @@ extractSheet ar sst contentTypes caches wf = do
             -- </xsd:complexType>
             t = fromMaybe "n" $ listToMaybe $ cell $| attribute "t"
             d = listToMaybe $ extractCellValue sst t cell
-            mFormulaData = listToMaybe $ cell $/ element (n_ "f") >=> formulaDataFromCursor
+            mFormulaData = listToMaybe $ cell $/ element (addSmlNamespace "f") >=> formulaDataFromCursor
             f = fst <$> mFormulaData
             shared = snd =<< mFormulaData
             (r, c) = fromSingleCellRefNoting ref
@@ -451,24 +451,24 @@ extractSheet ar sst contentTypes caches wf = do
           ]
       cells = cells0 `M.union` commentCells
 
-      mProtection = listToMaybe $ cur $/ element (n_ "sheetProtection") >=> fromCursor
+      mProtection = listToMaybe $ cur $/ element (addSmlNamespace "sheetProtection") >=> fromCursor
 
-      mDrawingId = listToMaybe $ cur $/ element (n_ "drawing") >=> fromAttribute (odr"id")
+      mDrawingId = listToMaybe $ cur $/ element (addSmlNamespace "drawing") >=> fromAttribute (odr"id")
 
       merges = cur $/ parseMerges
       parseMerges :: Cursor -> [Range]
-      parseMerges = element (n_ "mergeCells") &/ element (n_ "mergeCell") >=> fromAttribute "ref"
+      parseMerges = element (addSmlNamespace "mergeCells") &/ element (addSmlNamespace "mergeCell") >=> fromAttribute "ref"
 
-      condFormtattings = M.fromList . map unCfPair  $ cur $/ element (n_ "conditionalFormatting") >=> fromCursor
+      condFormtattings = M.fromList . map unCfPair  $ cur $/ element (addSmlNamespace "conditionalFormatting") >=> fromCursor
 
       validations = M.fromList . map unDvPair $
-          cur $/ element (n_ "dataValidations") &/ element (n_ "dataValidation") >=> fromCursor
+          cur $/ element (addSmlNamespace "dataValidations") &/ element (addSmlNamespace "dataValidation") >=> fromCursor
 
       tableIds =
-        cur $/ element (n_ "tableParts") &/ element (n_ "tablePart") >=>
+        cur $/ element (addSmlNamespace "tableParts") &/ element (addSmlNamespace "tablePart") >=>
         fromAttribute (odr "id")
 
-  let mAutoFilter = listToMaybe $ cur $/ element (n_ "autoFilter") >=> fromCursor
+  let mAutoFilter = listToMaybe $ cur $/ element (addSmlNamespace "autoFilter") >=> fromCursor
 
   mDrawing <- case mDrawingId of
       Just dId -> do
@@ -515,7 +515,7 @@ extractCellValue sst t cur
       Just xlTxt -> return $ xlsxTextToCellValue xlTxt
       Nothing -> fail "bad shared string index"
   | t == "inlineStr" =
-    cur $/ element (n_ "is") >=> fmap xlsxTextToCellValue . fromCursor
+    cur $/ element (addSmlNamespace "is") >=> fmap xlsxTextToCellValue . fromCursor
   | t == "str" = CellText <$> vConverted "string"
   | t == "n" = CellDouble <$> vConverted "double"
   | t == "b" = CellBool <$> vConverted "boolean"
@@ -523,7 +523,7 @@ extractCellValue sst t cur
   | otherwise = fail "bad cell value"
   where
     vConverted typeStr = do
-      vContent <- cur $/ element (n_ "v") >=> \c ->
+      vContent <- cur $/ element (addSmlNamespace "v") >=> \c ->
         return (T.concat $ c $/ content)
       case fromAttrVal vContent of
         Right (val, _) -> return $ val
@@ -654,15 +654,15 @@ readWorkbook ar = do
           , listToMaybe $ attribute "localSheetId" c
           , T.concat $ c $/ content)
       names =
-        cur $/ element (n_ "definedNames") &/ element (n_ "definedName") >=>
+        cur $/ element (addSmlNamespace "definedNames") &/ element (addSmlNamespace "definedName") >=>
         mkDefinedName
   sheets <-
     sequence $
-    cur $/ element (n_ "sheets") &/ element (n_ "sheet") >=>
+    cur $/ element (addSmlNamespace "sheets") &/ element (addSmlNamespace "sheet") >=>
     liftM4 (worksheetFile wbPath wbRels) <$> attribute "name" <*> fromAttribute "sheetId" <*> fromAttributeDef "state" def <*>
     fromAttribute (odr "id")
   let cacheRefs =
-        cur $/ element (n_ "pivotCaches") &/ element (n_ "pivotCache") >=>
+        cur $/ element (addSmlNamespace "pivotCaches") &/ element (addSmlNamespace "pivotCache") >=>
         liftA2 (,) <$> fromAttribute "cacheId" <*> fromAttribute (odr "id")
   caches <-
     forM cacheRefs $ \(cacheId, rId) -> do
@@ -677,14 +677,14 @@ readWorkbook ar = do
           cacheRels <- getRels ar path
           recsPath <- lookupRelPath path cacheRels recId
           rCur <- xmlCursorRequired ar recsPath
-          let recs = rCur $/ element (n_ "r") >=> \cur' ->
+          let recs = rCur $/ element (addSmlNamespace "r") >=> \cur' ->
                 return $ cur' $/ anyElement >=> recordValueFromNode . node
           return $ fillCacheFieldsFromRecords fields0 recs
         Nothing ->
           return fields0
       return $ (cacheId, (sheet, ref, fields))
   let dateBase = bool DateBase1900 DateBase1904 . fromMaybe False . listToMaybe $
-                 cur $/ element (n_ "workbookPr") >=> fromAttribute "date1904"
+                 cur $/ element (addSmlNamespace "workbookPr") >=> fromAttribute "date1904"
   return (sheets, DefinedNames names, caches, dateBase)
 
 getTable :: Zip.Archive -> FilePath -> Parser Table

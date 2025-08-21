@@ -20,5 +20,5 @@ tests =
   testGroup
     "Types.ConditionalFormatting tests"
     [ testProperty "fromCursor . toElement == id" $ \(cFmt :: CfRule) ->
-        [cFmt] == fromCursor (cursorFromElement $ toElement (n_ "cfRule") cFmt)
+        [cFmt] == fromCursor (cursorFromElement $ toElement (addSmlNamespace "cfRule") cFmt)
     ]

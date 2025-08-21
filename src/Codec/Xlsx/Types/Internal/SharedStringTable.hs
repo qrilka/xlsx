@@ -82,7 +82,7 @@ instance ToElement SharedStringTable where
 instance FromCursor SharedStringTable where
   fromCursor cur = do
     let
-      items = cur $/ element (n_ "si") >=> fromCursor
+      items = cur $/ element (addSmlNamespace "si") >=> fromCursor
     return (SharedStringTable (V.fromList items))
 
 {-------------------------------------------------------------------------------

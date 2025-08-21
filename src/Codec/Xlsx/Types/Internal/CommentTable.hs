@@ -68,15 +68,15 @@ instance ToElement CommentTable where
 
 instance FromCursor CommentTable where
   fromCursor cur = do
-    let authorNames = cur $/ element (n_ "authors") &/ element (n_ "author") >=> contentOrEmpty
+    let authorNames = cur $/ element (addSmlNamespace "authors") &/ element (addSmlNamespace "author") >=> contentOrEmpty
         authors = M.fromList $ zip [0..] authorNames
-        items = cur $/ element (n_ "commentList") &/ element (n_ "comment") >=> parseComment authors
+        items = cur $/ element (addSmlNamespace "commentList") &/ element (addSmlNamespace "comment") >=> parseComment authors
     return . CommentTable $ M.fromList items
 
 parseComment :: Map Int Text -> Cursor -> [(CellRef, Comment)]
 parseComment authors cur = do
     ref <- fromAttribute "ref" cur
-    txt <- cur $/ element (n_ "text") >=> fromCursor
+    txt <- cur $/ element (addSmlNamespace "text") >=> fromCursor
     authorId <- cur $| attribute "authorId" >=> decimal
     visible <- (read . Text.unpack :: Text -> Bool)
       <$> (fromAttribute "visible" cur :: [Text])

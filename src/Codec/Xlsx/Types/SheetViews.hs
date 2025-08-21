@@ -471,8 +471,8 @@ instance FromCursor SheetView where
     _sheetViewZoomScaleSheetLayoutView <- maybeAttribute "zoomScaleSheetLayoutView" cur
     _sheetViewZoomScalePageLayoutView  <- maybeAttribute "zoomScalePageLayoutView" cur
     _sheetViewWorkbookViewId           <- fromAttribute "workbookViewId" cur
-    let _sheetViewPane = listToMaybe $ cur $/ element (n_ "pane") >=> fromCursor
-        _sheetViewSelection = cur $/ element (n_ "selection") >=> fromCursor
+    let _sheetViewPane = listToMaybe $ cur $/ element (addSmlNamespace "pane") >=> fromCursor
+        _sheetViewSelection = cur $/ element (addSmlNamespace "selection") >=> fromCursor
     return SheetView{..}
 
 instance FromXenoNode SheetView where

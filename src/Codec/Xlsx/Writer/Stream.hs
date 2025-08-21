@@ -29,7 +29,7 @@ module Codec.Xlsx.Writer.Stream
 
 import Codec.Archive.Zip.Conduit.UnZip
 import Codec.Archive.Zip.Conduit.Zip
-import Codec.Xlsx.Parser.Internal (n_)
+import Codec.Xlsx.Parser.Internal (addSmlNamespace)
 import Codec.Xlsx.Parser.Stream
 import Codec.Xlsx.Types (ColumnsProperties (..), RowProperties (..),
                          Styles (..), _AutomaticHeight, _CustomHeight,
@@ -227,14 +227,14 @@ writeContentTypes = doc "{http://schemas.openxmlformats.org/package/2006/content
 -- | required by Excel.
 writeWorkbook :: Monad m => [Text] -> forall i.  ConduitT i Event m ()
 writeWorkbook sheetNames =
-  let addSheet (sheetId, sheetName) = tag (n_ "sheet")
+  let addSheet (sheetId, sheetName) = tag (addSmlNamespace "sheet")
           (attr "name" sheetName
           <> attr "sheetId" (Text.pack $ show sheetId)
           <> attr (odr "id") ("rId" <> (Text.pack $ show (sheetId + 2)))
           ) $ pure ()
       sheetIdAndName = zip [1..(length sheetNames)] sheetNames
-  in doc (n_ "workbook") $
-    el (n_ "sheets") $ mapM_ addSheet sheetIdAndName
+  in doc (addSmlNamespace "workbook") $
+    el (addSmlNamespace "sheets") $ mapM_ addSheet sheetIdAndName
 
 doc :: Monad m => Name ->  forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 doc root docM = do
@@ -274,8 +274,8 @@ eventsToBS :: PrimMonad m  => ConduitT Event ByteString m ()
 eventsToBS = writeEvents .| C.builderToByteString
 
 writeSst ::  Monad m  => Map Text Int  -> forall i.  ConduitT i Event m ()
-writeSst sharedStrings' = doc (n_ "sst") $
-    void $ traverse (el (n_ "si") .  el (n_ "t") . content . fst
+writeSst sharedStrings' = doc (addSmlNamespace "sst") $
+    void $ traverse (el (addSmlNamespace "si") .  el (addSmlNamespace "t") . content . fst
                   ) $ sortBy (\(_, i) (_, y :: Int) -> compare i y) $ Map.toList sharedStrings'
 
 writeEvents ::  PrimMonad m => ConduitT Event Builder m ()
@@ -285,15 +285,15 @@ sheetViews :: forall m . MonadReader SheetWriteSettings m => forall i . ConduitT
 sheetViews = do
   sheetView <- view wsSheetView
 
-  unless (null sheetView) $ el (n_ "sheetViews") $ do
+  unless (null sheetView) $ el (addSmlNamespace "sheetViews") $ do
     let
         view' :: [Element]
-        view' = setNameSpaceRec spreadSheetNS . toXMLElement .  toElement (n_ "sheetView") <$> sheetView
+        view' = setNameSpaceRec spreadSheetNS . toXMLElement .  toElement (addSmlNamespace "sheetView") <$> sheetView
 
     C.yieldMany $ elementToEvents =<< view'
 
 spreadSheetNS :: Text
-spreadSheetNS = fold $ nameNamespace $ n_ ""
+spreadSheetNS = fold $ nameNamespace $ addSmlNamespace ""
 
 setNameSpaceRec :: Text -> Element -> Element
 setNameSpaceRec space xelm =
@@ -308,21 +308,21 @@ columns :: MonadReader SheetWriteSettings m => ConduitT Row Event m ()
 columns = do
   colProps <- view wsColumnProperties
   let cols :: Maybe TXML.Element
-      cols = nonEmptyElListSimple (n_ "cols") $ map (toElement (n_ "col")) colProps
+      cols = nonEmptyElListSimple (addSmlNamespace "cols") $ map (toElement (addSmlNamespace "col")) colProps
   traverse_ (C.yieldMany . elementToEvents . toXMLElement) cols
 
 writeWorkSheet :: MonadReader SheetWriteSettings  m => Map Text Int  -> ConduitT Row Event m ()
-writeWorkSheet sharedStrings' = doc (n_ "worksheet") $ do
+writeWorkSheet sharedStrings' = doc (addSmlNamespace "worksheet") $ do
     sheetViews
     columns
-    el (n_ "sheetData") $ C.awaitForever (mapRow sharedStrings')
+    el (addSmlNamespace "sheetData") $ C.awaitForever (mapRow sharedStrings')
 
 mapRow :: MonadReader SheetWriteSettings m => Map Text Int -> Row -> ConduitT Row Event m ()
 mapRow sharedStrings' sheetItem = do
   mRowProp <- preview $ wsRowProperties . ix (unRowIndex rowIx) . rowHeightLens . _Just . failing _CustomHeight _AutomaticHeight
   let rowAttr :: Attributes
       rowAttr = ixAttr <> fold (attr "ht" . txtd <$> mRowProp)
-  tag (n_ "row") rowAttr $
+  tag (addSmlNamespace "row") rowAttr $
     void $ itraverse (mapCell sharedStrings' rowIx) (sheetItem ^. ri_cell_row)
   where
     rowIx = sheetItem ^. ri_row_index
@@ -332,9 +332,9 @@ mapCell ::
   Monad m => Map Text Int -> RowIndex -> Int -> Cell -> ConduitT Row Event m ()
 mapCell sharedStrings' rix cix' cell =
   when (has (cellValue . _Just) cell || has (cellStyle . _Just) cell) $
-  tag (n_ "c") celAttr $
+  tag (addSmlNamespace "c") celAttr $
     when (has (cellValue . _Just) cell) $
-    el (n_ "v") $
+    el (addSmlNamespace "v") $
       content $ renderCell sharedStrings' cell
   where
     cix = ColumnIndex cix'

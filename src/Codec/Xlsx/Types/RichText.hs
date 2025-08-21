@@ -263,8 +263,8 @@ instance ToElement RunProperties where
 -- | See @CT_RElt@, p. 3903
 instance FromCursor RichTextRun where
   fromCursor cur = do
-    _richTextRunText <- cur $/ element (n_ "t") &/ content
-    _richTextRunProperties <- maybeFromElement (n_ "rPr") cur
+    _richTextRunText <- cur $/ element (addSmlNamespace "t") &/ content
+    _richTextRunProperties <- maybeFromElement (addSmlNamespace "rPr") cur
     return RichTextRun{..}
 
 instance FromXenoNode RichTextRun where
@@ -277,21 +277,21 @@ instance FromXenoNode RichTextRun where
 -- | See @CT_RPrElt@, p. 3903
 instance FromCursor RunProperties where
   fromCursor cur = do
-    _runPropertiesFont          <- maybeElementValue (n_ "rFont") cur
-    _runPropertiesCharset       <- maybeElementValue (n_ "charset") cur
-    _runPropertiesFontFamily    <- maybeElementValue (n_ "family") cur
-    _runPropertiesBold          <- maybeBoolElementValue (n_ "b") cur
-    _runPropertiesItalic        <- maybeBoolElementValue (n_ "i") cur
-    _runPropertiesStrikeThrough <- maybeBoolElementValue (n_ "strike") cur
-    _runPropertiesOutline       <- maybeBoolElementValue (n_ "outline") cur
-    _runPropertiesShadow        <- maybeBoolElementValue (n_ "shadow") cur
-    _runPropertiesCondense      <- maybeBoolElementValue (n_ "condense") cur
-    _runPropertiesExtend        <- maybeBoolElementValue (n_ "extend") cur
-    _runPropertiesColor         <- maybeFromElement  (n_ "color") cur
-    _runPropertiesSize          <- maybeElementValue (n_ "sz") cur
-    _runPropertiesUnderline     <- maybeElementValueDef (n_ "u") FontUnderlineSingle cur
-    _runPropertiesVertAlign     <- maybeElementValue (n_ "vertAlign") cur
-    _runPropertiesScheme        <- maybeElementValue (n_ "scheme") cur
+    _runPropertiesFont          <- maybeElementValue (addSmlNamespace "rFont") cur
+    _runPropertiesCharset       <- maybeElementValue (addSmlNamespace "charset") cur
+    _runPropertiesFontFamily    <- maybeElementValue (addSmlNamespace "family") cur
+    _runPropertiesBold          <- maybeBoolElementValue (addSmlNamespace "b") cur
+    _runPropertiesItalic        <- maybeBoolElementValue (addSmlNamespace "i") cur
+    _runPropertiesStrikeThrough <- maybeBoolElementValue (addSmlNamespace "strike") cur
+    _runPropertiesOutline       <- maybeBoolElementValue (addSmlNamespace "outline") cur
+    _runPropertiesShadow        <- maybeBoolElementValue (addSmlNamespace "shadow") cur
+    _runPropertiesCondense      <- maybeBoolElementValue (addSmlNamespace "condense") cur
+    _runPropertiesExtend        <- maybeBoolElementValue (addSmlNamespace "extend") cur
+    _runPropertiesColor         <- maybeFromElement  (addSmlNamespace "color") cur
+    _runPropertiesSize          <- maybeElementValue (addSmlNamespace "sz") cur
+    _runPropertiesUnderline     <- maybeElementValueDef (addSmlNamespace "u") FontUnderlineSingle cur
+    _runPropertiesVertAlign     <- maybeElementValue (addSmlNamespace "vertAlign") cur
+    _runPropertiesScheme        <- maybeElementValue (addSmlNamespace "scheme") cur
     return RunProperties{..}
 
 instance FromXenoNode RunProperties where

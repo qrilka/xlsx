@@ -213,7 +213,7 @@ readValidationType _ "custom" cur = do
     f <- fromCursor cur
     return $ ValidationTypeCustom f
 readValidationType _ "list" cur = do
-    f  <- cur $/ element (n_ "formula1") >=> fromCursor
+    f  <- cur $/ element (addSmlNamespace "formula1") >=> fromCursor
     as <- maybeToList $ readListFormulas f
     return $ ValidationTypeList as
 readValidationType op ty cur = do
@@ -257,11 +257,11 @@ readListFormulas (Formula f) = readQuotedList f <|> readUnquotedCellRange f
 readOpExpression2 :: Text -> Cursor -> [ValidationExpression]
 readOpExpression2 op cur
     | op `elem` ["between", "notBetween"] = do
-        f1 <- cur $/ element (n_ "formula1") >=> fromCursor
-        f2 <- cur $/ element (n_ "formula2") >=> fromCursor
+        f1 <- cur $/ element (addSmlNamespace "formula1") >=> fromCursor
+        f2 <- cur $/ element (addSmlNamespace "formula2") >=> fromCursor
         readValExpression op [f1,f2]
 readOpExpression2 op cur = do
-    f <- cur $/ element (n_ "formula1") >=> fromCursor
+    f <- cur $/ element (addSmlNamespace "formula1") >=> fromCursor
     readValExpression op [f]
 
 readValidationTypeOpExp :: Text -> ValidationExpression -> [ValidationType]
