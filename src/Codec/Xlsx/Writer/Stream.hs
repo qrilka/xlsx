@@ -72,6 +72,7 @@ import Text.XML (toXMLElement)
 import qualified Text.XML as TXML
 import Text.XML.Stream.Render
 import Text.XML.Unresolved (elementToEvents)
+import Control.Monad (void, when, unless)
 
 
 upsertSharedStrings :: MonadState SharedStringState m => Row -> m [(Text,Int)]
