@@ -28,7 +28,7 @@ import Lens.Micro
 #else
 import Control.Lens hiding ((<.>), element, views)
 #endif
-import Control.Monad (join, void)
+import Control.Monad (join, void, liftM4)
 import Control.Monad.Except (catchError, throwError)
 import Data.Bool (bool)
 import Data.ByteString (ByteString)
@@ -112,11 +112,12 @@ toXlsxEitherBase parseSheet bs = do
   (wfs, names, cacheSources, dateBase) <- readWorkbook ar
   sheets <- forM wfs $ \wf -> do
       sheet <- parseSheet ar sst contentTypes cacheSources wf
-      return . (wfName wf,) . (wsState .~ wfState wf) $ sheet
+      return . (wfName wf,) . (wsSheetId .~ wfSheetId wf) . (wsState .~ wfState wf) $ sheet
   CustomProperties customPropMap <- getCustomProperties ar
   return $ Xlsx sheets (getStyles ar) names customPropMap dateBase
 
 data WorksheetFile = WorksheetFile { wfName :: Text
+                                   , wfSheetId :: Int
                                    , wfState :: SheetState
                                    , wfPath :: FilePath
                                    }
@@ -206,6 +207,7 @@ extractSheetFast ar sst contentTypes caches wf = do
             , _wsPivotTables = []
             , _wsTables = []
             , _wsState = wfState wf
+            , _wsSheetId = wfSheetId wf
             , ..
             }
             , tableIds
@@ -503,6 +505,7 @@ extractSheet ar sst contentTypes caches wf = do
       mProtection
       sharedFormulas
       (wfState wf)
+      (wfSheetId wf)
 
 extractCellValue :: SharedStringTable -> Text -> Cursor -> [CellValue]
 extractCellValue sst t cur
@@ -656,7 +659,7 @@ readWorkbook ar = do
   sheets <-
     sequence $
     cur $/ element (n_ "sheets") &/ element (n_ "sheet") >=>
-    liftA3 (worksheetFile wbPath wbRels) <$> attribute "name" <*> fromAttributeDef "state" def <*>
+    liftM4 (worksheetFile wbPath wbRels) <$> attribute "name" <*> fromAttribute "sheetId" <*> fromAttributeDef "state" def <*>
     fromAttribute (odr "id")
   let cacheRefs =
         cur $/ element (n_ "pivotCaches") &/ element (n_ "pivotCache") >=>
@@ -689,9 +692,9 @@ getTable ar fp = do
   cur <- xmlCursorRequired ar fp
   headErr (InvalidFile fp "Couldn't parse drawing") (fromCursor cur)
 
-worksheetFile :: FilePath -> Relationships -> Text -> SheetState -> RefId -> Parser WorksheetFile
-worksheetFile parentPath wbRels name visibility rId =
-  WorksheetFile name visibility <$> lookupRelPath parentPath wbRels rId
+worksheetFile :: FilePath -> Relationships -> Text -> Int -> SheetState -> RefId -> Parser WorksheetFile
+worksheetFile parentPath wbRels name sheetId visibility rId =
+  WorksheetFile name sheetId visibility <$> lookupRelPath parentPath wbRels rId
 
 getRels :: Zip.Archive -> FilePath -> Parser Relationships
 getRels ar fp = do
