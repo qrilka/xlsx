@@ -77,13 +77,15 @@ tests =
       testGroup "Reader/Writer"
       [ testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbook
       , testCase "Write as stream, see if memory based implementation can read it" $ readWrite simpleWorkbookRow
-      , testCase "Test a small workbook which has a fullblown sqaure" $ readWrite smallWorkbook
+      , testCase "Test a small workbook which has a fullblown square" $ readWrite smallWorkbook
       , testCase "Test a big workbook as a full square which caused issues with zipstream \
                  The buffer of zipstream maybe 1kb, this workbook is big enough \
                  to be more than that. \
                  So if this encodes/decodes we know we can handle those sizes. \
                  In some older version the bytestring got cut off resulting in a corrupt xlsx file"
                   $ readWrite bigWorkbook
+      , testCase "Test a workbook containing multiple sheets"
+        $ readWriteMultipleSheets multipleSheetsWorkbook
       -- , testCase "Write as stream, see if memory based implementation can read it" $ readWrite testXlsx
       -- TODO forall SheetItem write that can be read
       ],
@@ -107,6 +109,22 @@ readWrite input = do
       input @==?  result
     Left x -> do
       throwIO x
+
+readWriteMultipleSheets :: Xlsx -> IO ()
+readWriteMultipleSheets input = do
+  BS.writeFile "testinput.xlsx" $ toBs input
+  sheetNamesAndConduits <- runXlsxM "testinput.xlsx" $ do
+    sheets <- reverse . _wiSheets <$> getWorkbookInfo
+    let sheetCount = length sheets
+    let sheetNames = map sheetInfoName sheets
+    sheetConduits <- map (C.yieldMany . toListOf (traversed . si_row))
+      <$> mapM (collectItems . makeIndex) [1..sheetCount]
+    pure $ zip sheetNames sheetConduits
+
+  bs <- runConduitRes $ void (SW.writeXlsxMultipleSheets SW.defaultSettings sheetNamesAndConduits) .| C.foldC
+  case toXlsxEither $ LB.fromStrict bs of
+    Right result  -> input @==? result
+    Left x -> throwIO x
 
 -- test if the input text is also the result (a property we use for convenience)
 sharedStringInputSameAsOutput :: Text -> Either String String
@@ -200,6 +218,12 @@ bigWorkbook = def & atSheet "Sheet1" ?~ sheet
 --            def & cellValue ?~ CellText "text at C1 Sheet1")
 --        ]
 --      )]
+
+multipleSheetsWorkbook :: Xlsx
+multipleSheetsWorkbook = simpleWorkbook & atSheet "my Sheet 2" ?~ sheet
+  where
+    sheet = toWs [ ((RowIndex 1, ColumnIndex 1), cellValue ?~ CellText "text at A1 Sheet2" $ def)
+                 , ((RowIndex 1, ColumnIndex 2), cellValue ?~ CellText "text at B1 Sheet2" $ def) ]
 
 inlineStringsAreParsed :: IO ()
 inlineStringsAreParsed = do
