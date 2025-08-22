@@ -224,6 +224,7 @@ multipleSheetsWorkbook = simpleWorkbook & atSheet "my Sheet 2" ?~ sheet
   where
     sheet = toWs [ ((RowIndex 1, ColumnIndex 1), cellValue ?~ CellText "text at A1 Sheet2" $ def)
                  , ((RowIndex 1, ColumnIndex 2), cellValue ?~ CellText "text at B1 Sheet2" $ def) ]
+            & wsSheetId .~ 2
 
 inlineStringsAreParsed :: IO ()
 inlineStringsAreParsed = do
