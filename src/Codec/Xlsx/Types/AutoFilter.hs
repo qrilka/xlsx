@@ -299,7 +299,7 @@ instance Default AutoFilter where
 instance FromCursor AutoFilter where
   fromCursor cur = do
     _afRef <- maybeAttribute "ref" cur
-    let _afFilterColumns = M.fromList $ cur $/ element (n_ "filterColumn") >=> \c -> do
+    let _afFilterColumns = M.fromList $ cur $/ element (addSmlNamespace "filterColumn") >=> \c -> do
           colId <- fromAttribute "colId" c
           fcol <- c $/ anyElement >=> fltColFromNode . node
           return (colId, fcol)
@@ -371,17 +371,17 @@ instance FromXenoNode CustomFilter where
     CustomFilter <$> fromAttrDef "operator" FltrEqual <*> fromAttr "val"
 
 fltColFromNode :: Node -> [FilterColumn]
-fltColFromNode n | n `nodeElNameIs` (n_ "filters") = do
+fltColFromNode n | n `nodeElNameIs` (addSmlNamespace "filters") = do
                      let filterCriteria = cur $/ anyElement >=> fromCursor
                      filterBlank <- fromAttributeDef "blank" DontFilterByBlank cur
                      return $ Filters filterBlank filterCriteria
-                 | n `nodeElNameIs` (n_ "colorFilter") = do
+                 | n `nodeElNameIs` (addSmlNamespace "colorFilter") = do
                      _cfoCellColor <- fromAttributeDef "cellColor" True cur
                      _cfoDxfId <- maybeAttribute "dxfId" cur
                      return $ ColorFilter ColorFilterOptions {..}
-                 | n `nodeElNameIs` (n_ "customFilters") = do
+                 | n `nodeElNameIs` (addSmlNamespace "customFilters") = do
                      isAnd <- fromAttributeDef "and" False cur
-                     let cFilters = cur $/ element (n_ "customFilter") >=> \c -> do
+                     let cFilters = cur $/ element (addSmlNamespace "customFilter") >=> \c -> do
                            op <- fromAttributeDef "operator" FltrEqual c
                            val <- fromAttribute "val" c
                            return $ CustomFilter op val
@@ -394,16 +394,16 @@ fltColFromNode n | n `nodeElNameIs` (n_ "filters") = do
                            else return $ CustomFiltersOr f1 f2
                        _ ->
                          fail "bad custom filter"
-                 | n `nodeElNameIs` (n_ "dynamicFilter") = do
+                 | n `nodeElNameIs` (addSmlNamespace "dynamicFilter") = do
                      _dfoType <- fromAttribute "type" cur
                      _dfoVal <- maybeAttribute "val" cur
                      _dfoMaxVal <- maybeAttribute "maxVal" cur
                      return $ DynamicFilter DynFilterOptions{..}
-                 | n `nodeElNameIs` (n_ "iconFilter") = do
+                 | n `nodeElNameIs` (addSmlNamespace "iconFilter") = do
                      iconId <- maybeAttribute "iconId" cur
                      iconSet <- fromAttribute "iconSet" cur
                      return $ IconFilter iconId iconSet
-                 | n `nodeElNameIs` (n_ "top10") = do
+                 | n `nodeElNameIs` (addSmlNamespace "top10") = do
                      top <- fromAttributeDef "top" True cur
                      let percent = fromAttributeDef "percent" False cur
                          val = fromAttribute "val" cur
@@ -462,10 +462,10 @@ instance FromXenoNode FilterCriterion where
 -- TODO: follow the spec about the fact that dategroupitem always go after filter
 filterCriterionFromNode :: Node -> [FilterCriterion]
 filterCriterionFromNode n
-  | n `nodeElNameIs` (n_ "filter") = do
+  | n `nodeElNameIs` (addSmlNamespace "filter") = do
     v <- fromAttribute "val" cur
     return $ FilterValue v
-  | n `nodeElNameIs` (n_ "dateGroupItem") = do
+  | n `nodeElNameIs` (addSmlNamespace "dateGroupItem") = do
     g <- fromAttribute "dateTimeGrouping" cur
     let year = fromAttribute "year" cur
         month = fromAttribute "month" cur
@@ -600,7 +600,7 @@ instance ToElement AutoFilter where
       nm
       (catMaybes ["ref" .=? _afRef])
       [ elementList
-        (n_ "filterColumn")
+        (addSmlNamespace "filterColumn")
         ["colId" .= colId]
         [fltColToElement fCol]
       | (colId, fCol) <- M.toList _afFilterColumns
@@ -610,50 +610,50 @@ fltColToElement :: FilterColumn -> Element
 fltColToElement (Filters filterBlank filterCriteria) =
   let attrs = catMaybes ["blank" .=? justNonDef DontFilterByBlank filterBlank]
   in elementList
-     (n_ "filters") attrs $ map filterCriterionToElement filterCriteria
-fltColToElement (ColorFilter opts) = toElement (n_ "colorFilter") opts
+     (addSmlNamespace "filters") attrs $ map filterCriterionToElement filterCriteria
+fltColToElement (ColorFilter opts) = toElement (addSmlNamespace "colorFilter") opts
 fltColToElement (ACustomFilter f) =
-  elementListSimple (n_ "customFilters") [toElement (n_ "customFilter") f]
+  elementListSimple (addSmlNamespace "customFilters") [toElement (addSmlNamespace "customFilter") f]
 fltColToElement (CustomFiltersOr f1 f2) =
   elementListSimple
-    (n_ "customFilters")
-    [toElement (n_ "customFilter") f | f <- [f1, f2]]
+    (addSmlNamespace "customFilters")
+    [toElement (addSmlNamespace "customFilter") f | f <- [f1, f2]]
 fltColToElement (CustomFiltersAnd f1 f2) =
   elementList
-    (n_ "customFilters")
+    (addSmlNamespace "customFilters")
     ["and" .= True]
-    [toElement (n_ "customFilter") f | f <- [f1, f2]]
-fltColToElement (DynamicFilter opts) = toElement (n_ "dynamicFilter") opts
+    [toElement (addSmlNamespace "customFilter") f | f <- [f1, f2]]
+fltColToElement (DynamicFilter opts) = toElement (addSmlNamespace "dynamicFilter") opts
 fltColToElement (IconFilter iconId iconSet) =
-  leafElement (n_ "iconFilter") $
+  leafElement (addSmlNamespace "iconFilter") $
   ["iconSet" .= iconSet] ++ catMaybes ["iconId" .=? iconId]
 fltColToElement (BottomNFilter opts) = edgeFilter False opts
 fltColToElement (TopNFilter opts) = edgeFilter True opts
 
 edgeFilter :: Bool -> EdgeFilterOptions -> Element
 edgeFilter top EdgeFilterOptions {..} =
-  leafElement (n_ "top10") $
+  leafElement (addSmlNamespace "top10") $
   ["top" .= top, "percent" .= _efoUsePercents, "val" .= _efoVal] ++
   catMaybes ["filterVal" .=? _efoFilterVal]
 
 filterCriterionToElement :: FilterCriterion -> Element
 filterCriterionToElement (FilterValue v) =
-  leafElement (n_ "filter") ["val" .= v]
+  leafElement (addSmlNamespace "filter") ["val" .= v]
 filterCriterionToElement (FilterDateGroup (DateGroupByYear y)) =
   leafElement
-    (n_ "dateGroupItem")
+    (addSmlNamespace "dateGroupItem")
     ["dateTimeGrouping" .= ("year" :: Text), "year" .= y]
 filterCriterionToElement (FilterDateGroup (DateGroupByMonth y m)) =
   leafElement
-    (n_ "dateGroupItem")
+    (addSmlNamespace "dateGroupItem")
     ["dateTimeGrouping" .= ("month" :: Text), "year" .= y, "month" .= m]
 filterCriterionToElement (FilterDateGroup (DateGroupByDay y m d)) =
   leafElement
-    (n_ "dateGroupItem")
+    (addSmlNamespace "dateGroupItem")
     ["dateTimeGrouping" .= ("day" :: Text), "year" .= y, "month" .= m, "day" .= d]
 filterCriterionToElement (FilterDateGroup (DateGroupByHour y m d h)) =
   leafElement
-    (n_ "dateGroupItem")
+    (addSmlNamespace "dateGroupItem")
     [ "dateTimeGrouping" .= ("hour" :: Text)
     , "year" .= y
     , "month" .= m
@@ -662,7 +662,7 @@ filterCriterionToElement (FilterDateGroup (DateGroupByHour y m d h)) =
     ]
 filterCriterionToElement (FilterDateGroup (DateGroupByMinute y m d h mi)) =
   leafElement
-    (n_ "dateGroupItem")
+    (addSmlNamespace "dateGroupItem")
     [ "dateTimeGrouping" .= ("minute" :: Text)
     , "year" .= y
     , "month" .= m
@@ -672,7 +672,7 @@ filterCriterionToElement (FilterDateGroup (DateGroupByMinute y m d h mi)) =
     ]
 filterCriterionToElement (FilterDateGroup (DateGroupBySecond y m d h mi s)) =
   leafElement
-    (n_ "dateGroupItem")
+    (addSmlNamespace "dateGroupItem")
     [ "dateTimeGrouping" .= ("second" :: Text)
     , "year" .= y
     , "month" .= m

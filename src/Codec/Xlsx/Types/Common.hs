@@ -548,8 +548,8 @@ dateToNumber b (UTCTime day diffTime) = numberOfDays + fractionOfOneDay
 instance FromCursor XlsxText where
   fromCursor cur = do
     let
-      ts = cur $/ element (n_ "t") >=> contentOrEmpty
-      rs = cur $/ element (n_ "r") >=> fromCursor
+      ts = cur $/ element (addSmlNamespace "t") >=> contentOrEmpty
+      rs = cur $/ element (addSmlNamespace "r") >=> fromCursor
     case (ts,rs) of
       ([t], []) ->
         return $ XlsxText t

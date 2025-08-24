@@ -37,19 +37,19 @@ parsePivotTable srcByCacheId bs =
         Just (_pvtSrcSheet, _pvtSrcRef, cacheFields) -> do
           _pvtDataCaption <- attribute "dataCaption" cur
           _pvtName <- attribute "name" cur
-          _pvtLocation <- cur $/ element (n_ "location") >=> fromAttribute "ref"
+          _pvtLocation <- cur $/ element (addSmlNamespace "location") >=> fromAttribute "ref"
           _pvtRowGrandTotals <- fromAttributeDef "rowGrandTotals" True cur
           _pvtColumnGrandTotals <- fromAttributeDef "colGrandTotals" True cur
           _pvtOutline <- fromAttributeDef "outline" False cur
           _pvtOutlineData <- fromAttributeDef "outlineData" False cur
           let pvtFieldsWithHidden =
-                cur $/ element (n_ "pivotFields") &/ element (n_ "pivotField") >=> \c -> do
+                cur $/ element (addSmlNamespace "pivotFields") &/ element (addSmlNamespace "pivotField") >=> \c -> do
                   -- actually gets overwritten from cache to have consistent field names
                   _pfiName <- maybeAttribute "name" c
                   _pfiSortType <- fromAttributeDef "sortType" FieldSortManual c
                   _pfiOutline <- fromAttributeDef "outline" True c
                   let hidden =
-                        c $/ element (n_ "items") &/ element (n_ "item") >=>
+                        c $/ element (addSmlNamespace "items") &/ element (addSmlNamespace "item") >=>
                         attrValIs "h" True >=> fromAttribute "x"
                       _pfiHiddenItems = []
                   return (PivotFieldInfo {..}, hidden)
@@ -64,13 +64,13 @@ parsePivotTable srcByCacheId bs =
               nToFieldName = zip [0 ..] $ map cfName cacheFields
               fieldNameList fld = maybeToList $ lookup fld nToFieldName
               _pvtRowFields =
-                cur $/ element (n_ "rowFields") &/ element (n_ "field") >=>
+                cur $/ element (addSmlNamespace "rowFields") &/ element (addSmlNamespace "field") >=>
                 fromAttribute "x" >=> fieldPosition
               _pvtColumnFields =
-                cur $/ element (n_ "colFields") &/ element (n_ "field") >=>
+                cur $/ element (addSmlNamespace "colFields") &/ element (addSmlNamespace "field") >=>
                 fromAttribute "x" >=> fieldPosition
               _pvtDataFields =
-                cur $/ element (n_ "dataFields") &/ element (n_ "dataField") >=> \c -> do
+                cur $/ element (addSmlNamespace "dataFields") &/ element (addSmlNamespace "dataField") >=> \c -> do
                   fld <- fromAttribute "fld" c
                   _dfField <- fieldNameList fld
                   -- TOFIX
@@ -89,10 +89,10 @@ parseCache bs = listToMaybe . parse . fromDocument $ parseLBS_ def bs
     parse cur = do
       refId <- maybeAttribute (odr "id") cur
       (sheet, ref) <-
-        cur $/ element (n_ "cacheSource") &/ element (n_ "worksheetSource") >=>
+        cur $/ element (addSmlNamespace "cacheSource") &/ element (addSmlNamespace "worksheetSource") >=>
         liftA2 (,) <$> attribute "sheet" <*> fromAttribute "ref"
       let fields =
-            cur $/ element (n_ "cacheFields") &/ element (n_ "cacheField") >=>
+            cur $/ element (addSmlNamespace "cacheFields") &/ element (addSmlNamespace "cacheField") >=>
             fromCursor
       return (sheet, ref, fields, refId)
 

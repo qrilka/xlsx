@@ -417,8 +417,8 @@ readCondition "beginsWith" cur = do
   txt <- fromAttribute "text" cur
   return $ BeginsWith txt
 readCondition "colorScale" cur = do
-  let cfvos = cur $/ element (n_ "colorScale") &/ element (n_ "cfvo") &| node
-      colors = cur $/ element (n_ "colorScale") &/ element (n_ "color") &| node
+  let cfvos = cur $/ element (addSmlNamespace "colorScale") &/ element (addSmlNamespace "cfvo") &| node
+      colors = cur $/ element (addSmlNamespace "colorScale") &/ element (addSmlNamespace "color") &| node
   case (cfvos, colors) of
     ([n1, n2], [cn1, cn2]) -> do
       mincfv <- fromCursor $ fromNode n1
@@ -438,7 +438,7 @@ readCondition "colorScale" cur = do
       error "Malformed colorScale condition"
 readCondition "cellIs" cur           = do
     operator <- fromAttribute "operator" cur
-    let formulas = cur $/ element (n_ "formula") >=> fromCursor
+    let formulas = cur $/ element (addSmlNamespace "formula") >=> fromCursor
     expr <- readOpExpression operator formulas
     return $ CellIs expr
 readCondition "containsBlanks" _     = return ContainsBlanks
@@ -446,15 +446,15 @@ readCondition "containsErrors" _     = return ContainsErrors
 readCondition "containsText" cur     = do
     txt <- fromAttribute "text" cur
     return $ ContainsText txt
-readCondition "dataBar" cur = fmap DataBar $ cur $/ element (n_ "dataBar") >=> fromCursor
+readCondition "dataBar" cur = fmap DataBar $ cur $/ element (addSmlNamespace "dataBar") >=> fromCursor
 readCondition "duplicateValues" _    = return DuplicateValues
 readCondition "endsWith" cur         = do
     txt <- fromAttribute "text" cur
     return $ EndsWith txt
 readCondition "expression" cur       = do
-    formula <- cur $/ element (n_ "formula") >=> fromCursor
+    formula <- cur $/ element (addSmlNamespace "formula") >=> fromCursor
     return $ Expression formula
-readCondition "iconSet" cur = fmap IconSet $ cur $/ element (n_ "iconSet") >=> fromCursor
+readCondition "iconSet" cur = fmap IconSet $ cur $/ element (addSmlNamespace "iconSet") >=> fromCursor
 readCondition "notContainsBlanks" _  = return DoesNotContainBlanks
 readCondition "notContainsErrors" _  = return DoesNotContainErrors
 readCondition "notContainsText" cur  = do
@@ -702,7 +702,7 @@ defaultIconSet =  IconSet3TrafficLights1
 instance FromCursor IconSetOptions where
   fromCursor cur = do
     _isoIconSet <- fromAttributeDef "iconSet" defaultIconSet cur
-    let _isoValues = cur $/ element (n_ "cfvo") >=> fromCursor
+    let _isoValues = cur $/ element (addSmlNamespace "cfvo") >=> fromCursor
     _isoReverse <- fromAttributeDef "reverse" False cur
     _isoShowValue <- fromAttributeDef "showValue" True cur
     return IconSetOptions {..}
@@ -761,12 +761,12 @@ instance FromCursor DataBarOptions where
     _dboMaxLength <- fromAttributeDef "maxLength" defaultDboMaxLength cur
     _dboMinLength <- fromAttributeDef "minLength" defaultDboMinLength cur
     _dboShowValue <- fromAttributeDef "showValue" True cur
-    let cfvos = cur $/ element (n_ "cfvo") &| node
+    let cfvos = cur $/ element (addSmlNamespace "cfvo") &| node
     case cfvos of
       [nMin, nMax] -> do
         _dboMinimum <- fromCursor (fromNode nMin)
         _dboMaximum <- fromCursor (fromNode nMax)
-        _dboColor <- cur $/ element (n_ "color") >=> fromCursor
+        _dboColor <- cur $/ element (addSmlNamespace "color") >=> fromCursor
         return DataBarOptions{..}
       ns -> do
         fail $ "expected minimum and maximum cfvo nodes but see instead " ++

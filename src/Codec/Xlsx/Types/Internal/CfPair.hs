@@ -22,7 +22,7 @@ newtype CfPair = CfPair
 instance FromCursor CfPair where
     fromCursor cur = do
         sqref <- fromAttribute "sqref" cur
-        let cfRules = cur $/ element (n_ "cfRule") >=> fromCursor
+        let cfRules = cur $/ element (addSmlNamespace "cfRule") >=> fromCursor
         return $ CfPair (sqref, cfRules)
 
 instance FromXenoNode CfPair where

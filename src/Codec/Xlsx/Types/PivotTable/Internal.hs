@@ -48,14 +48,14 @@ instance FromCursor CacheField where
   fromCursor cur = do
     cfName <- fromAttribute "name" cur
     let cfItems =
-          cur $/ element (n_ "sharedItems") &/ anyElement >=>
+          cur $/ element (addSmlNamespace "sharedItems") &/ anyElement >=>
           cellValueFromNode . node
     return CacheField {..}
 
 cellValueFromNode :: Node -> [CellValue]
 cellValueFromNode n
-  | n `nodeElNameIs` (n_ "s") = CellText <$> attributeV
-  | n `nodeElNameIs` (n_ "n") = CellDouble <$> attributeV
+  | n `nodeElNameIs` (addSmlNamespace "s") = CellText <$> attributeV
+  | n `nodeElNameIs` (addSmlNamespace "n") = CellDouble <$> attributeV
   | otherwise = fail "no matching shared item"
   where
     cur = fromNode n
@@ -64,9 +64,9 @@ cellValueFromNode n
 
 recordValueFromNode :: Node -> [CacheRecordValue]
 recordValueFromNode n
-  | n `nodeElNameIs` (n_ "s") = CacheText <$> attributeV
-  | n `nodeElNameIs` (n_ "n") = CacheNumber <$> attributeV
-  | n `nodeElNameIs` (n_ "x") = CacheIndex <$> attributeV
+  | n `nodeElNameIs` (addSmlNamespace "s") = CacheText <$> attributeV
+  | n `nodeElNameIs` (addSmlNamespace "n") = CacheNumber <$> attributeV
+  | n `nodeElNameIs` (addSmlNamespace "x") = CacheIndex <$> attributeV
   | otherwise = fail "not valid cache record value"
   where
     cur = fromNode n

@@ -7,6 +7,7 @@
 module Codec.Xlsx.Parser.Internal
   ( ParseException(..)
   , n_
+  , addSmlNamespace
   , nodeElNameIs
   , FromCursor(..)
   , FromAttrVal(..)
@@ -38,6 +39,7 @@ import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Cursor
 
+import Codec.Xlsx.Writer.Internal
 import Codec.Xlsx.Parser.Internal.Fast
 import Codec.Xlsx.Parser.Internal.Util
 
@@ -146,10 +148,15 @@ runReader reader t = case reader t of
   Right (r, leftover) | T.null leftover -> [r]
   _ -> []
 
--- | Add sml namespace to name
+
+{-# DEPRECATED n_ "Renamed to addSmlNamespace" #-}
 n_ :: Text -> Name
-n_ x = Name
+n_ = addSmlNamespace
+
+-- | Add sml namespace to name
+addSmlNamespace :: Text -> Name
+addSmlNamespace x = Name
   { nameLocalName = x
-  , nameNamespace = Just "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-  , namePrefix = Just "n"
+  , nameNamespace = Just mainNamespace
+  , namePrefix = Nothing
   }
