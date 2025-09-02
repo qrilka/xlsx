@@ -52,6 +52,7 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import Text.Printf
 import Data.Conduit
+import Control.Arrow ((&&&))
 import Data.Maybe (fromJust)
 
 tshow :: Show a => a -> Text
@@ -114,15 +115,15 @@ readWrite input = do
 readWriteMultipleSheets :: Xlsx -> IO ()
 readWriteMultipleSheets input = do
   BS.writeFile "testinput.xlsx" $ toBs input
-  sheetNamesAndConduits <- runXlsxM "testinput.xlsx" $ do
+  sheetsAndConduits <- runXlsxM "testinput.xlsx" $ do
     sheets <- reverse . _wiSheets <$> getWorkbookInfo
     let sheetCount = length sheets
-    let sheetNames = map sheetInfoName sheets
+    let sheetNamesAndStates = map (sheetInfoName &&& sheetInfoState) sheets
     sheetConduits <- map C.yieldMany
       <$> mapM (collectItemsIdentifier . getSheetIdentifier) sheets
-    pure $ zip sheetNames sheetConduits
+    pure $ zip sheetNamesAndStates sheetConduits
 
-  bs <- runConduitRes $ void (SW.writeXlsxMultipleSheets SW.defaultSettings sheetNamesAndConduits) .| C.foldC
+  bs <- runConduitRes $ void (SW.writeXlsxWithConfig $ SW.defWriteXlsxConfig & SW.setNameInfosAndConduits sheetsAndConduits) .| C.foldC
   case toXlsxEither $ LB.fromStrict bs of
     Right result  -> input @==? result
     Left x -> throwIO x
@@ -221,10 +222,15 @@ bigWorkbook = def & atSheet "Sheet1" ?~ sheet
 --      )]
 
 multipleSheetsWorkbook :: Xlsx
-multipleSheetsWorkbook = simpleWorkbook & atSheet "my Sheet 2" ?~ sheet
+multipleSheetsWorkbook = simpleWorkbook
+    & atSheet "my Sheet 2" ?~ sheet2
+    & atSheet "my Sheet 3" ?~ sheet3
   where
-    sheet = toWs [ ((RowIndex 1, ColumnIndex 1), cellValue ?~ CellText "text at A1 Sheet2" $ def)
+    sheet2 = toWs [ ((RowIndex 1, ColumnIndex 1), cellValue ?~ CellText "text at A1 Sheet2" $ def)
                  , ((RowIndex 1, ColumnIndex 2), cellValue ?~ CellText "text at B1 Sheet2" $ def) ]
+    sheet3 = toWs [ ((RowIndex 1, ColumnIndex 1), cellValue ?~ CellText "text at A1 Sheet3" $ def)
+                 , ((RowIndex 1, ColumnIndex 2), cellValue ?~ CellText "text at B1 Sheet3" $ def) ]
+            & wsState .~ Hidden
 
 inlineStringsAreParsed :: IO ()
 inlineStringsAreParsed = do
