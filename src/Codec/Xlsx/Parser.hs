@@ -23,11 +23,7 @@ import Control.Arrow (left)
 import Control.Error.Safe (headErr)
 import Control.Error.Util (note)
 import Control.Exception (Exception)
-#ifdef USE_MICROLENS
-import Lens.Micro
-#else
-import Control.Lens hiding ((<.>), element, views)
-#endif
+import Codec.Xlsx.LensCompat hiding ((<.>), element, views)
 import Control.Monad (join, void, liftM4)
 import Control.Monad.Except (catchError, throwError)
 import Data.Bool (bool)

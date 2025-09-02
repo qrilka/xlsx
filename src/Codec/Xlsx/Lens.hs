@@ -19,13 +19,7 @@ module Codec.Xlsx.Lens
   ) where
 
 import Codec.Xlsx.Types
-#ifdef USE_MICROLENS
-import Lens.Micro
-import Lens.Micro.Internal
-import Lens.Micro.GHC ()
-#else
-import Control.Lens
-#endif
+import Codec.Xlsx.LensCompat
 import Data.Function (on)
 import Data.List (deleteBy)
 import Data.Text

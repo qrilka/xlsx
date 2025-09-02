@@ -13,11 +13,7 @@ module Codec.Xlsx.Writer.Internal.Stream
   ) where
 
 
-#ifdef USE_MICROLENS
-import Lens.Micro.Platform
-#else
-import Control.Lens
-#endif
+import Codec.Xlsx.LensCompat
 import Control.Monad.State.Strict
 import Data.Map.Strict (Map)
 import Data.Maybe

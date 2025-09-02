@@ -84,15 +84,7 @@ import Text.XML.Cursor
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.RichText
 import Codec.Xlsx.Writer.Internal
-#ifdef USE_MICROLENS
-import Lens.Micro
-import Lens.Micro.Internal
-import Lens.Micro.GHC ()
-import Data.Profunctor.Choice
-import Data.Profunctor(dimap)
-#else
-import Control.Lens(makePrisms)
-#endif
+import Codec.Xlsx.LensCompat (Prism', prism)
 
 newtype RowIndex = RowIndex {unRowIndex :: Int}
   deriving (Eq, Ord, Show, Read, Generic, Num, Real, Enum, Integral)
@@ -657,17 +649,11 @@ instance ToAttrVal ErrorType where
   toAttrVal ErrorRef = "#REF!"
   toAttrVal ErrorValue = "#VALUE!"
 
-#ifdef USE_MICROLENS
 -- Since micro-lens denies the existence of prisms,
 -- I pasted the splice that's generated from makePrisms,
 -- then I copied over the definitions from Control.Lens for the prism
 -- function as well.
 -- Essentially this is doing the template haskell by hand.
-type Prism s t a b = forall p f. (Choice p, Applicative f) => p a (f b) -> p s (f t)
-type Prism' s a = Prism s s a a
-
-prism :: (b -> t) -> (s -> Either t a) -> Prism s t a b
-prism bt seta = dimap seta (either pure (fmap bt)) . right'
 
 _CellText :: Prism' CellValue Text
 _CellText
@@ -726,8 +712,3 @@ _XlsxRichText
               XlsxRichText y1_a1ZzZ -> Right y1_a1ZzZ
               _ -> Left x_a1ZzY)
 {-# INLINE _XlsxRichText #-}
-
-#else
-makePrisms ''XlsxText
-makePrisms ''CellValue
-#endif

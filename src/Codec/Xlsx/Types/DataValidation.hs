@@ -33,11 +33,7 @@ module Codec.Xlsx.Types.DataValidation
 
 import Control.Applicative ((<|>))
 import Control.DeepSeq (NFData)
-#ifdef USE_MICROLENS
-import Lens.Micro.TH (makeLenses)
-#else
-import Control.Lens.TH (makeLenses)
-#endif
+import Codec.Xlsx.LensCompat (makeLenses)
 import Control.Monad ((>=>), guard)
 import Data.ByteString (ByteString)
 import Data.Char (isSpace)

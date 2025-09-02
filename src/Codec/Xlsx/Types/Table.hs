@@ -5,11 +5,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Codec.Xlsx.Types.Table where
 
-#ifdef USE_MICROLENS
-import Lens.Micro.TH (makeLenses)
-#else
-import Control.Lens (makeLenses)
-#endif
+import Codec.Xlsx.LensCompat (makeLenses)
 import Control.DeepSeq (NFData)
 import Data.Maybe (catMaybes, maybeToList)
 import Data.Text (Text)

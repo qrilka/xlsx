@@ -8,15 +8,7 @@ module Codec.Xlsx.Parser.Stream.SheetItem where
 
 import Codec.Xlsx.Parser.Stream.Row (Row)
 
-#ifdef USE_MICROLENS
-import Lens.Micro
-import Lens.Micro.GHC ()
-import Lens.Micro.Mtl
-import Lens.Micro.Platform
-import Lens.Micro.TH
-#else
-import Control.Lens (makeLenses)
-#endif
+import Codec.Xlsx.LensCompat
 import Control.DeepSeq (NFData)
 import GHC.Generics (Generic)
 

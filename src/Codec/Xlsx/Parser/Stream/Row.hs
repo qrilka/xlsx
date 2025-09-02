@@ -6,15 +6,7 @@
 
 module Codec.Xlsx.Parser.Stream.Row where
 
-#ifdef USE_MICROLENS
-import Lens.Micro
-import Lens.Micro.GHC ()
-import Lens.Micro.Mtl
-import Lens.Micro.Platform
-import Lens.Micro.TH
-#else
-import Control.Lens (makeLenses)
-#endif
+import Codec.Xlsx.LensCompat
 import Codec.Xlsx.Types.Cell (Cell)
 import Codec.Xlsx.Types.Common ( RowIndex)
 import Data.IntMap.Strict (IntMap)

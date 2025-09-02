@@ -84,15 +84,7 @@ import Codec.Xlsx.Types.Internal.Relationships (Relationship (..),
 import Conduit (PrimMonad, (.|))
 import qualified Conduit as C
 import qualified Data.Vector as V
-#ifdef USE_MICROLENS
-import Lens.Micro
-import Lens.Micro.GHC ()
-import Lens.Micro.Mtl
-import Lens.Micro.Platform
-import Lens.Micro.TH
-#else
-import Control.Lens
-#endif
+import Codec.Xlsx.LensCompat
 
 import Codec.Xlsx.Parser.Internal
 import Control.Monad
@@ -129,12 +121,6 @@ import Codec.Xlsx.Parser.Stream.Row
 import Codec.Xlsx.Parser.Stream.SheetItem
 import Codec.Xlsx.Parser.Stream.SheetIdentifier
 import Codec.Xlsx.Parser.Stream.SheetIndex
-
-#ifdef USE_MICROLENS
-(<>=) :: (MonadState s m, Monoid a) => ASetter' s a -> a -> m ()
-l <>= a = modify (l <>~ a)
-#else
-#endif
 
 type SharedStringsMap = V.Vector Text
 

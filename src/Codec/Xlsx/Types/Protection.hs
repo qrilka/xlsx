@@ -32,11 +32,7 @@ module Codec.Xlsx.Types.Protection
 import GHC.Generics (Generic)
 
 import Control.Arrow (first)
-#ifdef USE_MICROLENS
-import Lens.Micro.TH (makeLenses)
-#else
-import Control.Lens (makeLenses)
-#endif
+import Codec.Xlsx.LensCompat (makeLenses)
 import Control.DeepSeq (NFData)
 import Data.Bits
 import Data.Char

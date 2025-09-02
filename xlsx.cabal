@@ -93,6 +93,7 @@ Library
                    , Codec.Xlsx.Parser.Internal.Memoize
                    , Codec.Xlsx.Parser.Stream.SheetIdentifier
                    , Codec.Xlsx.Parser.Stream.SheetIndex
+                   , Codec.Xlsx.LensCompat
 
   Build-depends:     base         >= 4.9.0.0 && < 5.0
                    , attoparsec

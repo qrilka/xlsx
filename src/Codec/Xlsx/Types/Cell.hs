@@ -21,11 +21,7 @@ module Codec.Xlsx.Types.Cell
   ) where
 
 import Control.Arrow (first)
-#ifdef USE_MICROLENS
-import Lens.Micro.TH (makeLenses)
-#else
-import Control.Lens.TH (makeLenses)
-#endif
+import Codec.Xlsx.LensCompat (makeLenses)
 import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Map (Map)
