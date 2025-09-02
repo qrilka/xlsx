@@ -47,7 +47,6 @@ module Codec.Xlsx.Types (
     , wsProtection
     , wsSharedFormulas
     , wsState
-    , wsSheetId
     -- ** Cells
     , Cell.cellValue
     , Cell.cellStyle
@@ -285,7 +284,6 @@ data Worksheet = Worksheet
   , _wsProtection :: Maybe SheetProtection
   , _wsSharedFormulas :: Map SharedFormulaIndex SharedFormulaOptions
   , _wsState :: SheetState
-  , _wsSheetId :: Int
   } deriving (Eq, Show, Generic)
 instance NFData Worksheet
 
@@ -309,7 +307,6 @@ instance Default Worksheet where
     , _wsProtection = Nothing
     , _wsSharedFormulas = M.empty
     , _wsState = def
-    , _wsSheetId = 1
     }
 
 -- | Raw worksheet styles, for structured implementation see 'StyleSheet'

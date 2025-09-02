@@ -15,6 +15,7 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- |
 -- Module      : Codex.Xlsx.Parser.Stream
@@ -45,12 +46,19 @@ module Codec.Xlsx.Parser.Stream
   , getWorkbookInfo
   , CellRow
   , readSheet
+  , readSheetIdentifier
   , countRowsInSheet
+  , countRowsInSheetIdentifier
   , collectItems
+  , collectItemsIdentifier
   -- ** Index
   , SheetIndex
   , makeIndex
   , makeIndexFromName
+  -- ** Identifier
+  , SheetIdentifier
+  , getSheetIdentifier
+  , makeIdentifierFromName
   -- ** SheetItem
   , SheetItem(..)
   , si_sheet_index
@@ -85,6 +93,7 @@ import Lens.Micro.TH
 #else
 import Control.Lens
 #endif
+
 import Codec.Xlsx.Parser.Internal
 import Control.Monad
 import Control.Monad.Catch
@@ -98,7 +107,6 @@ import Data.Conduit (ConduitT)
 import qualified Data.DList as DL
 import Data.Foldable
 import Data.IORef
-import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
@@ -109,7 +117,6 @@ import qualified Data.Text.Read as Read
 import Data.Traversable (for)
 import Data.XML.Types
 import GHC.Generics
-import Control.DeepSeq
 import Codec.Xlsx.Parser.Internal.Memoize
 
 import qualified Codec.Xlsx.Parser.Stream.HexpatInternal as HexpatInternal
@@ -117,32 +124,17 @@ import Control.Monad.Base
 import Control.Monad.Trans.Control
 import Text.XML.Expat.Internal.IO as Hexpat
 import Text.XML.Expat.SAX as Hexpat
+import Codec.Xlsx.Parser.Stream.SheetInfo
+import Codec.Xlsx.Parser.Stream.Row
+import Codec.Xlsx.Parser.Stream.SheetItem
+import Codec.Xlsx.Parser.Stream.SheetIdentifier
+import Codec.Xlsx.Parser.Stream.SheetIndex
 
 #ifdef USE_MICROLENS
 (<>=) :: (MonadState s m, Monoid a) => ASetter' s a -> a -> m ()
 l <>= a = modify (l <>~ a)
 #else
 #endif
-
-type CellRow = IntMap Cell
-
--- | Sheet item
---
--- The current sheet at a time, every sheet is constructed of these items.
-data SheetItem = MkSheetItem
-  { _si_sheet_index :: Int       -- ^ The sheet number
-  , _si_row         :: ~Row
-  } deriving stock (Generic, Show)
-    deriving anyclass NFData
-
-data Row = MkRow
-  { _ri_row_index   :: RowIndex  -- ^ Row number
-  , _ri_cell_row    :: ~CellRow  -- ^ Row itself
-  } deriving stock (Generic, Show)
-    deriving anyclass NFData
-
-makeLenses 'MkSheetItem
-makeLenses 'MkRow
 
 type SharedStringsMap = V.Vector Text
 
@@ -163,7 +155,6 @@ data ExcelValueType
 -- | State for parsing sheets
 data SheetState = MkSheetState
   { _ps_row             :: ~CellRow        -- ^ Current row
-  , _ps_sheet_index     :: Int             -- ^ Current sheet ID (AKA 'sheetInfoSheetId')
   , _ps_cell_row_index  :: RowIndex        -- ^ Current row number
   , _ps_cell_col_index  :: ColumnIndex     -- ^ Current column number
   , _ps_cell_style      :: Maybe Int
@@ -190,16 +181,6 @@ makeLenses 'MkSharedStringsState
 
 type HasSheetState = MonadState SheetState
 type HasSharedStringsState = MonadState SharedStringsState
-
--- | Represents sheets from the workbook.xml file. E.g.
--- <sheet name="Data" sheetId="1" state="hidden" r:id="rId2" /
-data SheetInfo = SheetInfo
-  { sheetInfoName    :: Text,
-    -- | The r:id attribute value.
-    sheetInfoRelId   :: RefId,
-    -- | The sheetId attribute value
-    sheetInfoSheetId :: Int
-  } deriving (Show, Eq)
 
 -- | Information about the workbook contained in xl/workbook.xml
 -- (currently a subset)
@@ -232,7 +213,6 @@ newtype XlsxM a = XlsxM {_unXlsxM :: ReaderT XlsxMState Zip.ZipArchive a}
 initialSheetState :: SheetState
 initialSheetState = MkSheetState
   { _ps_row             = mempty
-  , _ps_sheet_index     = 0
   , _ps_cell_row_index  = 0
   , _ps_cell_col_index  = 0
   , _ps_is_in_val       = False
@@ -300,13 +280,15 @@ readWorkbookInfo :: Zip.ZipArchive WorkbookInfo
 readWorkbookInfo = do
    sel <- Zip.mkEntrySelector "xl/workbook.xml"
    src <- Zip.getEntrySource sel
+   sheetIndexRef <- liftIO $ newIORef 0
    sheets <- liftIO $ runExpat [] src $ \evs -> forM_ evs $ \case
      StartElement ("sheet" :: ByteString) attrs -> do
        nm <- lookupBy "name" attrs
        sheetId <- lookupBy "sheetId" attrs
        rId <- lookupBy "r:id" attrs
        sheetNum <- either (throwM . ParseDecimalError sheetId) pure $ eitherDecimal sheetId
-       modify' (SheetInfo nm (RefId rId) sheetNum :)
+       sheetIndex <- liftIO $ atomicModifyIORef' sheetIndexRef $ \i -> (succ i, i)
+       modify' (MkSheetInfo nm (RefId rId) sheetNum sheetIndex :)
      _ -> pure ()
    pure $ WorkbookInfo sheets
 
@@ -351,31 +333,20 @@ relIdToEntrySelector rid = do
   for (M.lookup rid rels) $ \rel -> do
     Zip.mkEntrySelector $ "xl/" <> relTarget rel
 
-sheetIdToRelId :: Int -> XlsxM (Maybe RefId)
-sheetIdToRelId sheetId = do
-  WorkbookInfo sheets <- getWorkbookInfo
-  pure $ sheetInfoRelId <$> find ((== sheetId) . sheetInfoSheetId) sheets
-
-sheetIdToEntrySelector :: Int -> XlsxM (Maybe Zip.EntrySelector)
-sheetIdToEntrySelector sheetId = do
-  sheetIdToRelId sheetId >>= \case
-    Nothing  -> pure Nothing
-    Just rid -> relIdToEntrySelector rid
-
 -- If the given sheet number exists, returns Just a conduit source of the stream
 -- of XML events in a particular sheet. Returns Nothing when the sheet doesn't
 -- exist.
 {-# SCC getSheetXmlSource #-}
 getSheetXmlSource ::
   (PrimMonad m, MonadThrow m, C.MonadResource m) =>
-  Int ->
+  SheetIdentifier ->
   XlsxM (Maybe (ConduitT () ByteString m ()))
-getSheetXmlSource sheetId = do
+getSheetXmlSource (SheetIdentifier refId _sheetId) = do
   -- TODO: The Zip library may throw exceptions that aren't exposed from this
   -- module, so downstream library users would need to add the 'zip' package to
   -- handle them. Consider re-wrapping zip library exceptions, or just
   -- re-export them?
-  mSheetSel <- sheetIdToEntrySelector sheetId
+  mSheetSel <- relIdToEntrySelector refId
   sheetExists <- maybe (pure False) (liftZip . Zip.doesEntryExist) mSheetSel
   case mSheetSel of
     Just sheetSel
@@ -418,12 +389,11 @@ runExpat initialState byteSource handler = do
 runExpatForSheet ::
   SheetState ->
   ConduitT () ByteString (C.ResourceT IO) () ->
-  (SheetItem -> IO ()) ->
+  (Row -> IO ()) ->
   XlsxM ()
 runExpatForSheet initState byteSource inner =
   void $ liftIO $ runExpat initState byteSource handler
   where
-    sheetName = _ps_sheet_index initState
     handler evs = forM_ evs $ \ev -> do
       parseRes <- runExceptT $ matchHexpatEvent ev
       case parseRes of
@@ -431,52 +401,75 @@ runExpatForSheet initState byteSource inner =
         Right (Just cellRow)
           | not (IntMap.null cellRow) -> do
               rowNum <- use ps_cell_row_index
-              liftIO $ inner $ MkSheetItem sheetName $ MkRow rowNum cellRow
+              liftIO $ inner $ MkRow rowNum cellRow
         _ -> pure ()
 
 -- | this will collect the sheetitems in a list.
 --   useful for cases were memory is of no concern but a sheetitem
 --   type in a list is needed.
+{-# DEPRECATED collectItems "prefer to use collectItemsIdentifier, see issue #193" #-}
 collectItems ::
   SheetIndex ->
   XlsxM [SheetItem]
-collectItems sheetId = do
+collectItems (MkSheetIndex sheetId) = makeIdentifierFromId sheetId >>= \case
+  Nothing -> pure []
+  Just identifier -> fmap (MkSheetItem sheetId) <$> collectItemsIdentifier identifier
+
+-- | this will collect the rows in a list.
+--   useful for cases were memory is of no concern but a row
+--   type in a list is needed.
+collectItemsIdentifier ::
+  SheetIdentifier ->
+  XlsxM [Row]
+collectItemsIdentifier sheetIdentifier = do
  res <- liftIO $ newIORef []
- void $ readSheet sheetId $ \item ->
+ void $ readSheetIdentifier sheetIdentifier $ \item ->
    liftIO (modifyIORef' res (item :))
  fmap reverse $ liftIO $ readIORef res
 
--- | datatype representing a sheet index, looking it up by name
---   can be done with 'makeIndexFromName', which is the preferred approach.
---   although 'makeIndex' is available in case it's already known.
-newtype SheetIndex = MkSheetIndex Int
- deriving newtype (NFData, Show)
-
--- | This does *no* checking if the index exists or not.
---   you could have index out of bounds issues because of this.
-makeIndex :: Int -> SheetIndex
-makeIndex = MkSheetIndex
-
 -- | Look up the index of a case insensitive sheet name
+{-# DEPRECATED makeIndexFromName "prefer to use makeIdentifierFromName" #-}
 makeIndexFromName :: Text -> XlsxM (Maybe SheetIndex)
 makeIndexFromName sheetName = do
+  fmap (makeIndex . siSheetId) <$> makeIdentifierFromName sheetName
+
+-- | Look up the identifier of a case insensitive sheet name
+makeIdentifierFromName :: Text -> XlsxM (Maybe SheetIdentifier)
+makeIdentifierFromName sheetName = do
   wi <- getWorkbookInfo
   -- The Excel UI does not allow a user to create two sheets whose
   -- names differ only in alphabetic case (at least for ascii...)
   let sheetNameCI = T.toLower sheetName
       findRes :: Maybe SheetInfo
       findRes = find ((== sheetNameCI) . T.toLower . sheetInfoName) $ _wiSheets wi
-  pure $ makeIndex . sheetInfoSheetId <$> findRes
+  pure $ getSheetIdentifier <$> findRes
 
+-- | Look up the identifier of a sheet id. Not for exporting since it is somewhat
+-- nonsensical if you do not have the sheet id.
+makeIdentifierFromId :: Int -> XlsxM (Maybe SheetIdentifier)
+makeIdentifierFromId sheetId = do
+  WorkbookInfo sheets <- getWorkbookInfo
+  pure $ getSheetIdentifier <$> find ((== sheetId) . sheetInfoSheetId) sheets
+
+{-# DEPRECATED readSheet "prefer to use readSheetIdentifier" #-}
 readSheet ::
   SheetIndex ->
   -- | Function to consume the sheet's rows
   (SheetItem -> IO ()) ->
   -- | Returns False if sheet doesn't exist, or True otherwise
   XlsxM Bool
-readSheet (MkSheetIndex sheetId) inner = do
-  mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
-    getSheetXmlSource sheetId
+readSheet (MkSheetIndex sheetId) inner = makeIdentifierFromId sheetId >>= \case
+    Nothing -> pure False
+    Just identifier -> readSheetIdentifier identifier (inner . MkSheetItem sheetId)
+
+readSheetIdentifier ::
+  SheetIdentifier ->
+  -- | Function to consume the sheet's rows
+  (Row -> IO ()) ->
+  -- | Returns False if sheet doesn't exist, or True otherwise
+  XlsxM Bool
+readSheetIdentifier identifier inner = do
+  mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <- getSheetXmlSource identifier
   let
   case mSrc of
     Nothing -> pure False
@@ -484,7 +477,6 @@ readSheet (MkSheetIndex sheetId) inner = do
       sharedStrs <- getOrParseSharedStringss
       let sheetState0 = initialSheetState
             & ps_shared_strings .~ sharedStrs
-            & ps_sheet_index .~ sheetId
       runExpatForSheet sheetState0 sourceSheetXml inner
       pure True
 
@@ -493,10 +485,21 @@ readSheet (MkSheetIndex sheetId) inner = do
 -- if the sheet does not exist. Does not perform a full parse of the
 -- XML into 'SheetItem's, so it should be more efficient than counting
 -- via 'readSheetByIndex'.
+{-# DEPRECATED countRowsInSheet "prefer to use countRowsInSheetIdentifier" #-}
 countRowsInSheet :: SheetIndex -> XlsxM (Maybe Int)
-countRowsInSheet (MkSheetIndex sheetId) = do
+countRowsInSheet (MkSheetIndex sheetId) =
+  makeIdentifierFromId sheetId >>= \case
+    Nothing -> pure Nothing
+    Just identifier -> countRowsInSheetIdentifier identifier
+
+-- | Returns number of rows in the given sheet or Nothing
+-- if the sheet does not exist. Does not perform a full parse of the
+-- XML into 'SheetItem's, so it should be more efficient than counting
+-- via 'readSheetByIndex'.
+countRowsInSheetIdentifier :: SheetIdentifier -> XlsxM (Maybe Int)
+countRowsInSheetIdentifier identifier = do
   mSrc :: Maybe (ConduitT () ByteString (C.ResourceT IO) ()) <-
-    getSheetXmlSource sheetId
+    getSheetXmlSource identifier
   for mSrc $ \sourceSheetXml -> do
     liftIO $ runExpat @Int @ByteString @ByteString 0 sourceSheetXml $ \evs ->
       forM_ evs $ \case

@@ -112,7 +112,7 @@ toXlsxEitherBase parseSheet bs = do
   (wfs, names, cacheSources, dateBase) <- readWorkbook ar
   sheets <- forM wfs $ \wf -> do
       sheet <- parseSheet ar sst contentTypes cacheSources wf
-      return . (wfName wf,) . (wsSheetId .~ wfSheetId wf) . (wsState .~ wfState wf) $ sheet
+      return . (wfName wf,) . (wsState .~ wfState wf) $ sheet
   CustomProperties customPropMap <- getCustomProperties ar
   return $ Xlsx sheets (getStyles ar) names customPropMap dateBase
 
@@ -207,7 +207,6 @@ extractSheetFast ar sst contentTypes caches wf = do
             , _wsPivotTables = []
             , _wsTables = []
             , _wsState = wfState wf
-            , _wsSheetId = wfSheetId wf
             , ..
             }
             , tableIds
@@ -505,7 +504,6 @@ extractSheet ar sst contentTypes caches wf = do
       mProtection
       sharedFormulas
       (wfState wf)
-      (wfSheetId wf)
 
 extractCellValue :: SharedStringTable -> Text -> Cursor -> [CellValue]
 extractCellValue sst t cur

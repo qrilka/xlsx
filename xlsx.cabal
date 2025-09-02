@@ -70,6 +70,7 @@ Library
                    , Codec.Xlsx.Types.PivotTable
                    , Codec.Xlsx.Types.PivotTable.Internal
                    , Codec.Xlsx.Types.Protection
+                   , Codec.Xlsx.Types.RefId
                    , Codec.Xlsx.Types.RichText
                    , Codec.Xlsx.Types.SheetViews
                    , Codec.Xlsx.Types.StyleSheet
@@ -80,6 +81,9 @@ Library
                    , Codec.Xlsx.Writer.Internal.PivotTable
                    , Codec.Xlsx.Parser.Stream
                    , Codec.Xlsx.Writer.Stream
+                   , Codec.Xlsx.Parser.Stream.Row
+                   , Codec.Xlsx.Parser.Stream.SheetInfo
+                   , Codec.Xlsx.Parser.Stream.SheetItem
                    , Codec.Xlsx.Writer.Internal.Stream
 
   -- The only function it exports is also hidden by the upstream library: https://github.com/the-real-blackh/hexpat/blob/master/Text/XML/Expat/SAX.hs#L227
@@ -87,6 +91,8 @@ Library
   -- It be better to expose it in the upstream library instead I think. It was copied here so the parser can use it.
   Other-modules:     Codec.Xlsx.Parser.Stream.HexpatInternal
                    , Codec.Xlsx.Parser.Internal.Memoize
+                   , Codec.Xlsx.Parser.Stream.SheetIdentifier
+                   , Codec.Xlsx.Parser.Stream.SheetIndex
 
   Build-depends:     base         >= 4.9.0.0 && < 5.0
                    , attoparsec
