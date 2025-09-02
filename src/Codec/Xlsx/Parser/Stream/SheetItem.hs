@@ -1,5 +1,4 @@
 {-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE CPP            #-}
 {-# LANGUAGE DerivingStrategies            #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DeriveAnyClass              #-}

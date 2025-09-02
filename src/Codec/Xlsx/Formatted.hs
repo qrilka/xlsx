@@ -1,5 +1,4 @@
 -- | Higher level interface for creating styled worksheets
-{-# LANGUAGE CPP      #-}
 {-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}

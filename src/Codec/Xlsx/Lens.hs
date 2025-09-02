@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP   #-}
 {-# LANGUAGE RankNTypes   #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveGeneric #-}
