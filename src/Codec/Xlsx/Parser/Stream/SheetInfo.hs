@@ -5,6 +5,7 @@ import Data.Text (Text)
 import Codec.Xlsx.Types.RefId (RefId)
 import Codec.Xlsx.Parser.Stream.SheetIdentifier
     (SheetIdentifier, unsafeGetSheetIdentifier)
+import Codec.Xlsx.Types (SheetState)
 
 -- | Represents sheets from the workbook.xml file. E.g.
 -- <sheet name="Data" sheetId="1" state="hidden" r:id="rId2" /
@@ -15,7 +16,9 @@ data SheetInfo = MkSheetInfo
     -- | The sheetId attribute value
     sheetInfoSheetId :: Int,
     -- | The index into the sheets in the workbook
-    sheetInfoSheetIndex :: Int
+    sheetInfoSheetIndex :: Int,
+    -- | The sheet visibility state
+    sheetInfoState    :: SheetState
   } deriving (Show, Eq)
 
 {-# DEPRECATED sheetInfoRelId, sheetInfoSheetId "this field will be removed in future, see issue #193" #-} 
