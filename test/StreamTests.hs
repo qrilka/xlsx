@@ -255,7 +255,7 @@ untypedCellsAreParsedAsFloats :: IO ()
 untypedCellsAreParsedAsFloats = do
   -- values in that file are under `General` cell-type and are not marked
   -- as numbers explicitly in `t` attribute.
-  items <- runXlsxM "data/floats.xlsx" $ collectItemsIdentifier . fromJust =<< makeIdentifierFromName "Sheet1"
+  items <- runXlsxM "data/floats.xlsx" $ collectItemsIdentifier . fromJust =<< makeIdentifierFromName "Лист1"
   let expected =
         [ IM.fromList [ (1, def & cellValue ?~ CellDouble 12.0) ]
         , IM.fromList [ (1, def & cellValue ?~ CellDouble 13.0) ]
