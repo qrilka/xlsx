@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
@@ -43,12 +42,7 @@ import Codec.Xlsx.Writer.Internal (nonEmptyElListSimple, toAttrVal, toElement,
 import Codec.Xlsx.Writer.Internal.Stream
 import Conduit (PrimMonad, yield, (.|))
 import qualified Conduit as C
-#ifdef USE_MICROLENS
-import Data.Traversable.WithIndex
-import Lens.Micro.Platform
-#else
-import Control.Lens
-#endif
+import Codec.Xlsx.LensCompat
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Reader.Class

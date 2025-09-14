@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -12,11 +11,7 @@ module Codec.Xlsx.Writer
 
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Control.Arrow (second)
-#ifdef USE_MICROLENS
-import Lens.Micro
-#else
-import Control.Lens hiding (transform, (.=))
-#endif
+import Codec.Xlsx.LensCompat ((^.), mapped, (%~), (&), (?~))
 import Control.Monad (forM)
 import Control.Monad.ST
 import Control.Monad.State (evalState, get, put)

@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -8,11 +7,7 @@ module Codec.Xlsx.Types.Drawing.Common where
 import GHC.Generics (Generic)
 
 import Control.Arrow (first)
-#ifdef USE_MICROLENS
-import Lens.Micro.TH (makeLenses)
-#else
-import Control.Lens.TH
-#endif
+import Codec.Xlsx.LensCompat (makeLenses)
 import Control.Monad (join)
 import Control.Monad.Fail (MonadFail)
 import Control.DeepSeq (NFData)

@@ -1,5 +1,4 @@
 -- | Higher level interface for creating styled worksheets
-{-# LANGUAGE CPP      #-}
 {-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -35,14 +34,7 @@ module Codec.Xlsx.Formatted
   , condfmtStopIfTrue
   ) where
 
-#ifdef USE_MICROLENS
-import Lens.Micro
-import Lens.Micro.Mtl
-import Lens.Micro.TH
-import Lens.Micro.GHC ()
-#else
-import Control.Lens
-#endif
+import Codec.Xlsx.LensCompat
 import Control.Monad (forM, guard)
 import Control.Monad.State hiding (forM_, mapM)
 import Data.Default

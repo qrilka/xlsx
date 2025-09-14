@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
@@ -49,11 +48,7 @@ module Codec.Xlsx.Types.SheetViews (
 
 import GHC.Generics (Generic)
 
-#ifdef USE_MICROLENS
-import Lens.Micro.TH (makeLenses)
-#else
-import Control.Lens (makeLenses)
-#endif
+import Codec.Xlsx.LensCompat (makeLenses)
 import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Maybe (catMaybes, maybeToList, listToMaybe)

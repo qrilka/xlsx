@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -35,11 +34,7 @@ module Codec.Xlsx.Types.PageSetup (
   , pageSetupVerticalDpi
   ) where
 
-#ifdef USE_MICROLENS
-import Lens.Micro.TH (makeLenses)
-#else
-import Control.Lens (makeLenses)
-#endif
+import Codec.Xlsx.LensCompat (makeLenses)
 import Control.DeepSeq (NFData)
 import Data.Default
 import qualified Data.Map as Map

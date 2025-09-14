@@ -40,12 +40,12 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
       , ("with pivot table", pvSheet)
       , ("cellrange DV source", foreignDvSourceSheet) -- "foreign" sheet holding validation data
       , ("cellrange DV test", foreignDvTestSheet) -- applies validation using foreign cell ranges
-      , ("hidden sheet", def & wsState .~ Hidden & cellValueAt (1,1) ?~ CellText "I'm hidden!" & wsSheetId .~ 6)
-      , ("VERY hidden sheet", def & wsState .~ VeryHidden & cellValueAt (1,1) ?~ CellText "I'm VERY hidden!!" & wsSheetId .~ 7)
+      , ("hidden sheet", def & wsState .~ Hidden & cellValueAt (1,1) ?~ CellText "I'm hidden!")
+      , ("VERY hidden sheet", def & wsState .~ VeryHidden & cellValueAt (1,1) ?~ CellText "I'm VERY hidden!!")
       ]
     sheet1 = Worksheet cols rowProps testCellMap1 drawing ranges
       sheetViews pageSetup cFormatting validations [] (Just autoFilter)
-      tables (Just protection) sharedFormulas def 1
+      tables (Just protection) sharedFormulas def
     sharedFormulas =
       M.fromList
         [ (SharedFormulaIndex 0, SharedFormulaOptions (CellRef "A5:C5") (Formula "A4"))
@@ -71,13 +71,12 @@ testXlsx = Xlsx sheets minimalStyles definedNames customProperties DateBase1904
       { _sprScenarios = False
       , _sprLegacyPassword = Just $ legacyPassword "hard password"
       }
-    sheet2 = def & wsCells .~ testCellMap2 & wsSheetId .~ 2
-    foreignDvSourceSheet = def & wsCells .~ cellRangeDvSourceMap & wsSheetId .~ 4
+    sheet2 = def & wsCells .~ testCellMap2
+    foreignDvSourceSheet = def & wsCells .~ cellRangeDvSourceMap
     foreignDvTestSheet = def &  wsDataValidations .~ foreignValidations &
                                 wsCells . at (1, 1) ?~
                                     (def & cellValue ?~ CellText ("Hi! try " <> unCellRef testForeignDvRange))
-                                & wsSheetId .~ 5
-    pvSheet = sheetWithPvCells & wsPivotTables .~ [testPivotTable] & wsSheetId .~ 3
+    pvSheet = sheetWithPvCells & wsPivotTables .~ [testPivotTable]
     sheetWithPvCells = def & wsCells .~ testPivotSrcCells
     rowProps = M.fromList [(1, RowProps { rowHeight       = Just (CustomHeight 50)
                                         , rowStyle        = Just 3

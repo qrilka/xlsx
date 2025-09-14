@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -47,7 +46,6 @@ module Codec.Xlsx.Types (
     , wsProtection
     , wsSharedFormulas
     , wsState
-    , wsSheetId
     -- ** Cells
     , Cell.cellValue
     , Cell.cellStyle
@@ -71,12 +69,7 @@ module Codec.Xlsx.Types (
     ) where
 
 import Control.Exception (SomeException, toException)
-#ifdef USE_MICROLENS
-import Lens.Micro.TH
-import Data.Profunctor(dimap)
-import Data.Profunctor.Choice
-#else
-#endif
+import Codec.Xlsx.LensCompat (lens, Lens', makeLenses, Prism', prism)
 import Control.DeepSeq (NFData)
 import qualified Data.ByteString.Lazy as L
 import Data.Default
@@ -109,12 +102,6 @@ import Codec.Xlsx.Types.StyleSheet as X
 import Codec.Xlsx.Types.Table as X
 import Codec.Xlsx.Types.Variant as X
 import Codec.Xlsx.Writer.Internal
-#ifdef USE_MICROLENS
-import Lens.Micro
-#else
-import Control.Lens (lens, Lens', makeLenses)
-import Control.Lens.TH (makePrisms)
-#endif
 
 -- | Height of a row in points (1/72in)
 data RowHeight
@@ -124,17 +111,6 @@ data RowHeight
     -- ^ Row height is set automatically by the program
   deriving (Eq, Ord, Show, Read, Generic)
 instance NFData RowHeight
-
-#ifdef USE_MICROLENS
--- Since micro-lens denies the existence of prisms,
--- I pasted the splice that's generated from makePrisms,
--- then I copied over the definitions from Control.Lens for the prism
--- function as well.
-type Prism s t a b = forall p f. (Choice p, Applicative f) => p a (f b) -> p s (f t)
-type Prism' s a = Prism s s a a
-
-prism :: (b -> t) -> (s -> Either t a) -> Prism s t a b
-prism bt seta = dimap seta (either pure (fmap bt)) . right'
 
 _CustomHeight :: Prism' RowHeight Double
 _CustomHeight
@@ -153,11 +129,6 @@ _AutomaticHeight
               AutomaticHeight y1_a4xgi -> Right y1_a4xgi
               _ -> Left x_a4xgh)
 {-# INLINE _AutomaticHeight #-}
-
-#else
-makePrisms ''RowHeight
-#endif
-
 
 -- | Properties of a row. See §18.3.1.73 "row (Row)" for more details
 data RowProperties = RowProps
@@ -285,7 +256,6 @@ data Worksheet = Worksheet
   , _wsProtection :: Maybe SheetProtection
   , _wsSharedFormulas :: Map SharedFormulaIndex SharedFormulaOptions
   , _wsState :: SheetState
-  , _wsSheetId :: Int
   } deriving (Eq, Show, Generic)
 instance NFData Worksheet
 
@@ -309,7 +279,6 @@ instance Default Worksheet where
     , _wsProtection = Nothing
     , _wsSharedFormulas = M.empty
     , _wsState = def
-    , _wsSheetId = 1
     }
 
 -- | Raw worksheet styles, for structured implementation see 'StyleSheet'

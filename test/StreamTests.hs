@@ -52,6 +52,7 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import Text.Printf
 import Data.Conduit
+import Data.Maybe (fromJust)
 
 tshow :: Show a => a -> Text
 tshow = Text.pack . show
@@ -102,7 +103,7 @@ tests =
 readWrite :: Xlsx -> IO ()
 readWrite input = do
   BS.writeFile "testinput.xlsx" (toBs input)
-  items <- fmap (toListOf (traversed . si_row)) $ runXlsxM "testinput.xlsx" $ collectItems $ makeIndex 1
+  items <- runXlsxM "testinput.xlsx" $ collectItemsIdentifier . fromJust =<< makeIdentifierFromName "Sheet1"
   bs <- runConduitRes $ void (SW.writeXlsx SW.defaultSettings $ C.yieldMany items) .| C.foldC
   case toXlsxEither $ LB.fromStrict bs of
     Right result  ->
@@ -117,8 +118,8 @@ readWriteMultipleSheets input = do
     sheets <- reverse . _wiSheets <$> getWorkbookInfo
     let sheetCount = length sheets
     let sheetNames = map sheetInfoName sheets
-    sheetConduits <- map (C.yieldMany . toListOf (traversed . si_row))
-      <$> mapM (collectItems . makeIndex) [1..sheetCount]
+    sheetConduits <- map C.yieldMany
+      <$> mapM (collectItemsIdentifier . getSheetIdentifier) sheets
     pure $ zip sheetNames sheetConduits
 
   bs <- runConduitRes $ void (SW.writeXlsxMultipleSheets SW.defaultSettings sheetNamesAndConduits) .| C.foldC
@@ -224,11 +225,10 @@ multipleSheetsWorkbook = simpleWorkbook & atSheet "my Sheet 2" ?~ sheet
   where
     sheet = toWs [ ((RowIndex 1, ColumnIndex 1), cellValue ?~ CellText "text at A1 Sheet2" $ def)
                  , ((RowIndex 1, ColumnIndex 2), cellValue ?~ CellText "text at B1 Sheet2" $ def) ]
-            & wsSheetId .~ 2
 
 inlineStringsAreParsed :: IO ()
 inlineStringsAreParsed = do
-  items <- runXlsxM "data/inline-strings.xlsx" $ collectItems $ makeIndex 1
+  items <- runXlsxM "data/inline-strings.xlsx" $ collectItemsIdentifier . fromJust =<< makeIdentifierFromName "Sheet1"
   let expected =
         [ IM.fromList
             [ ( 1,
@@ -249,13 +249,13 @@ inlineStringsAreParsed = do
               )
             ]
         ]
-  expected @==? (items ^.. traversed . si_row . ri_cell_row)
+  expected @==? (items ^.. traversed . ri_cell_row)
 
 untypedCellsAreParsedAsFloats :: IO ()
 untypedCellsAreParsedAsFloats = do
   -- values in that file are under `General` cell-type and are not marked
   -- as numbers explicitly in `t` attribute.
-  items <- runXlsxM "data/floats.xlsx" $ collectItems $ makeIndex 1
+  items <- runXlsxM "data/floats.xlsx" $ collectItemsIdentifier . fromJust =<< makeIdentifierFromName "Лист1"
   let expected =
         [ IM.fromList [ (1, def & cellValue ?~ CellDouble 12.0) ]
         , IM.fromList [ (1, def & cellValue ?~ CellDouble 13.0) ]
@@ -265,7 +265,7 @@ untypedCellsAreParsedAsFloats = do
         , IM.fromList [ (1, def & cellValue ?~ CellDouble 14.0 & cellStyle ?~ 1 ) ]
         , IM.fromList [ (1, def & cellValue ?~ CellDouble 15.0) ]
         ]
-  expected @==? (_ri_cell_row . _si_row <$> items)
+  expected @==? (_ri_cell_row <$> items)
 
 
 richCellTextIsParsed :: IO ()
