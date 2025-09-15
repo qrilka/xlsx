@@ -14,6 +14,7 @@ module Codec.Xlsx.Writer.Stream
   ( writeXlsx
   , writeXlsxMultipleSheets
   , writeXlsxWithSharedStrings
+  , writeXlsxWithConfig
   , SheetWriteSettings(..)
   , defaultSettings
   , wsSheetView
@@ -21,6 +22,12 @@ module Codec.Xlsx.Writer.Stream
   , wsColumnProperties
   , wsRowProperties
   , wsStyles
+  , WriteXlsxConfig
+  , defWriteXlsxConfig
+  , setWriteSettings
+  , setSharedStringsMap
+  , setNamesAndConduits
+  , setNameInfosAndConduits
   -- *** Shared strings
   , sharedStrings
   , sharedStringsStream
@@ -32,7 +39,7 @@ import Codec.Xlsx.Parser.Internal (addSmlNamespace)
 import Codec.Xlsx.Parser.Stream
 import Codec.Xlsx.Types (ColumnsProperties (..), RowProperties (..),
                          Styles (..), _AutomaticHeight, _CustomHeight,
-                         emptyStyles, rowHeightLens)
+                         emptyStyles, rowHeightLens, SheetState (..))
 import Codec.Xlsx.Types.Cell
 import Codec.Xlsx.Types.Common
 import Codec.Xlsx.Types.Internal.Relationships (odr, pr, odRelNs)
@@ -67,6 +74,7 @@ import Text.XML (toXMLElement)
 import qualified Text.XML as TXML
 import Text.XML.Stream.Render
 import Text.XML.Unresolved (elementToEvents)
+import Data.Bifunctor (Bifunctor(second))
 
 
 upsertSharedStrings :: MonadState SharedStringState m => Row -> m [(Text,Int)]
@@ -134,8 +142,9 @@ writeXlsx :: MonadThrow m
     -> ConduitT () Row m () -- ^ the conduit producing sheetitems
     -> ConduitT () ByteString m Word64 -- ^ result conduit producing xlsx files
 writeXlsx settings sheetC = do
-    sstrings  <- sheetC .| sharedStrings
-    writeXlsxWithSharedStrings settings sstrings [("Sheet1", sheetC)]
+    writeXlsxWithConfig (defWriteXlsxConfig
+                        & setWriteSettings settings
+                        & setNamesAndConduits [("Sheet1", sheetC)])
 
 -- | Same as 'writeXlsx' but write to multiple sheets.
 writeXlsxMultipleSheets :: MonadThrow m
@@ -147,9 +156,9 @@ writeXlsxMultipleSheets :: MonadThrow m
     -- ^ the conduits producing sheetitems for each sheet
     -> ConduitT () ByteString m Word64 -- ^ result conduit producing xlsx files
 writeXlsxMultipleSheets settings sheets = do
-    let rowConduits = foldl (>>) mempty $ map snd sheets
-    sstrings  <- rowConduits .| sharedStrings
-    writeXlsxWithSharedStrings settings sstrings sheets
+    writeXlsxWithConfig (defWriteXlsxConfig
+                        & setWriteSettings settings
+                        & setNamesAndConduits sheets)
 
 -- TODO maybe should use bimap instead: https://hackage.haskell.org/package/bimap-0.4.0/docs/Data-Bimap.html
 -- it guarantees uniqueness of both text and int
@@ -172,23 +181,69 @@ writeXlsxWithSharedStrings :: MonadThrow m => PrimMonad m
     -> [(Text, ConduitT () Row m ())]
     -> ConduitT () ByteString m Word64
 writeXlsxWithSharedStrings settings sharedStrings' sheets =
-  combinedFiles settings sharedStrings' sheets .| zipStream (settings ^. wsZip)
+  writeXlsxWithConfig (defWriteXlsxConfig
+                      & setWriteSettings settings
+                      & setSharedStringsMap (Just sharedStrings')
+                      & setNamesAndConduits sheets)
+
+-- | Configure how to write to an xlsx. Provides setters but no getters to
+-- hide internals for future compatibility
+data WriteXlsxConfig m = MkWriteXlsxConfig
+  { _writeSettings :: SheetWriteSettings
+  , _sharedStringsMap :: Maybe (Map Text Int)
+  , _infosAndConduits :: [((Text, SheetState), ConduitT () Row m ())]
+  }
+
+-- | Create a blank config. Uses the default write setting config, derives shared
+-- strings from the conduits and has no conduits or sheet informations within.
+defWriteXlsxConfig :: WriteXlsxConfig m
+defWriteXlsxConfig = MkWriteXlsxConfig defaultSettings mempty []
+
+-- | Overwrite the existing sheet write settings.
+setWriteSettings :: SheetWriteSettings -> WriteXlsxConfig m -> WriteXlsxConfig m
+setWriteSettings ws (MkWriteXlsxConfig _ ssm iac) = MkWriteXlsxConfig ws ssm iac
+
+-- | Set the shared strings map. If set to Nothing, derives the shared strings
+-- from the conduits.
+setSharedStringsMap :: Maybe (Map Text Int) -> WriteXlsxConfig m -> WriteXlsxConfig m
+setSharedStringsMap ssm (MkWriteXlsxConfig ws _ iac) = MkWriteXlsxConfig ws ssm iac
+
+-- | Set the sheet infos and conduits for each sheet.
+setNameInfosAndConduits :: [((Text, SheetState), ConduitT () Row m ())] -> WriteXlsxConfig m -> WriteXlsxConfig m
+setNameInfosAndConduits iac (MkWriteXlsxConfig ws ssm _) = MkWriteXlsxConfig ws ssm iac
+
+-- | Set the names and conduits for each sheet. The sheet info is derived from
+-- the ordering.
+setNamesAndConduits :: [(Text, ConduitT () Row m ())] -> WriteXlsxConfig m -> WriteXlsxConfig m
+setNamesAndConduits nacs (MkWriteXlsxConfig ws ssm _) = MkWriteXlsxConfig ws ssm infosAndConduits'
+  where
+  infosAndConduits' = nacs <&> \(n, c) -> ((n, Visible), c)
+
+-- | Write to an XLSX using the 'WriteXlsxConfig' structure.
+writeXlsxWithConfig :: MonadThrow m => PrimMonad m
+    => WriteXlsxConfig m
+    -> ConduitT () ByteString m Word64
+writeXlsxWithConfig (MkWriteXlsxConfig ws ssm iac) = do
+  let rowConduits = foldr ((>>) . snd) mempty iac
+  sstrings <- maybe (rowConduits .| sharedStrings) pure ssm
+  combinedFiles ws sstrings iac .| zipStream (ws ^. wsZip)
 
 combinedFiles :: PrimMonad m
   => SheetWriteSettings
   -> Map Text Int
-  -> [(Text, ConduitT () Row m ())]
+  -> [((Text, SheetState), ConduitT () Row m ())]
   -> ConduitT () (ZipEntry, ZipData m) m ()
 combinedFiles settings sharedStrings' sheets =
-  let zippedSheets = map (\(sheetId, rowConduit) ->
+  let indicesAndSheets = zip [1..] sheets
+      zippedSheets = map (\(sheetId, (_, rowConduit)) ->
         ( zipEntry ("xl/worksheets/sheet" <> Text.pack (show sheetId) <> ".xml")
         , ZipDataSource $ rowConduit .| C.runReaderC settings (writeWorkSheet sharedStrings') .| eventsToBS
-        )) $ zip [1..(length sheets)] $ map snd sheets
+        )) indicesAndSheets
   in
   C.yieldMany $
     [ (zipEntry "xl/sharedStrings.xml", ZipDataSource $ writeSst sharedStrings' .| eventsToBS)
     , (zipEntry "[Content_Types].xml", ZipDataSource $ writeContentTypes .| eventsToBS)
-    , (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook (map fst sheets)
+    , (zipEntry "xl/workbook.xml", ZipDataSource $ writeWorkbook (map (second fst) indicesAndSheets)
     .| renderBuilder ( def {rsNamespaces=[("r", odRelNs)]})
     .| C.builderToByteString)
     , (zipEntry "xl/styles.xml", ZipDataByteString $ coerce $ settings ^. wsStyles)
@@ -219,16 +274,19 @@ writeContentTypes = doc "{http://schemas.openxmlformats.org/package/2006/content
     override "application/vnd.openxmlformats-package.relationships+xml" "/_rels/.rels"
 
 -- | required by Excel.
-writeWorkbook :: Monad m => [Text] -> forall i.  ConduitT i Event m ()
-writeWorkbook sheetNames =
-  let addSheet (sheetId, sheetName) = tag (addSmlNamespace "sheet")
+writeWorkbook :: Monad m => [(Int, (Text, SheetState))] -> forall i.  ConduitT i Event m ()
+writeWorkbook sheetInfos =
+  let addSheet (sheetId, (sheetName, visibility)) = tag (addSmlNamespace "sheet")
           (attr "name" sheetName
           <> attr "sheetId" (Text.pack $ show sheetId)
           <> attr (odr "id") ("rId" <> (Text.pack $ show (sheetId + 2)))
+          <> attr "state" (case visibility of
+                              Visible    -> "visible"
+                              Hidden     -> "hidden"
+                              VeryHidden -> "veryHidden")
           ) $ pure ()
-      sheetIdAndName = zip [1..(length sheetNames)] sheetNames
   in doc (addSmlNamespace "workbook") $
-    el (addSmlNamespace "sheets") $ mapM_ addSheet sheetIdAndName
+    el (addSmlNamespace "sheets") $ mapM_ addSheet sheetInfos
 
 doc :: Monad m => Name ->  forall i.  ConduitT i Event m () -> ConduitT i Event m ()
 doc root docM = do
