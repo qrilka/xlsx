@@ -1,3 +1,12 @@
+1.2.0
+------------
+* expose sheet state in stream parser
+  (thanks to Benjamin McRae <benjamin@supercede.com>)
+* drop unnecessary `n`  namespace from stream writer
+  (thanks to Michael Schneider <michael@m1-s.com>)
+* add support support for writing multiple sheets with stream writer
+  (thanks to Michael Schneider <michael@m1-s.com>)
+
 1.1.4
 ------------
 * fix the problem with leading slashes for comments, drawings and pivot tables
