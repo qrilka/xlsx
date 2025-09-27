@@ -22,3 +22,6 @@ result-doc
 .envrc
 .direnv
 cabal.project.local
+
+# xlsx files generated while testing/running examples
+*.xlsx

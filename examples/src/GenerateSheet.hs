@@ -20,7 +20,7 @@ import qualified Data.Map.Strict as Map
 main :: IO ()
 main = do
     ct <- getPOSIXTime
-    let name :: String = "stylesheet-example"
+    let name :: String = "example"
         ws = def
                  & addHeaders
                  & addItems
@@ -33,7 +33,7 @@ addHeaders :: Worksheet -> Worksheet
 addHeaders sheet =
     sheet
         & cellValueAt (1, 1) ?~ CellText "Make"                 -- A simple text
-        & cellValueAt (1, 2) ?~ CellText "Model"                -- A Integer
+        & cellValueAt (1, 2) ?~ CellText "Model"                -- An Integer
         & cellValueAt (1, 3) ?~ CellText "Year"                 -- Data for Year will be a Maybe value
         & cellValueAt (1, 4) ?~ CellText "Sales (in thousands)" -- Decimal number
         & cellValueAt (1, 5) ?~ CellText "Fuel type"            -- This will be a dropdown and the allowed values are: Gasoline, Diesel, Hybrid and Electric

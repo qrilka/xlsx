@@ -1,3 +1,4 @@
 resolver: lts-20.26
 packages:
 - '.'
+- examples/
