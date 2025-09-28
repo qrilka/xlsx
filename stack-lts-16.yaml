@@ -1,6 +1,7 @@
 resolver: lts-16.31
 packages:
 - '.'
+- examples/
 
 extra-deps:
 - indexed-traversable-0.1.2@sha256:d66228887242f93ccb4fc7101a1e25a6560c8e4708f6e9ee1d3dd21901756c65,2519

@@ -35,11 +35,15 @@ jobs:
         with:
           path: ~/.stack
           key: ${{ runner.os }}-${{ hashFiles(matrix.stack-yaml) }}-${{ matrix.extra-args }}
-      - name: Build and run tests
+      - name: Build
         shell: bash
         run: |
             set -ex
             sudo apt-get -y install libbz2-dev
             stack upgrade
             stack --version
-            stack test --fast --stack-yaml=${{ matrix.stack-yaml }} ${{ matrix.extra-args }}
+            stack build --fast --stack-yaml=${{ matrix.stack-yaml }} ${{ matrix.extra-args }}
+      - name: Test
+        shell: bash
+        run: |
+          stack test --fast --stack-yaml=${{ matrix.stack-yaml }} ${{ matrix.extra-args }}
