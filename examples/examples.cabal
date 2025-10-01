@@ -19,6 +19,7 @@ library
     -fwarn-incomplete-record-updates
 
   exposed-modules: GenerateSheet
+                 , Stylesheet
 
   build-depends:  base >= 4.7
                 , bytestring
