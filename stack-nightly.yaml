@@ -1,4 +1,4 @@
-resolver: nightly-2023-07-07
+resolver: nightly-2025-09-29 # ghc-9.12.2
 packages:
 - '.'
 - examples/
