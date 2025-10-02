@@ -13,11 +13,8 @@ jobs:
       matrix:
         include:
         - os: ubuntu-latest
-          stack-yaml: stack-lts-20.yaml
+          stack-yaml: stack-lts-21.yaml
           extra-args: "--flag xlsx:microlens"
-        - os: ubuntu-latest
-          stack-yaml: stack-lts-20.yaml # GHC 9.2
-          extra-args: ""
         - os: ubuntu-latest
           stack-yaml: stack-lts-21.yaml # GHC 9.4
           extra-args: ""
