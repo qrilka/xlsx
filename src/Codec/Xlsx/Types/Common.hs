@@ -61,6 +61,7 @@ module Codec.Xlsx.Types.Common
 
 import GHC.Generics (Generic)
 
+import Control.Applicative (liftA2)
 import Control.Arrow
 import Control.DeepSeq (NFData)
 import Control.Monad (forM, guard)
