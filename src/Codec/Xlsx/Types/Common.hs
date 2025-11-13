@@ -1,10 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TupleSections              #-}
 
 module Codec.Xlsx.Types.Common
   ( CellRef(..)
@@ -33,6 +32,8 @@ module Codec.Xlsx.Types.Common
   , fromRange
   , fromRange'
   , fromForeignRange
+  , SheetName
+  , mkSheetName
   , SqRef(..)
   , XlsxText(..)
   , xlsxTextToCellValue
@@ -67,23 +68,23 @@ import Control.Monad (forM, guard)
 import Data.Bifunctor (bimap)
 import qualified Data.ByteString as BS
 import Data.Char
-import Data.Maybe (isJust, fromMaybe)
 import Data.Function ((&))
 import Data.Ix (inRange)
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time.Calendar (Day, addDays, diffDays, fromGregorian)
-import Data.Time.Clock (UTCTime(UTCTime), picosecondsToDiffTime)
+import Data.Time.Clock (UTCTime (UTCTime), picosecondsToDiffTime)
 import Safe
 import Text.XML
 import Text.XML.Cursor
 
+import Codec.Xlsx.LensCompat (Prism', prism)
 import Codec.Xlsx.Parser.Internal
 import Codec.Xlsx.Types.RichText
 import Codec.Xlsx.Writer.Internal
-import Codec.Xlsx.LensCompat (Prism', prism)
 
 newtype RowIndex = RowIndex {unRowIndex :: Int}
   deriving (Eq, Ord, Show, Read, Generic, Num, Real, Enum, Integral)
@@ -228,7 +229,7 @@ fromSingleCellRef' = fromSingleCellRefRaw' . unCellRef
 
 fromSingleCellRefRaw :: Text -> Maybe (RowIndex, ColumnIndex)
 fromSingleCellRefRaw =
-  fmap (first unRowCoord . second unColumnCoord) . fromSingleCellRefRaw'
+  fmap (bimap unRowCoord unColumnCoord) . fromSingleCellRefRaw'
 
 fromSingleCellRefRaw' :: Text -> Maybe CellCoord
 fromSingleCellRefRaw' t' = ignoreRefSheetName t' >>= \t -> do
@@ -277,8 +278,8 @@ ignoreRefSheetName :: Text -> Maybe Text
 ignoreRefSheetName t =
   case T.split (== '!') t of
     [_, r] -> Just r
-    [r] -> Just r
-    _ -> Nothing
+    [r]    -> Just r
+    _      -> Nothing
 
 -- | Render a single cell existing in another worksheet.
 -- This function always renders the sheet name single-quoted regardless the presence of spaces.
@@ -349,6 +350,29 @@ fromForeignRange r =
       [sheetName, ref] -> (unEscapeRefSheetName sheetName,) <$> fromRange' (CellRef ref)
       _ -> Nothing
 
+-- | Name of a worksheet in the supporting workbook
+--
+-- See 18.14.15 "sheetName (Sheet Name)"
+newtype SheetName = SheetName {unSheetName :: Text}
+    deriving (Eq, Ord, Show, Generic)
+
+instance NFData SheetName
+
+-- Smart constructor to create a SheetName from a given text following a set of validators.
+--
+-- 1. The character count MUST be >= 1 and <= 31.
+-- 2. The string MUST NOT contain the any of the following characters:
+--    '\0', '\x03', ':', '\\', '*', '?', '/', '[', ']'
+-- 3. The string MUST NOT begin or end with the single quote(') character.
+mkSheetName :: Text -> Maybe SheetName
+mkSheetName t
+  | T.length t < 1 || T.length t > 31 = Nothing
+  | T.any (`elem` forbiddenChars) t = Nothing
+  | T.isPrefixOf "'" t || T.isSuffixOf "'" t = Nothing
+  | otherwise = Just (SheetName t)
+  where
+    forbiddenChars = ['\0', '\x03', ':', '\\', '*', '?', '/', '[', ']']
+
 -- | A sequence of cell references
 --
 -- See 18.18.76 "ST_Sqref (Reference Sequence)" (p.2488)
@@ -382,7 +406,7 @@ data XlsxText = XlsxText Text
 instance NFData XlsxText
 
 xlsxTextToCellValue :: XlsxText -> CellValue
-xlsxTextToCellValue (XlsxText txt) = CellText txt
+xlsxTextToCellValue (XlsxText txt)      = CellText txt
 xlsxTextToCellValue (XlsxRichText rich) = CellRich rich
 
 -- | A formula
@@ -407,7 +431,6 @@ data CellValue
   | CellRich [RichTextRun]
   | CellError ErrorType
   deriving (Eq, Ord, Show, Generic)
-
 
 instance NFData CellValue
 
@@ -559,7 +582,7 @@ instance FromXenoNode XlsxText where
       Nothing ->
         case rs of
           [] -> Left $ "missing rich text subelements"
-          _ -> return $ XlsxRichText rs
+          _  -> return $ XlsxRichText rs
 
 instance FromAttrVal CellRef where
   fromAttrVal = fmap (first CellRef) . fromAttrVal
@@ -595,23 +618,23 @@ instance FromAttrBs Formula where
 
 instance FromAttrVal ErrorType where
   fromAttrVal "#DIV/0!" = readSuccess ErrorDiv0
-  fromAttrVal "#N/A" = readSuccess ErrorNA
-  fromAttrVal "#NAME?" = readSuccess ErrorName
-  fromAttrVal "#NULL!" = readSuccess ErrorNull
-  fromAttrVal "#NUM!" = readSuccess ErrorNum
-  fromAttrVal "#REF!" = readSuccess ErrorRef
+  fromAttrVal "#N/A"    = readSuccess ErrorNA
+  fromAttrVal "#NAME?"  = readSuccess ErrorName
+  fromAttrVal "#NULL!"  = readSuccess ErrorNull
+  fromAttrVal "#NUM!"   = readSuccess ErrorNum
+  fromAttrVal "#REF!"   = readSuccess ErrorRef
   fromAttrVal "#VALUE!" = readSuccess ErrorValue
-  fromAttrVal t = invalidText "ErrorType" t
+  fromAttrVal t         = invalidText "ErrorType" t
 
 instance FromAttrBs ErrorType where
   fromAttrBs "#DIV/0!" = return ErrorDiv0
-  fromAttrBs "#N/A" = return ErrorNA
-  fromAttrBs "#NAME?" = return ErrorName
-  fromAttrBs "#NULL!" = return ErrorNull
-  fromAttrBs "#NUM!" = return ErrorNum
-  fromAttrBs "#REF!" = return ErrorRef
+  fromAttrBs "#N/A"    = return ErrorNA
+  fromAttrBs "#NAME?"  = return ErrorName
+  fromAttrBs "#NULL!"  = return ErrorNull
+  fromAttrBs "#NUM!"   = return ErrorNum
+  fromAttrBs "#REF!"   = return ErrorRef
   fromAttrBs "#VALUE!" = return ErrorValue
-  fromAttrBs x = unexpectedAttrBs "ErrorType" x
+  fromAttrBs x         = unexpectedAttrBs "ErrorType" x
 
 {-------------------------------------------------------------------------------
   Rendering
@@ -640,12 +663,12 @@ instance ToElement Formula where
     toElement nm (Formula txt) = elementContent nm txt
 
 instance ToAttrVal ErrorType where
-  toAttrVal ErrorDiv0 = "#DIV/0!"
-  toAttrVal ErrorNA = "#N/A"
-  toAttrVal ErrorName = "#NAME?"
-  toAttrVal ErrorNull = "#NULL!"
-  toAttrVal ErrorNum = "#NUM!"
-  toAttrVal ErrorRef = "#REF!"
+  toAttrVal ErrorDiv0  = "#DIV/0!"
+  toAttrVal ErrorNA    = "#N/A"
+  toAttrVal ErrorName  = "#NAME?"
+  toAttrVal ErrorNull  = "#NULL!"
+  toAttrVal ErrorNum   = "#NUM!"
+  toAttrVal ErrorRef   = "#REF!"
   toAttrVal ErrorValue = "#VALUE!"
 
 -- Since micro-lens denies the existence of prisms,
@@ -660,7 +683,7 @@ _CellText
       (\ x_a1ZQw
          -> case x_a1ZQw of
               CellText y1_a1ZQx -> Right y1_a1ZQx
-              _ -> Left x_a1ZQw)
+              _                 -> Left x_a1ZQw)
 {-# INLINE _CellText #-}
 _CellDouble :: Prism' CellValue Double
 _CellDouble
@@ -668,7 +691,7 @@ _CellDouble
       (\ x_a1ZQz
          -> case x_a1ZQz of
               CellDouble y1_a1ZQA -> Right y1_a1ZQA
-              _ -> Left x_a1ZQz)
+              _                   -> Left x_a1ZQz)
 {-# INLINE _CellDouble #-}
 _CellBool :: Prism' CellValue Bool
 _CellBool
@@ -676,7 +699,7 @@ _CellBool
       (\ x_a1ZQC
          -> case x_a1ZQC of
               CellBool y1_a1ZQD -> Right y1_a1ZQD
-              _ -> Left x_a1ZQC)
+              _                 -> Left x_a1ZQC)
 {-# INLINE _CellBool #-}
 _CellRich :: Prism' CellValue [RichTextRun]
 _CellRich
@@ -684,7 +707,7 @@ _CellRich
       (\ x_a1ZQF
          -> case x_a1ZQF of
               CellRich y1_a1ZQG -> Right y1_a1ZQG
-              _ -> Left x_a1ZQF)
+              _                 -> Left x_a1ZQF)
 {-# INLINE _CellRich #-}
 _CellError :: Prism' CellValue ErrorType
 _CellError
@@ -692,7 +715,7 @@ _CellError
       (\ x_a1ZQI
          -> case x_a1ZQI of
               CellError y1_a1ZQJ -> Right y1_a1ZQJ
-              _ -> Left x_a1ZQI)
+              _                  -> Left x_a1ZQI)
 {-# INLINE _CellError #-}
 
 _XlsxText :: Prism' XlsxText Text
@@ -701,7 +724,7 @@ _XlsxText
       (\ x_a1ZzV
          -> case x_a1ZzV of
               XlsxText y1_a1ZzW -> Right y1_a1ZzW
-              _ -> Left x_a1ZzV)
+              _                 -> Left x_a1ZzV)
 {-# INLINE _XlsxText #-}
 _XlsxRichText :: Prism' XlsxText [RichTextRun]
 _XlsxRichText
@@ -709,5 +732,5 @@ _XlsxRichText
       (\ x_a1ZzY
          -> case x_a1ZzY of
               XlsxRichText y1_a1ZzZ -> Right y1_a1ZzZ
-              _ -> Left x_a1ZzY)
+              _                     -> Left x_a1ZzY)
 {-# INLINE _XlsxRichText #-}
