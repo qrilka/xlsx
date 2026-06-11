@@ -42,7 +42,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Unsafe as SU
 import Data.Char (chr)
 import Data.Maybe
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -76,7 +75,6 @@ instance Alternative ChildCollector where
     either (const $ g ns) Right (f ns)
 
 instance Monad ChildCollector where
-  return = pure
   ChildCollector f >>= g = ChildCollector $ \ns ->
     either Left (\(!ns', f') -> runChildCollector (g f') ns') (f ns)
 
@@ -153,12 +151,11 @@ newtype AttrParser a = AttrParser
   }
 
 instance Monad AttrParser where
-  return a = AttrParser $ \as -> Right (as, a)
   (AttrParser f) >>= g =
     AttrParser $ \as ->
       either Left (\(as', f') -> runAttrParser (g f') as') (f as)
 instance Applicative AttrParser where
-    pure = return
+    pure a = AttrParser $ \as -> Right (as, a)
     (<*>) = ap
 instance Functor AttrParser where
   fmap = liftM
