@@ -118,10 +118,10 @@ renderShapes (CommentTable m) = LB.concat
         , "<x:MoveWithCells></x:MoveWithCells><x:SizeWithCells></x:SizeWithCells>"
         , "<x:Anchor>4, 15, 0, 7, 6, 31, 5, 1</x:Anchor><x:AutoFill>False</x:AutoFill>"
         , "<x:Row>"
-        , LBC8.pack $ show (r - 1)
+        , LBC8.pack $ show (unRowIndex r - 1)
         , "</x:Row>"
         , "<x:Column>"
-        , LBC8.pack $ show (c - 1)
+        , LBC8.pack $ show (unColumnIndex c - 1)
         , "</x:Column>"
         , "</x:ClientData>"
         , "</v:shape>"
