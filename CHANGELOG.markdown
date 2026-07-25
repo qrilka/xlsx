@@ -1,3 +1,10 @@
+1.3.0
+------------
+* fix row/column rendering in comment shapes 
+  (thanks to Tom Ellis <tom-github@jaguarpaw.co.uk> for reporting)
+* support for monad of no return (thanks to Kevin Brubeck Unhammer <unhammer@fsfe.org>)
+* dropped support for GHC 9.2.* and 9.4.* and added support for GHC 9.10.* and 9.12.*
+
 1.2.0
 ------------
 * expose sheet state in stream parser
