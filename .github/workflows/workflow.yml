@@ -13,11 +13,8 @@ jobs:
       matrix:
         include:
         - os: ubuntu-latest
-          stack-yaml: stack-lts-21.yaml
+          stack-yaml: stack-lts-22.yaml
           extra-args: "--flag xlsx:microlens"
-        - os: ubuntu-latest
-          stack-yaml: stack-lts-21.yaml # GHC 9.4
-          extra-args: ""
         - os: ubuntu-latest
           stack-yaml: stack-lts-22.yaml # GHC 9.6
           extra-args: ""
@@ -26,6 +23,9 @@ jobs:
           extra-args: ""
         - os: ubuntu-latest
           stack-yaml: stack-lts-24.yaml # GHC 9.10
+          extra-args: ""
+        - os: ubuntu-latest
+          stack-yaml: stack-nightly.yaml # GHC 9.12
           extra-args: ""
     steps:
       - name: Clone project
