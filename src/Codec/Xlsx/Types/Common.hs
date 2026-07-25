@@ -47,6 +47,7 @@ module Codec.Xlsx.Types.Common
   , col2int
   , columnIndexToText
   , textToColumnIndex
+  , rowIndexToText
   -- ** prisms
   , _XlsxText
   , _XlsxRichText

@@ -186,40 +186,20 @@ smallWorkbook = def & atSheet "Sheet1" ?~ sheet
   where
     sheet = toWs $ [1..2] >>= \row ->
                   [((row,1), a1)
-                  , ((row,2), def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
+                  , ((row,2), def & cellValue ?~ CellText ("text at B"<> rowIndexToText row <> " Sheet1"))
                   , ((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
                   , ((row,4), def & cellValue ?~ CellDouble (0.2 + 0.1))
                   , ((row,5), def & cellValue ?~ CellBool False)
                   ]
---    sheets = [("Sheet1" , toWs $ [1..2] >>= \row ->
---        [ ((RowIndex row, ColumnIndex 1), a1)
---        , ((RowIndex row, ColumnIndex 2),
---            def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
---        , ((RowIndex row, ColumnIndex 3),
---            def & cellValue ?~ CellText "text at C1 Sheet1")
---        , ((RowIndex row, ColumnIndex 4),
---            def & cellValue ?~ CellDouble (0.2 + 0.1))
---        , ((RowIndex row, ColumnIndex 5),
---            def & cellValue ?~ CellBool False)
---        ]
---      )]
 
 bigWorkbook :: Xlsx
 bigWorkbook = def & atSheet "Sheet1" ?~ sheet
   where
     sheet = toWs $ [1..512] >>= \row ->
                   [((row,1), a1)
-                  ,((row,2), def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
+                  ,((row,2), def & cellValue ?~ CellText ("text at B"<> rowIndexToText row <> " Sheet1"))
                   ,((row,3), def & cellValue ?~ CellText "text at C1 Sheet1")
                   ]
---    sheets = [("Sheet1" , toWs $ [1..512] >>= \row ->
---        [((RowIndex row, ColumnIndex 1), a1)
---        ,((RowIndex row, ColumnIndex 2),
---            def & cellValue ?~ CellText ("text at B"<> tshow row <> " Sheet1"))
---        ,((RowIndex row, ColumnIndex 3),
---            def & cellValue ?~ CellText "text at C1 Sheet1")
---        ]
---      )]
 
 multipleSheetsWorkbook :: Xlsx
 multipleSheetsWorkbook = simpleWorkbook
