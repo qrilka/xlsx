@@ -193,7 +193,7 @@ test-suite data-test
 
 source-repository head
   type:     git
-  location: git://github.com/qrilka/xlsx.git
+  location: https://github.com/qrilka/xlsx.git
 
 benchmark bench
   type: exitcode-stdio-1.0
