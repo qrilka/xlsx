@@ -116,16 +116,17 @@ sstConstruct =
     uniq = Set.elems . Set.fromList
 
 sstLookupText :: SharedStringTable -> Text -> Int
-sstLookupText sst = sstLookup sst . XlsxText
+sstLookupText sst = sstLookup sst . XlsxText . cleanText
 
 sstLookupRich :: SharedStringTable -> [RichTextRun] -> Int
-sstLookupRich sst = sstLookup sst . XlsxRichText
+sstLookupRich sst rich = sstLookup sst $ XlsxRichText (rich & traverse.richTextRunText %~ cleanText)
 
 -- | Internal generalization used by 'sstLookupText' and 'sstLookupRich'
 sstLookup :: SharedStringTable -> XlsxText -> Int
 sstLookup SharedStringTable{sstTable = shared} si =
-    fromJustNote ("SST entry for " ++ show si ++ " not found") $
-    searchFromTo (\p -> shared V.! p >= si) 0 (V.length shared - 1)
+    case searchFromTo (\p -> shared V.! p >= si) 0 (V.length shared - 1) of
+      Just i | shared V.! i == si -> i
+      _ -> error ("SST entry for " ++ show si ++ " not found")
 
 sstItem :: SharedStringTable -> Int -> Maybe XlsxText
 sstItem (SharedStringTable shared) = (V.!?) shared
